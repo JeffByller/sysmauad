@@ -1,0 +1,14 @@
+# /start-dev
+
+**Description**: Starts all services in development mode with hot‑reload for backend and frontend.
+
+**Usage**:
+```
+/agy run /start-dev
+```
+
+**Implementation**:
+- Runs `docker compose up --build -d` to start containers.
+- Executes `npm run dev` in `backend` and `frontend` directories in watch mode.
+- Streams logs for quick feedback.
+```
