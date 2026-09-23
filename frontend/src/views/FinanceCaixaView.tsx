@@ -16,6 +16,7 @@ import {
   Receipt
 } from 'lucide-react';
 import { Order } from '../types';
+import { getDatePresets, getLocalDateString } from '../utils/dateUtils';
 
 export const FinanceCaixaView: React.FC = () => {
   const { orders, clients, payMultipleInvoiceOrders } = useOrders();
@@ -24,11 +25,8 @@ export const FinanceCaixaView: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
 
-  // ─── PERÍODO & DATAS ────────────────────────────────────────────────────────
-  const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
-  const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-  const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+  // ─── PERÍODO & DATAS (Fuso Horário America/Sao_Paulo) ─────────────────────────
+  const { todayStr, firstDayOfMonth, lastDayOfMonth, sevenDaysAgo } = useMemo(() => getDatePresets(), []);
 
   const [periodPreset, setPeriodPreset] = useState<'hoje' | 'semana' | 'mes' | 'custom'>('mes');
   const [startDate, setStartDate] = useState<string>(firstDayOfMonth);
@@ -38,16 +36,16 @@ export const FinanceCaixaView: React.FC = () => {
   // Ajusta período rápido
   const setQuickPeriod = (preset: 'hoje' | 'semana' | 'mes') => {
     setPeriodPreset(preset);
+    const presets = getDatePresets();
     if (preset === 'hoje') {
-      setStartDate(todayStr);
-      setEndDate(todayStr);
+      setStartDate(presets.todayStr);
+      setEndDate(presets.todayStr);
     } else if (preset === 'semana') {
-      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      setStartDate(sevenDaysAgo);
-      setEndDate(todayStr);
+      setStartDate(presets.sevenDaysAgo);
+      setEndDate(presets.todayStr);
     } else if (preset === 'mes') {
-      setStartDate(firstDayOfMonth);
-      setEndDate(lastDayOfMonth);
+      setStartDate(presets.firstDayOfMonth);
+      setEndDate(presets.lastDayOfMonth);
     }
   };
 
@@ -82,7 +80,7 @@ export const FinanceCaixaView: React.FC = () => {
   // ─── FILTRAGEM DE ORDENS DE SERVIÇO ─────────────────────────────────────────
   const reportOrders = useMemo(() => {
     return orders.filter(ord => {
-      const orderDate = ord.createdAt.split('T')[0];
+      const orderDate = getLocalDateString(ord.createdAt);
       const inDateRange = (!startDate || orderDate >= startDate) && (!endDate || orderDate <= endDate);
       if (!inDateRange) return false;
 

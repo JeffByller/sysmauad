@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useOrders } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
 import { Printer, FileText, Shirt, Truck, UserCheck, ArrowLeft } from 'lucide-react';
+import { getDatePresets, getLocalDateString } from '../utils/dateUtils';
 
 export const PassadorReportView: React.FC = () => {
   const { passadores, orders, insumoEntries, suppliers } = useOrders();
@@ -15,11 +16,8 @@ export const PassadorReportView: React.FC = () => {
   const [selectedPassadorId, setSelectedPassadorId] = useState<string>('all');
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>('all');
 
-  // Filtros de Data
-  const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
-  const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-  const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+  // Filtros de Data (America/Sao_Paulo)
+  const { todayStr, firstDayOfMonth, lastDayOfMonth } = useMemo(() => getDatePresets(), []);
 
   const [startDate, setStartDate] = useState<string>(firstDayOfMonth);
   const [endDate, setEndDate] = useState<string>(lastDayOfMonth);
@@ -28,16 +26,16 @@ export const PassadorReportView: React.FC = () => {
   // Ajusta período rápido
   const setQuickPeriod = (preset: 'hoje' | 'semana' | 'mes') => {
     setPeriodPreset(preset);
+    const presets = getDatePresets();
     if (preset === 'hoje') {
-      setStartDate(todayStr);
-      setEndDate(todayStr);
+      setStartDate(presets.todayStr);
+      setEndDate(presets.todayStr);
     } else if (preset === 'semana') {
-      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      setStartDate(sevenDaysAgo);
-      setEndDate(todayStr);
+      setStartDate(presets.sevenDaysAgo);
+      setEndDate(presets.todayStr);
     } else if (preset === 'mes') {
-      setStartDate(firstDayOfMonth);
-      setEndDate(lastDayOfMonth);
+      setStartDate(presets.firstDayOfMonth);
+      setEndDate(presets.lastDayOfMonth);
     }
   };
 
@@ -67,7 +65,7 @@ export const PassadorReportView: React.FC = () => {
   const processReport = (() => {
     const processMap: Record<string, number> = {};
     orders.forEach(order => {
-      const orderDate = order.createdAt.split('T')[0];
+      const orderDate = getLocalDateString(order.createdAt);
       const isInRange = (!startDate || orderDate >= startDate) && (!endDate || orderDate <= endDate);
       if (!isInRange) return;
       order.items.forEach(item => {
@@ -82,7 +80,7 @@ export const PassadorReportView: React.FC = () => {
 
   // 2. DADOS: Produção de Passadoria
   const allLogs = orders.flatMap(o => o.ironingLogs.map(l => ({ ...l, clientName: o.clientName }))).filter(log => {
-    const logDate = log.timestamp.split('T')[0];
+    const logDate = getLocalDateString(log.timestamp);
     const isAfterStart = !startDate || logDate >= startDate;
     const isBeforeEnd = !endDate || logDate <= endDate;
     return isAfterStart && isBeforeEnd;
@@ -111,7 +109,7 @@ export const PassadorReportView: React.FC = () => {
 
   // 3. DADOS: Entradas de Insumos / Fornecedores
   const filteredInsumos = insumoEntries.filter(entry => {
-    const entryDate = entry.enteredAt.split('T')[0];
+    const entryDate = getLocalDateString(entry.enteredAt);
     const isAfterStart = !startDate || entryDate >= startDate;
     const isBeforeEnd = !endDate || entryDate <= endDate;
     return isAfterStart && isBeforeEnd;

@@ -9,10 +9,14 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-sysmauad}
       POSTGRES_USER: ${POSTGRES_USER:-sysmauad_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sysmauad_pass}
+      TZ: America/Sao_Paulo
+      PGTZ: America/Sao_Paulo
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     networks:
       - sysmauad-net
 
@@ -39,10 +43,14 @@ services:
       - CACHE_REDIS_SAVE_INSTANCES=false
       - CACHE_LOCAL_ENABLED=true
       - NODE_OPTIONS=--max-old-space-size=400
+      - TZ=America/Sao_Paulo
     depends_on:
       - postgres
     ports:
       - "8080:8080"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     networks:
       - sysmauad-net
 
@@ -56,6 +64,7 @@ services:
     restart: always
     environment:
       - PORT=3001
+      - TZ=America/Sao_Paulo
       - DATABASE_URL=postgresql://${POSTGRES_USER:-sysmauad_user}:${POSTGRES_PASSWORD:-sysmauad_pass}@postgres:5432/${POSTGRES_DB:-sysmauad}?schema=public
       - EVOLUTION_API_URL=http://evolution-api:8080
       - EVOLUTION_API_KEY=${EVOLUTION_API_KEY:-sysmauad_evo_secret_key}
@@ -63,6 +72,8 @@ services:
       - "3001:3001"
     volumes:
       - ./data:/app/data
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     depends_on:
       - postgres
     networks:
@@ -75,6 +86,11 @@ services:
       dockerfile: Dockerfile
     container_name: sysmauad-frontend
     restart: always
+    environment:
+      - TZ=America/Sao_Paulo
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     networks:
       - sysmauad-net
 
@@ -83,6 +99,8 @@ services:
     image: nginx:alpine
     container_name: sysmauad-nginx
     restart: always
+    environment:
+      - TZ=America/Sao_Paulo
     ports:
       - "80:80"
       - "443:443"
@@ -90,6 +108,8 @@ services:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - /var/www/certbot:/var/www/certbot:ro
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     depends_on:
       - frontend
       - backend

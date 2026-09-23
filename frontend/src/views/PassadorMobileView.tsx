@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useOrders } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
 import { QrCode, CheckCircle2, AlertTriangle, ArrowRight, Clock, Calendar } from 'lucide-react';
+import { getDatePresets, getLocalDateString } from '../utils/dateUtils';
 
 interface PassadorMobileViewProps {
   onOpenScanner: () => void;
@@ -60,27 +61,24 @@ export const PassadorMobileView: React.FC<PassadorMobileViewProps> = ({ onOpenSc
     .filter(l => l.passadorId === targetPassadorId)
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-  // Datas de referência para Dia, Semana e Mês
-  const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
-  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  // Datas de referência para Dia, Semana e Mês (America/Sao_Paulo)
+  const { todayStr, sevenDaysAgo, thirtyDaysAgo } = getDatePresets();
 
   const piecesToday = myLogs
-    .filter(l => l.timestamp.startsWith(todayStr))
+    .filter(l => getLocalDateString(l.timestamp) === todayStr)
     .reduce((sum, l) => sum + l.piecesIroned, 0);
 
   const piecesWeek = myLogs
-    .filter(l => l.timestamp.split('T')[0] >= sevenDaysAgo)
+    .filter(l => getLocalDateString(l.timestamp) >= sevenDaysAgo)
     .reduce((sum, l) => sum + l.piecesIroned, 0);
 
   const piecesMonth = myLogs
-    .filter(l => l.timestamp.split('T')[0] >= thirtyDaysAgo)
+    .filter(l => getLocalDateString(l.timestamp) >= thirtyDaysAgo)
     .reduce((sum, l) => sum + l.piecesIroned, 0);
 
   // Logs filtrados pelo período selecionado (apenas visualização)
   const filteredConsultLogs = myLogs.filter(l => {
-    const logDate = l.timestamp.split('T')[0];
+    const logDate = getLocalDateString(l.timestamp);
     if (consultPeriod === 'dia') return logDate === todayStr;
     if (consultPeriod === 'semana') return logDate >= sevenDaysAgo;
     return logDate >= thirtyDaysAgo;
