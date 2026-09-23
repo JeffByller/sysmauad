@@ -164,7 +164,7 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack 
       {/* 1. NOTA DE ENTRADA — ESTILO IDÊNTICO AO DESSE PEDIDO.PDF       */}
       {/* ───────────────────────────────────────────────────────────── */}
       {(printMode === 'ambos' || printMode === 'nota') && (
-        <div className={`bg-white text-slate-900 p-8 rounded-xl border border-slate-300 shadow-md space-y-2 font-mono text-[11px] leading-tight print:border-0 print:shadow-none print:p-0 print:m-0 ${printMode === 'ambos' ? 'page-break mb-12' : ''}`}>
+        <div className={`bg-white text-slate-900 p-8 rounded-xl border border-slate-300 shadow-md space-y-2 font-mono text-[11px] leading-tight print-sheet ${printMode === 'ambos' ? 'page-break mb-12' : ''}`}>
           {/* Cabeçalho */}
           <div className="flex justify-between items-start font-bold text-xs uppercase">
             <span>LAVANDERIA MAUAD</span>
@@ -299,7 +299,7 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack 
       {/* 2. RECEITA / FICHA DO LAVADO — ESTILO LAVADO COM PROCESSOS.PDF */}
       {/* ───────────────────────────────────────────────────────────── */}
       {(printMode === 'ambos' || printMode === 'receita') && (
-        <div className="bg-white text-slate-900 p-8 rounded-xl border border-slate-300 shadow-md space-y-2 font-mono text-[11px] leading-tight print:border-0 print:shadow-none print:p-0 print:m-0">
+        <div className="bg-white text-slate-900 p-8 rounded-xl border border-slate-300 shadow-md space-y-2 font-mono text-[11px] leading-tight print-sheet">
           {/* Cabeçalho */}
           <div className="flex justify-between items-start font-bold text-xs uppercase">
             <span>LAVANDERIA MAUAD</span>

@@ -387,7 +387,7 @@ export const PassadorReportView: React.FC = () => {
       {/* ───────────────────────────────────────────────────────────── */}
       {/* FOLHA DO RELATÓRIO — FORMATO SIMPLES E IDÊNTICO AO ENTRADA.PDF */}
       {/* ───────────────────────────────────────────────────────────── */}
-      <div className="bg-white text-slate-900 p-8 rounded-xl border border-slate-300 shadow-md space-y-4 print:border-0 print:shadow-none print:p-0 print:m-0 text-xs">
+      <div className="bg-white text-slate-900 p-8 rounded-xl border border-slate-300 shadow-md space-y-4 print-sheet text-xs">
         {/* Cabeçalho do Documento */}
         <div className="flex justify-between items-start text-xs font-bold leading-tight">
           <span>LAVANDERIA MAUAD</span>

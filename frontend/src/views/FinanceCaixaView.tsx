@@ -576,27 +576,23 @@ export const FinanceCaixaView: React.FC = () => {
       </div>
 
       {/* ─── FOLHA DE IMPRESSÃO / PDF (Exibida exclusivamente ao imprimir) ─── */}
-      <div className="print-only bg-white text-black p-6 space-y-6 text-xs font-sans">
-        {/* Cabeçalho Oficial */}
-        <div className="border-b-2 border-black pb-4 flex justify-between items-start">
+      <div className="print-only bg-white text-black space-y-5 text-xs font-sans">
+        {/* Cabeçalho Oficial Simplificado */}
+        <div className="border-b-2 border-black pb-3 flex justify-between items-end">
           <div>
-            <h1 className="text-xl font-bold uppercase tracking-tight text-black">MAUAD LAVANDERIA INDUSTRIAL</h1>
-            <p className="text-[10px] uppercase tracking-widest text-slate-600 font-mono">
-              Controle Operacional & Processamento Têxtil Especializado
-            </p>
-            <p className="text-[11px] text-slate-700 mt-1">
-              Extrato Financeiro Consolidado • Fatura de Serviços
-            </p>
+            <h1 className="text-xl font-black uppercase tracking-tight text-black leading-none">MAUAD LAVANDERIA</h1>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-800 block mt-1">
+              {filteredClient ? `FATURA DE SERVIÇOS • ${filteredClient.name.toUpperCase()}` : 'DEMONSTRATIVO CONSOLIDADO'}
+            </span>
           </div>
-          <div className="text-right text-[10px] font-mono space-y-0.5">
+          <div className="text-right text-[11px] font-mono space-y-0.5">
             <div><strong>Emissão:</strong> {new Date().toLocaleDateString('pt-BR')} às {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
-            <div><strong>Período:</strong> {startDate ? new Date(startDate + 'T00:00:00').toLocaleDateString('pt-BR') : ''} até {endDate ? new Date(endDate + 'T00:00:00').toLocaleDateString('pt-BR') : ''}</div>
-            {filteredClient && <div className="text-black font-bold uppercase">Cliente: {filteredClient.name}</div>}
+            <div><strong>Período:</strong> {startDate ? startDate.split('-').reverse().join('/') : ''} até {endDate ? endDate.split('-').reverse().join('/') : ''}</div>
           </div>
         </div>
 
-        {/* Dados do Cliente (se filtrado por um cliente) */}
-        {filteredClient ? (
+        {/* Dados do Cliente (exibido se filtrado por um cliente) */}
+        {filteredClient && (
           <div className="p-3 border border-black rounded bg-slate-50 grid grid-cols-2 gap-2 text-xs">
             <div>
               <span className="font-bold text-[10px] uppercase text-slate-500 block">Razão Social / Nome</span>
@@ -621,10 +617,6 @@ export const FinanceCaixaView: React.FC = () => {
                 <span>{filteredClient.address}</span>
               </div>
             )}
-          </div>
-        ) : (
-          <div className="p-2 border border-slate-400 text-[11px] font-bold uppercase text-center bg-slate-100">
-            Demonstrativo Consolidado de Serviços
           </div>
         )}
 

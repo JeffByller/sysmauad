@@ -43,16 +43,30 @@
   scrollbar-width: none;
 }
 
-/* Print stylesheet for physical laundry order tickets (Always forces clean white background with black ink) */
+/* Print stylesheet for physical laundry order tickets and reports */
 .print-only {
   display: none;
 }
 
+@page {
+  margin: 0;
+  size: auto;
+}
+
 @media print {
+  @page {
+    margin: 0;
+    size: auto;
+  }
+
   html, body {
     background-color: #ffffff !important;
     color: #000000 !important;
     font-size: 10pt;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
   
   .no-print {
@@ -61,6 +75,20 @@
 
   .print-only {
     display: block !important;
+    padding: 12mm 15mm !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  .print-sheet {
+    padding: 12mm 15mm !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
   }
 
   .print-container {
