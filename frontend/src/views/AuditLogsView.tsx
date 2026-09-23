@@ -180,7 +180,7 @@ export const AuditLogsView: React.FC = () => {
   const totalPages = Math.ceil(totalCount / pageSize) || 1;
 
   // Proteção: apenas Super Admin pode visualizar
-  const isAuthorized = user?.id === 'super-admin-root' || user?.role === 'admin';
+  const isAuthorized = user?.id === 'super-admin-root';
   if (!isAuthorized) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-16 text-center">

@@ -42,7 +42,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange }) => {
     setIsMobileMenuOpen(false);
   };
 
-  const isSuperAdmin = user?.id === 'super-admin-root' || user?.role === 'admin';
+  const isSuperAdmin = user?.id === 'super-admin-root';
 
 
   return (
