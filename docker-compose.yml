@@ -1,0 +1,93 @@
+services:
+
+  # Database - PostgreSQL
+  postgres:
+    image: postgres:16-alpine
+    container_name: sysmauad-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sysmauad}
+      POSTGRES_USER: ${POSTGRES_USER:-sysmauad_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sysmauad_pass}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - sysmauad-net
+
+  # WhatsApp Service - Evolution API
+  evolution-api:
+    image: evoapicloud/evolution-api:latest
+    container_name: sysmauad-evolution
+    restart: always
+    environment:
+      - SERVER_URL=https://sysmauad.jeffgsan.com.br/evolution
+      - DOCKER_ENV=true
+      - DATABASE_ENABLED=true
+      - DATABASE_PROVIDER=postgresql
+      - DATABASE_CONNECTION_URI=postgresql://${POSTGRES_USER:-sysmauad_user}:${POSTGRES_PASSWORD:-sysmauad_pass}@postgres:5432/${POSTGRES_DB:-sysmauad}?schema=public
+      - DATABASE_CLIENT_NAME=evolution_exchange
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-sysmauad_user}:${POSTGRES_PASSWORD:-sysmauad_pass}@postgres:5432/${POSTGRES_DB:-sysmauad}?schema=public
+      - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY:-sysmauad_evo_secret_key}
+    depends_on:
+      - postgres
+    ports:
+      - "8080:8080"
+    networks:
+      - sysmauad-net
+
+  # Backend Node.js TypeScript API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sysmauad-backend
+    restart: always
+    environment:
+      - PORT=3001
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-sysmauad_user}:${POSTGRES_PASSWORD:-sysmauad_pass}@postgres:5432/${POSTGRES_DB:-sysmauad}?schema=public
+      - EVOLUTION_API_URL=http://evolution-api:8080
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - postgres
+    networks:
+      - sysmauad-net
+
+  # Frontend Vite React App (build + nginx estatico interno na porta 8000)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: sysmauad-frontend
+    restart: always
+    networks:
+      - sysmauad-net
+
+  # Nginx Reverse Proxy (porta 80 e 443 publica -> frontend:8000 e backend:3001)
+  nginx:
+    image: nginx:alpine
+    container_name: sysmauad-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - sysmauad-net
+
+networks:
+  sysmauad-net:
+    driver: bridge
+
+volumes:
+  postgres_data:

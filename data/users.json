@@ -1,0 +1,73 @@
+[
+  {
+    "id": "usr-teste",
+    "name": "Usuário Teste (Beta)",
+    "username": "teste",
+    "password": "teste",
+    "role": "operador",
+    "allowedMenus": [
+      "dashboard",
+      "orders",
+      "stock",
+      "clients",
+      "garment-catalog",
+      "finance",
+      "passador-report"
+    ],
+    "active": true
+  },
+  {
+    "id": "usr-passador-teste",
+    "name": "Passador Teste (Beta)",
+    "username": "passador",
+    "password": "teste",
+    "phone": "81999999999",
+    "role": "passador",
+    "allowedMenus": [
+      "passador-mobile"
+    ],
+    "active": true
+  },
+  {
+    "id": "usr-1790094838770",
+    "name": "jardel",
+    "username": "jardel",
+    "password": "jardel",
+    "phone": "jardel",
+    "role": "admin",
+    "allowedMenus": [
+      "dashboard",
+      "orders",
+      "stock",
+      "clients",
+      "garment-catalog",
+      "finance",
+      "passador-report",
+      "users",
+      "passador-mobile",
+      "client-portal"
+    ],
+    "active": true
+  },
+  {
+    "id": "usr-1790094850412",
+    "name": "gilmario",
+    "username": "gilmario",
+    "password": "gilmario",
+    "phone": "gilmario",
+    "role": "admin",
+    "allowedMenus": [
+      "dashboard",
+      "orders",
+      "stock",
+      "clients",
+      "garment-catalog",
+      "finance",
+      "passador-report",
+      "users",
+      "passador-mobile",
+      "client-portal"
+    ],
+    "active": true
+  }
+]
