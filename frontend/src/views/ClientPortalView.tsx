@@ -4,15 +4,34 @@ import { useOrders } from '../context/OrderContext';
 import { Receipt, CheckCircle2, Package, LogOut, Shirt, Clock } from 'lucide-react';
 import { OrderStatus } from '../types';
 
-export const ClientPortalView: React.FC = () => {
+interface ClientPortalViewProps {
+  onLogout?: () => void;
+}
+
+export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onLogout }) => {
   const { client, logoutClient } = useClientAuth();
   const { orders } = useOrders();
   const [activeCategoryTab, setActiveCategoryTab] = useState<'em_andamento' | 'finalizadas'>('em_andamento');
 
+  const handleLogout = () => {
+    logoutClient();
+    if (onLogout) {
+      onLogout();
+    } else {
+      window.location.hash = '#/client-login';
+    }
+  };
+
   if (!client) {
     return (
-      <div className="text-center py-12">
-        <p className="text-slate-500">Nenhum cliente selecionado.</p>
+      <div className="min-h-[50vh] flex flex-col items-center justify-center py-12 px-4 text-center">
+        <p className="text-slate-500 dark:text-slate-400 mb-4">Sessão encerrada ou nenhum cliente selecionado.</p>
+        <button
+          onClick={handleLogout}
+          className="px-4 py-2 bg-sky-700 hover:bg-sky-800 text-white rounded-xl text-xs font-semibold"
+        >
+          Acessar Central do Assinante
+        </button>
       </div>
     );
   }
@@ -67,11 +86,12 @@ export const ClientPortalView: React.FC = () => {
             <span className="text-xl font-bold text-sky-400">{totalPiecesCount} pçs</span>
           </div>
           <button
-            onClick={logoutClient}
-            className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors"
+            onClick={handleLogout}
+            className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors flex items-center gap-1.5 text-xs font-semibold"
             title="Sair do Portal"
           >
-            <LogOut className="w-5 h-5" />
+            <LogOut className="w-4 h-4" />
+            <span className="hidden sm:inline">Sair</span>
           </button>
         </div>
       </div>
