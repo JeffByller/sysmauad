@@ -16,11 +16,13 @@ services:
     networks:
       - sysmauad-net
 
-  # WhatsApp Service - Evolution API
+  # WhatsApp Service - Evolution API (Cache Local em memória com limite de RAM)
   evolution-api:
     image: evoapicloud/evolution-api:latest
     container_name: sysmauad-evolution
     restart: always
+    mem_limit: 512m
+    memswap_limit: 512m
     environment:
       - SERVER_URL=https://sysmauad.jeffgsan.com.br/evolution
       - DOCKER_ENV=true
@@ -30,12 +32,20 @@ services:
       - DATABASE_CLIENT_NAME=evolution_exchange
       - DATABASE_URL=postgresql://${POSTGRES_USER:-sysmauad_user}:${POSTGRES_PASSWORD:-sysmauad_pass}@postgres:5432/${POSTGRES_DB:-sysmauad}?schema=public
       - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY:-sysmauad_evo_secret_key}
+      - CACHE_REDIS_ENABLED=false
+      - CACHE_REDIS_URI=
+      - CACHE_REDIS_PREFIX_KEY=evolution
+      - CACHE_REDIS_TTL=43200
+      - CACHE_REDIS_SAVE_INSTANCES=false
+      - CACHE_LOCAL_ENABLED=true
+      - NODE_OPTIONS=--max-old-space-size=400
     depends_on:
       - postgres
     ports:
       - "8080:8080"
     networks:
       - sysmauad-net
+
 
   # Backend Node.js TypeScript API
   backend:
@@ -92,3 +102,4 @@ networks:
 
 volumes:
   postgres_data:
+

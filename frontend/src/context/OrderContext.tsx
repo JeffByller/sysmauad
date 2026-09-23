@@ -47,6 +47,7 @@ interface OrderContextType {
   updateGarmentCatalogItem: (id: string, updated: Partial<GarmentProcessCatalogItem>) => void;
   deleteGarmentCatalogItem: (id: string) => void;
   payInvoiceOrder: (orderId: string, discountAmount: number, paymentMethod: string, operatorName?: string) => void;
+  payMultipleInvoiceOrders: (orderIds: string[], totalDiscountAmount?: number, paymentMethod?: string, operatorName?: string, unifiedDocRef?: string) => void;
   getOrderById: (orderId: string) => Order | undefined;
   getOrderByOS: (osNumber: string) => Order | undefined;
   calculateChemicals: (totalWeightKg: number, processes: string[]) => ChemicalDose[];
@@ -724,6 +725,67 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }).catch(err => console.error('[OrderContext] Erro ao registrar baixa da fatura no PostgreSQL:', err));
   };
 
+  const payMultipleInvoiceOrders = (
+    orderIds: string[],
+    totalDiscountAmount: number = 0,
+    paymentMethod: string = 'boleto',
+    operatorName: string = 'Ana (Financeiro)',
+    unifiedDocRef?: string
+  ) => {
+    if (!orderIds || orderIds.length === 0) return;
+    const paidAt = new Date().toISOString();
+    const targetOrders = orders.filter(o => orderIds.includes(o.id));
+    const totalGross = targetOrders.reduce((sum, o) => sum + (o.totalServiceValue || 0), 0);
+
+    setOrders(prev => prev.map(ord => {
+      if (!orderIds.includes(ord.id)) return ord;
+
+      // Rateio do desconto proporcional ao valor bruto de cada OS
+      const orderGross = ord.totalServiceValue || 0;
+      const orderDiscount = totalGross > 0 ? (orderGross / totalGross) * totalDiscountAmount : 0;
+      const finalPaidAmount = Math.max(0, orderGross - orderDiscount);
+
+      const docNote = unifiedDocRef ? ` [Doc/Ref: ${unifiedDocRef}]` : '';
+      const updatedHistory = [
+        ...ord.history,
+        {
+          timestamp: paidAt,
+          status: ord.status,
+          operator: operatorName,
+          note: `Baixa em Fatura Unificada (${orderIds.length} OSs): Valor R$ ${finalPaidAmount.toFixed(2)} (Desconto rateado R$ ${orderDiscount.toFixed(2)}, Forma: ${paymentMethod.toUpperCase()})${docNote}`
+        }
+      ];
+
+      return {
+        ...ord,
+        paymentStatus: 'pago' as const,
+        discountAmount: orderDiscount,
+        finalPaidAmount,
+        paymentMethod,
+        paidAt,
+        paidByOperator: operatorName,
+        history: updatedHistory
+      };
+    }));
+
+    // Sincroniza cada OS no backend
+    orderIds.forEach(orderId => {
+      const ord = orders.find(o => o.id === orderId);
+      const orderGross = ord?.totalServiceValue || 0;
+      const orderDiscount = totalGross > 0 ? (orderGross / totalGross) * totalDiscountAmount : 0;
+
+      fetch(`/api/orders/${orderId}/pay`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          discountAmount: orderDiscount, 
+          paymentMethod, 
+          operatorName: `${operatorName} (Fatura Unificada)` 
+        })
+      }).catch(err => console.error(`[OrderContext] Erro ao registrar baixa unificada da OS ${orderId}:`, err));
+    });
+  };
+
   const getOrderById = (orderId: string) => orders.find(o => o.id === orderId);
   const getOrderByOS = (osNumber: string) => orders.find(o => o.osNumber.toLowerCase() === osNumber.toLowerCase() || o.id === osNumber);
 
@@ -848,6 +910,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       updateGarmentCatalogItem,
       deleteGarmentCatalogItem,
       payInvoiceOrder,
+      payMultipleInvoiceOrders,
       getOrderById,
       getOrderByOS,
       calculateChemicals,

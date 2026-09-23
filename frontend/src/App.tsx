@@ -26,14 +26,42 @@ import { useAuth } from './context/AuthContext';
 import { UserManagementView } from './views/UserManagementView';
 import { ClientSignupView } from './views/ClientSignupView';
 import { SettingsView } from './views/SettingsView';
+import { AuditLogsView } from './views/AuditLogsView';
+import { AuditProvider } from './context/AuditContext';
+
 
 export const AppContent: React.FC = () => {
   const { user } = useAuth();
   const { markReadyOrder, closeMarkReadyModal } = useOrders();
-  const [currentTab, setCurrentTab] = useState<string>('dashboard');
+
+  const getTabFromLocation = (): string => {
+    const full = (window.location.hash || '') + ' ' + (window.location.search || '');
+    if (full.includes('client-signup')) return 'client-signup';
+    if (full.includes('client-login')) return 'client-login';
+    if (full.includes('client-portal')) return 'client-portal';
+    return 'dashboard';
+  };
+
+  const [currentTab, setCurrentTab] = useState<string>(getTabFromLocation);
   const [selectedOrderId, setSelectedOrderId] = useState<string>('ord-teste');
   const [scannedOSNumber, setScannedOSNumber] = useState<string>('OS-0001');
   const [isScannerOpen, setIsScannerOpen] = useState<boolean>(false);
+
+  // Sincroniza abas com a URL / Hash do navegador
+  useEffect(() => {
+    const handleHashChange = () => {
+      const detected = getTabFromLocation();
+      if (detected !== 'dashboard' || !user) {
+        setCurrentTab(detected);
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    window.addEventListener('popstate', handleHashChange);
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange);
+      window.removeEventListener('popstate', handleHashChange);
+    };
+  }, [user]);
 
   // Redireciona passador automaticamente para o seu terminal de trabalho
   useEffect(() => {
@@ -47,6 +75,9 @@ export const AppContent: React.FC = () => {
       setSelectedOrderId(param);
     }
     setCurrentTab(tab);
+    if (['client-login', 'client-signup', 'client-portal'].includes(tab)) {
+      window.location.hash = `#/${tab}`;
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -192,6 +223,10 @@ export const AppContent: React.FC = () => {
         {currentTab === 'settings' && (
           <SettingsView />
         )}
+
+        {currentTab === 'audit' && (
+          <AuditLogsView />
+        )}
       </main>
 
       {/* Global Evolution API WhatsApp Modal Simulation */}
@@ -219,12 +254,15 @@ export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <ClientAuthProvider>
-          <OrderProvider>
-            <AppContent />
-          </OrderProvider>
-        </ClientAuthProvider>
+        <AuditProvider>
+          <ClientAuthProvider>
+            <OrderProvider>
+              <AppContent />
+            </OrderProvider>
+          </ClientAuthProvider>
+        </AuditProvider>
       </AuthProvider>
     </ThemeProvider>
   );
 }
+

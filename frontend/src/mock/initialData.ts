@@ -4,13 +4,12 @@ export const ALL_MENU_KEYS = [
   { id: 'dashboard', label: 'Painel Inicial' },
   { id: 'orders', label: 'Pedidos em Produção' },
   { id: 'stock', label: 'Estoque Insumos' },
-  { id: 'clients', label: 'Cadastro de Clientes' },
   { id: 'garment-catalog', label: 'Tabela Peças & Lavagem' },
+  { id: 'clients', label: 'Cadastro de Clientes' },
   { id: 'finance', label: 'Financeiro / Caixa' },
   { id: 'passador-report', label: 'Relatórios' },
-  { id: 'users', label: 'Gestão de Usuários' },
   { id: 'passador-mobile', label: 'Modo Passador Mobile' },
-  { id: 'client-portal', label: 'Central do Assinante' },
+  { id: 'users', label: 'Gestão de Usuários' },
   { id: 'settings', label: 'Configurações do Sistema' }
 ];
 
@@ -21,7 +20,7 @@ export const INITIAL_SYSTEM_USERS: SystemUser[] = [
     username: 'teste',
     password: 'teste',
     role: 'operador',
-    allowedMenus: ['dashboard', 'orders', 'stock', 'clients', 'garment-catalog', 'finance', 'passador-report'],
+    allowedMenus: ['dashboard', 'orders', 'stock', 'garment-catalog', 'clients', 'finance', 'passador-report'],
     active: true
   },
   {

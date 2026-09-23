@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useOrders } from '../context/OrderContext';
-import { Users, UserPlus, Search, Edit3, Send, Key, Lock, Unlock, CheckCircle2, Copy, X, Phone, Building } from 'lucide-react';
+import { Users, UserPlus, Search, Edit3, Send, Key, Lock, Unlock, CheckCircle2, Copy, X, Phone, Building, AlertCircle, ExternalLink, Check, MessageSquare } from 'lucide-react';
 import { Client } from '../types';
+import { formatPhone, validatePhone, cleanPhoneDigits, formatCnpjCpf } from '../utils/phoneValidator';
 
 export const ClientManagementView: React.FC = () => {
   const { clients, addClient, updateClient, resetClientPassword, toggleBlockClientPortal } = useOrders();
@@ -11,24 +12,43 @@ export const ClientManagementView: React.FC = () => {
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [invitedClient, setInvitedClient] = useState<Client | null>(null);
 
+  // Invite Modal State
+  const [inviteMessage, setInviteMessage] = useState('');
+  const [sendingInvite, setSendingInvite] = useState(false);
+  const [inviteStatus, setInviteStatus] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedMessage, setCopiedMessage] = useState(false);
+
   // Form State for Add / Edit
   const [name, setName] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [phone, setPhone] = useState('');
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [phoneTouched, setPhoneTouched] = useState(false);
   const [cnpjCpf, setCnpjCpf] = useState('');
   const [address, setAddress] = useState('');
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
 
-  const filteredClients = clients.filter(c =>
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.phone.includes(searchTerm)
-  );
+  const searchDigits = searchTerm.replace(/\D/g, '');
+  const filteredClients = clients.filter(c => {
+    const term = searchTerm.toLowerCase();
+    const phoneClean = cleanPhoneDigits(c.phone || '');
+    const cnpjClean = (c.cnpjCpf || '').replace(/\D/g, '');
+    return (
+      c.name.toLowerCase().includes(term) ||
+      (c.companyName && c.companyName.toLowerCase().includes(term)) ||
+      (c.phone && c.phone.toLowerCase().includes(term)) ||
+      (searchDigits && phoneClean.includes(searchDigits)) ||
+      (searchDigits && cnpjClean.includes(searchDigits))
+    );
+  });
 
   const handleOpenAddModal = () => {
     setName('');
     setCompanyName('');
     setPhone('');
+    setPhoneError(null);
+    setPhoneTouched(false);
     setCnpjCpf('');
     setAddress('');
     setIsAddModalOpen(true);
@@ -50,19 +70,53 @@ export const ClientManagementView: React.FC = () => {
     setEditingClient(client);
     setName(client.name);
     setCompanyName(client.companyName);
-    setPhone(client.phone);
-    setCnpjCpf(client.cnpjCpf || '');
+    setPhone(formatPhone(client.phone));
+    setPhoneError(null);
+    setPhoneTouched(false);
+    setCnpjCpf(formatCnpjCpf(client.cnpjCpf || ''));
     setAddress(client.address || '');
+  };
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatPhone(e.target.value);
+    setPhone(formatted);
+
+    // Se já foi tocado ou se usuário completou o número, valida dinamicamente
+    if (phoneTouched || cleanPhoneDigits(formatted).length >= 10) {
+      const validation = validatePhone(formatted);
+      setPhoneError(validation.isValid ? null : (validation.error || 'Número de WhatsApp inválido.'));
+    }
+  };
+
+  const handlePhoneBlur = () => {
+    setPhoneTouched(true);
+    if (!phone.trim()) {
+      setPhoneError('O número de WhatsApp / Celular é obrigatório.');
+      return;
+    }
+    const validation = validatePhone(phone);
+    setPhoneError(validation.isValid ? null : (validation.error || 'Número de WhatsApp inválido.'));
+  };
+
+  const handleCnpjCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setCnpjCpf(formatCnpjCpf(e.target.value));
   };
 
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !phone.trim()) return;
+    if (!name.trim()) return;
+
+    const phoneValidation = validatePhone(phone);
+    if (!phoneValidation.isValid) {
+      setPhoneTouched(true);
+      setPhoneError(phoneValidation.error || 'Número de WhatsApp / Celular inválido.');
+      return;
+    }
 
     addClient({
       name: name.trim(),
       companyName: companyName.trim() || name.trim(),
-      phone: phone.trim(),
+      phone: formatPhone(phone),
       cnpjCpf: cnpjCpf.trim(),
       address: address.trim()
     });
@@ -74,12 +128,19 @@ export const ClientManagementView: React.FC = () => {
 
   const handleEditSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingClient) return;
+    if (!editingClient || !name.trim()) return;
+
+    const phoneValidation = validatePhone(phone);
+    if (!phoneValidation.isValid) {
+      setPhoneTouched(true);
+      setPhoneError(phoneValidation.error || 'Número de WhatsApp / Celular inválido.');
+      return;
+    }
 
     updateClient(editingClient.id, {
       name: name.trim(),
       companyName: companyName.trim() || name.trim(),
-      phone: phone.trim(),
+      phone: formatPhone(phone),
       cnpjCpf: cnpjCpf.trim(),
       address: address.trim()
     });
@@ -89,10 +150,78 @@ export const ClientManagementView: React.FC = () => {
     setTimeout(() => setFeedbackMsg(null), 4000);
   };
 
+  const getClientSignupUrl = (client: Client) => {
+    const origin = window.location.origin;
+    const path = window.location.pathname.replace(/\/$/, '');
+    return `${origin}${path}/#/client-signup?client=${encodeURIComponent(client.id)}`;
+  };
+
+  const handleOpenInvite = (client: Client) => {
+    setInvitedClient(client);
+    setInviteStatus(null);
+    setCopiedLink(false);
+    setCopiedMessage(false);
+
+    const url = getClientSignupUrl(client);
+    const msg = `Olá *${client.name}* (${client.companyName || 'Cliente'}), aqui é da Lavanderia Mauad! 👋\n\nAcesse o link abaixo para criar sua senha exclusiva na nossa *Central do Assinante* e acompanhar seus pedidos, lotes e faturas em tempo real:\n\n🔗 ${url}`;
+    setInviteMessage(msg);
+  };
+
+  const handleSendWhatsAppInvite = async () => {
+    if (!invitedClient) return;
+    setSendingInvite(true);
+    setInviteStatus(null);
+
+    try {
+      const res = await fetch('/api/whatsapp/send-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          number: invitedClient.phone,
+          text: inviteMessage
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setInviteStatus({
+          type: 'success',
+          msg: `Mensagem enviada com sucesso para o WhatsApp de ${invitedClient.name}!`
+        });
+      } else {
+        setInviteStatus({
+          type: 'error',
+          msg: data.error || 'Falha ao disparar pelo WhatsApp. Você pode clicar em "Abrir no WhatsApp" para enviar manualmente.'
+        });
+      }
+    } catch (err: any) {
+      setInviteStatus({
+        type: 'error',
+        msg: 'Não foi possível conectar à API de WhatsApp. Utilize o botão "Abrir no WhatsApp" para enviar direto.'
+      });
+    } finally {
+      setSendingInvite(false);
+    }
+  };
+
+  const handleCopySignupLink = () => {
+    if (!invitedClient) return;
+    const url = getClientSignupUrl(invitedClient);
+    navigator.clipboard?.writeText(url);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 3000);
+  };
+
+  const handleCopyFullMessage = () => {
+    navigator.clipboard?.writeText(inviteMessage);
+    setCopiedMessage(true);
+    setTimeout(() => setCopiedMessage(false), 3000);
+  };
+
   const handleResetPassword = (client: Client) => {
     if (window.confirm(`Deseja resetar a senha de acesso à Central do Assinante para ${client.name}?`)) {
       resetClientPassword(client.id);
-      setInvitedClient(client);
+      handleOpenInvite(client);
       setFeedbackMsg(`Senha resetada. Novo link de cadastro gerado para ${client.name}.`);
       setTimeout(() => setFeedbackMsg(null), 4000);
     }
@@ -210,7 +339,7 @@ export const ClientManagementView: React.FC = () => {
                       {c.name}
                       <span className="text-xs text-slate-500 dark:text-slate-400 block font-normal">{c.companyName}</span>
                     </td>
-                    <td className="p-4 font-mono text-slate-800 dark:text-slate-200">{c.phone}</td>
+                    <td className="p-4 font-mono text-slate-800 dark:text-slate-200">{formatPhone(c.phone) || c.phone}</td>
                     <td className="p-4">{getPortalStatusBadge(c)}</td>
                     <td className="p-4 text-center font-mono">
                       {c.passwordHash ? (
@@ -235,7 +364,7 @@ export const ClientManagementView: React.FC = () => {
 
                         {/* Send Access Link Button */}
                         <button
-                          onClick={() => setInvitedClient(c)}
+                          onClick={() => handleOpenInvite(c)}
                           className="px-2.5 py-1.5 bg-sky-700 hover:bg-sky-800 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 shadow-sm"
                           title="Enviar Link de Cadastro / Acesso ao Cliente"
                         >
@@ -298,7 +427,7 @@ export const ClientManagementView: React.FC = () => {
             <form onSubmit={editingClient ? handleEditSubmit : handleAddSubmit} className="space-y-4">
               <div>
                 <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">
-                  Nome do Contato
+                  Nome
                 </label>
                 <input
                   type="text"
@@ -312,7 +441,7 @@ export const ClientManagementView: React.FC = () => {
 
               <div>
                 <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">
-                  Nome da Empresa / Marca (Confecção)
+                  Nome da Empresa
                 </label>
                 <input
                   type="text"
@@ -323,19 +452,35 @@ export const ClientManagementView: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">
-                    WhatsApp / Celular
+                    WhatsApp / Celular <span className="text-rose-500">*</span>
                   </label>
                   <input
-                    type="text"
-                    placeholder="81995329560"
+                    type="tel"
+                    inputMode="numeric"
+                    maxLength={15}
+                    placeholder="(81) 99532-9560"
                     value={phone}
-                    onChange={e => setPhone(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-mono font-medium focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    onChange={handlePhoneChange}
+                    onBlur={handlePhoneBlur}
+                    className={`w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-sm font-mono font-medium focus:outline-none focus:ring-2 transition-colors ${
+                      phoneError
+                        ? 'border-rose-500 dark:border-rose-600 focus:ring-rose-500 bg-rose-50/20 dark:bg-rose-950/20 text-rose-900 dark:text-rose-200'
+                        : validatePhone(phone).isValid && cleanPhoneDigits(phone).length >= 10
+                        ? 'border-emerald-500 dark:border-emerald-600 focus:ring-emerald-500'
+                        : 'border-slate-300 dark:border-slate-700 focus:ring-sky-500'
+                    }`}
                     required
                   />
+
+                  {phoneError && (
+                    <p className="text-[11px] text-rose-600 dark:text-rose-400 font-medium mt-1 flex items-start gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                      <span>{phoneError}</span>
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -344,9 +489,10 @@ export const ClientManagementView: React.FC = () => {
                   </label>
                   <input
                     type="text"
+                    maxLength={18}
                     placeholder="00.000.000/0001-00"
                     value={cnpjCpf}
-                    onChange={e => setCnpjCpf(e.target.value)}
+                    onChange={handleCnpjCpfChange}
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-mono font-medium focus:outline-none focus:ring-2 focus:ring-sky-500"
                   />
                 </div>
@@ -389,66 +535,146 @@ export const ClientManagementView: React.FC = () => {
       {invitedClient && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-lg w-full p-6 space-y-5 text-slate-900 dark:text-slate-100">
+            {/* Cabeçalho */}
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-sky-500/20 text-sky-400 rounded-xl">
+                <div className="p-2.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl">
                   <Send className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="font-bold text-base text-slate-900 dark:text-slate-100">
-                    Link de Acesso para o Cliente
+                    Enviar Acesso à Central do Assinante
                   </h3>
-                  <p className="text-xs text-slate-400 font-mono">Central do Assinante</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Envie o link exclusivo de criação de senha para o cliente
+                  </p>
                 </div>
               </div>
-              <button onClick={() => setInvitedClient(null)} className="text-slate-400 hover:text-slate-700 text-sm">✕</button>
+              <button
+                onClick={() => setInvitedClient(null)}
+                className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-sm p-1 rounded-lg"
+              >
+                ✕
+              </button>
             </div>
 
             <div className="space-y-4">
-              <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-mono space-y-1">
-                <div><strong>Cliente:</strong> {invitedClient.name} ({invitedClient.companyName})</div>
-                <div><strong>WhatsApp:</strong> {invitedClient.phone}</div>
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-2">
-                  Link de Cadastro & Criação de Senha (Exclusivo do Cliente):
-                </label>
-                <div className="p-3 bg-slate-900 text-emerald-400 rounded-xl font-mono text-xs break-all border border-slate-800">
-                  http://localhost/#/client-signup?client={invitedClient.id}&token={invitedClient.inviteToken || 'tok-demo'}
+              {/* Card Resumo do Cliente */}
+              <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-xs flex items-center justify-between">
+                <div>
+                  <span className="font-bold text-slate-900 dark:text-slate-100 block text-sm">
+                    {invitedClient.name}
+                  </span>
+                  <span className="text-slate-500 dark:text-slate-400 font-medium">
+                    {invitedClient.companyName || 'Cliente'}
+                  </span>
                 </div>
-                <span className="text-[11px] text-slate-400 mt-1 block">
-                  A senha é criada e mantida em sigilo pelo próprio cliente.
-                </span>
+                <div className="text-right">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">WhatsApp</span>
+                  <span className="font-mono font-semibold text-emerald-600 dark:text-emerald-400">
+                    {formatPhone(invitedClient.phone) || invitedClient.phone}
+                  </span>
+                </div>
               </div>
 
-              <div className="p-3.5 bg-sky-50 dark:bg-sky-950/60 text-sky-900 dark:text-sky-200 rounded-xl text-xs border border-sky-200 dark:border-sky-800 space-y-1">
-                <strong className="block font-bold">Mensagem Enviada via WhatsApp:</strong>
-                <p className="font-sans">
-                  "Olá <strong>{invitedClient.name}</strong>, acesse o link abaixo para criar sua senha e acompanhar seus lotes de roupa e faturas na Central do Assinante da Lavanderia Mauad!"
-                </p>
+              {/* Link de Cadastro Direto */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                    Link Exclusivo do Cliente
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleCopySignupLink}
+                    className="text-xs text-sky-600 dark:text-sky-400 hover:underline font-semibold flex items-center gap-1"
+                  >
+                    {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copiedLink ? 'Link Copiado!' : 'Copiar apenas link'}
+                  </button>
+                </div>
+                <div className="p-2.5 bg-slate-100 dark:bg-slate-800 rounded-xl font-mono text-xs text-slate-700 dark:text-slate-300 break-all border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2">
+                  <span className="truncate">{getClientSignupUrl(invitedClient)}</span>
+                </div>
               </div>
+
+              {/* Mensagem do WhatsApp */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <MessageSquare className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                    Mensagem a Enviar (WhatsApp)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleCopyFullMessage}
+                    className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 font-semibold flex items-center gap-1"
+                  >
+                    {copiedMessage ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copiedMessage ? 'Mensagem Copiada!' : 'Copiar mensagem'}
+                  </button>
+                </div>
+                <textarea
+                  rows={4}
+                  value={inviteMessage}
+                  onChange={e => setInviteMessage(e.target.value)}
+                  className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none leading-relaxed text-slate-900 dark:text-slate-100 font-sans"
+                />
+              </div>
+
+              {/* Status do Envio (Feedback) */}
+              {inviteStatus && (
+                <div
+                  className={`p-3 rounded-xl text-xs font-medium flex items-start gap-2 ${
+                    inviteStatus.type === 'success'
+                      ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800'
+                      : 'bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-200 border border-rose-200 dark:border-rose-800'
+                  }`}
+                >
+                  {inviteStatus.type === 'success' ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+                  )}
+                  <div className="flex-1">{inviteStatus.msg}</div>
+                </div>
+              )}
             </div>
 
-            <div className="flex justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+            {/* Ações Simples e Claras */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
               <button
                 type="button"
                 onClick={() => setInvitedClient(null)}
-                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold"
+                className="w-full sm:w-auto px-4 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold transition-colors order-last sm:order-first"
               >
                 Fechar
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  navigator.clipboard?.writeText(`http://localhost/#/client-signup?client=${invitedClient.id}`);
-                  alert('Link copiado para a área de transferência!');
-                }}
-                className="px-5 py-2 bg-sky-700 hover:bg-sky-800 text-white rounded-xl text-xs font-semibold shadow-sm flex items-center gap-1.5"
-              >
-                <Copy className="w-3.5 h-3.5" />
-                Copiar Link
-              </button>
+
+              <div className="w-full sm:w-auto flex flex-col sm:flex-row items-center gap-2">
+                {/* Botão Abrir no WhatsApp Web/App (100% garantido) */}
+                <a
+                  href={`https://api.whatsapp.com/send?phone=55${cleanPhoneDigits(invitedClient.phone)}&text=${encodeURIComponent(inviteMessage)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full sm:w-auto px-3.5 py-2.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+                  title="Abre diretamente a conversa no WhatsApp Web ou aplicativo do celular"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Abrir no WhatsApp
+                </a>
+
+                {/* Botão Disparar Automaticamente */}
+                <button
+                  type="button"
+                  onClick={handleSendWhatsAppInvite}
+                  disabled={sendingInvite}
+                  className="w-full sm:w-auto px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                  title="Disparar mensagem direta via conexão oficial da lavanderia"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  {sendingInvite ? 'Enviando WhatsApp...' : 'Disparar pelo WhatsApp'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

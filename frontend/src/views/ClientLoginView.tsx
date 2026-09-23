@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { useClientAuth } from '../context/ClientAuthContext';
 import { useOrders } from '../context/OrderContext';
+import { useAudit } from '../context/AuditContext';
 import { Receipt, Building2, Lock, Eye, EyeOff, AlertCircle, ArrowRight, ArrowLeft } from 'lucide-react';
+
 
 interface ClientLoginViewProps {
   onLoginSuccess: () => void;
@@ -22,7 +24,9 @@ export const ClientLoginView: React.FC<ClientLoginViewProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const { notifySecurity, notifyError } = useAudit();
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
@@ -36,40 +40,79 @@ export const ClientLoginView: React.FC<ClientLoginViewProps> = ({
 
     setIsLoading(true);
 
-    const matched = clients.find(c => {
-      const cCnpj = (c.cnpjCpf || '').replace(/\D/g, '');
-      const cPhone = (c.phone || '').replace(/\D/g, '');
-      return (cleanCnpj && cCnpj === cleanCnpj) || (cleanCnpj && cPhone === cleanCnpj) || c.cnpjCpf === cnpj.trim();
-    });
+    try {
+      // Autenticação via API com proteção de Rate Limit e Força Bruta
+      const res = await fetch('/api/client-auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phoneOrCnpj: cleanCnpj, password: cleanPass })
+      });
 
-    if (!matched) {
-      setErrorMsg('CNPJ ou senha incorretos.');
+      const data = await res.json();
+
+      if (res.status === 429) {
+        // Bloqueio de segurança / Força Bruta
+        const msg = data.message || 'Múltiplas tentativas incorretas detectadas. Acesso bloqueado por 15 minutos.';
+        setErrorMsg(msg);
+        notifySecurity('Força Bruta Bloqueada', msg, { cnpj: cleanCnpj });
+        setIsLoading(false);
+        return;
+      }
+
+      if (res.status === 403) {
+        setErrorMsg(data.message || 'Acesso bloqueado. Entre em contato com a lavanderia.');
+        setIsLoading(false);
+        return;
+      }
+
+      if (res.status === 401 || res.status === 404) {
+        setErrorMsg(data.message || 'CNPJ ou senha incorretos.');
+        setIsLoading(false);
+        return;
+      }
+
+      if (res.ok && data.success && data.client) {
+        loginClientObject(data.client);
+        onLoginSuccess();
+        return;
+      }
+    } catch (err: any) {
+      // Fallback local se rede estiver indisponível
+      const matched = clients.find(c => {
+        const cCnpj = (c.cnpjCpf || '').replace(/\D/g, '');
+        const cPhone = (c.phone || '').replace(/\D/g, '');
+        return (cleanCnpj && cCnpj === cleanCnpj) || (cleanCnpj && cPhone === cleanCnpj) || c.cnpjCpf === cnpj.trim();
+      });
+
+      if (!matched) {
+        setErrorMsg('CNPJ ou senha incorretos.');
+        setIsLoading(false);
+        return;
+      }
+
+      if (matched.portalStatus === 'bloqueado') {
+        setErrorMsg('Acesso bloqueado. Entre em contato com a lavanderia.');
+        setIsLoading(false);
+        return;
+      }
+
+      const expectedHash = `hash-${btoa(cleanPass)}`;
+      const isValid = 
+        (matched.passwordHash && matched.passwordHash === expectedHash) ||
+        cleanPass === 'teste' ||
+        cleanPass === '1234' ||
+        cleanPass === 'senha123' ||
+        !matched.passwordHash;
+
+      if (isValid) {
+        loginClientObject(matched);
+        onLoginSuccess();
+      } else {
+        setErrorMsg('CNPJ ou senha incorretos.');
+      }
+    } finally {
       setIsLoading(false);
-      return;
     }
-
-    if (matched.portalStatus === 'bloqueado') {
-      setErrorMsg('Acesso bloqueado. Entre em contato com a lavanderia.');
-      setIsLoading(false);
-      return;
-    }
-
-    // Validação da senha: hash salvo, senhas padrão ou primeiro acesso
-    const expectedHash = `hash-${btoa(cleanPass)}`;
-    const isValid = 
-      (matched.passwordHash && matched.passwordHash === expectedHash) ||
-      cleanPass === 'teste' ||
-      cleanPass === '1234' ||
-      cleanPass === 'senha123' ||
-      !matched.passwordHash;
-
-    if (isValid) {
-      loginClientObject(matched);
-      onLoginSuccess();
-    } else {
-      setErrorMsg('CNPJ ou senha incorretos.');
-    }
-    setIsLoading(false);
   };
 
   return (

@@ -203,4 +203,31 @@ export interface WhatsAppStatus {
   phone?: string | null;
 }
 
+export type AuditLevel = 'info' | 'warn' | 'error' | 'security';
+export type AuditCategory = 'auth' | 'client_portal' | 'security' | 'orders' | 'stock' | 'users' | 'system' | 'api' | string;
+
+export interface AuditLog {
+  id: string;
+  timestamp: string;
+  level: AuditLevel;
+  category: AuditCategory;
+  action: string;
+  userId?: string;
+  userName?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  details?: Record<string, any>;
+}
+
+export interface AuditStats {
+  total: number;
+  errors: number;
+  security: number;
+  warnings: number;
+  info: number;
+  errorsToday: number;
+  securityToday: number;
+}
+
+
 

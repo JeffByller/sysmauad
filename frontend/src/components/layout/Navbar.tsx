@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { 
@@ -12,14 +12,13 @@ import {
   QrCode, 
   UserCheck, 
   LogOut, 
-  Receipt,
   Sun, 
-  Moon,
-  FileText,
-  Menu,
-  X,
-  ChevronDown,
-  Settings
+  Moon, 
+  FileText, 
+  Menu, 
+  X, 
+  Settings, 
+  ShieldAlert 
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -31,19 +30,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange }) => {
   const { user, hasPermission, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
-  const moreMenuRef = useRef<HTMLDivElement>(null);
-
-  // Fecha o dropdown ao clicar fora dele
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
-        setIsMoreMenuOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   const handleMobileNav = (tab: string) => {
     onTabChange(tab);
@@ -54,19 +40,10 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange }) => {
     logout();
     onTabChange('login');
     setIsMobileMenuOpen(false);
-    setIsMoreMenuOpen(false);
   };
 
-  const secondaryTabs = ['garment-catalog', 'users', 'passador-mobile', 'client-portal'];
-  const isSecondaryActive = secondaryTabs.includes(currentTab);
-  const getSecondaryActiveLabel = () => {
-    if (currentTab === 'garment-catalog') return 'Peças';
-    if (currentTab === 'users') return 'Usuários';
-    if (currentTab === 'passador-mobile') return 'Passador';
-    if (currentTab === 'client-portal') return 'Assinante';
-    return null;
-  };
-  const hasAnySecondary = secondaryTabs.some(tab => hasPermission(tab));
+  const isSuperAdmin = user?.id === 'super-admin-root' || user?.role === 'admin';
+
 
   return (
     <header className="bg-slate-900 dark:bg-slate-950 border-b border-slate-800 dark:border-slate-800/80 text-slate-100 sticky top-0 z-40 no-print transition-colors">
@@ -92,12 +69,12 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange }) => {
           </div>
 
           {/* Main Navigation Bar */}
-          <nav className="hidden lg:flex items-center gap-1 xl:gap-1.5 flex-1 justify-center px-1">
+          <nav className="hidden lg:flex items-center gap-1 xl:gap-1.5 flex-1 justify-center px-1 overflow-x-auto no-scrollbar">
             {/* 1. Painel */}
             {hasPermission('dashboard') && (
               <button
                 onClick={() => onTabChange('dashboard')}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
+                className={`flex items-center gap-1.5 px-2 xl:px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
                   currentTab === 'dashboard'
                     ? 'bg-sky-700 text-white shadow-sm'
                     : 'text-slate-300 hover:bg-slate-800 hover:text-white'
@@ -112,7 +89,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange }) => {
             {hasPermission('orders') && (
               <button
                 onClick={() => onTabChange('orders')}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
+                className={`flex items-center gap-1.5 px-2 xl:px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
                   currentTab === 'orders'
                     ? 'bg-sky-700 text-white shadow-sm'
                     : 'text-slate-300 hover:bg-slate-800 hover:text-white'
@@ -127,7 +104,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange }) => {
             {hasPermission('stock') && (
               <button
                 onClick={() => onTabChange('stock')}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
+                className={`flex items-center gap-1.5 px-2 xl:px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
                   currentTab === 'stock'
                     ? 'bg-sky-700 text-white shadow-sm'
                     : 'text-slate-300 hover:bg-slate-800 hover:text-white'
@@ -138,129 +115,11 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange }) => {
               </button>
             )}
 
-            {/* 4. Clientes */}
-            {hasPermission('clients') && (
-              <button
-                onClick={() => onTabChange('clients')}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
-                  currentTab === 'clients'
-                    ? 'bg-sky-700 text-white shadow-sm'
-                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                }`}
-              >
-                <Users className="w-4 h-4 shrink-0" />
-                <span>Clientes</span>
-              </button>
-            )}
-
-            {/* 5. Financeiro */}
-            {hasPermission('finance') && (
-              <button
-                onClick={() => onTabChange('finance')}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
-                  currentTab === 'finance'
-                    ? 'bg-emerald-700 text-white shadow-sm'
-                    : 'text-emerald-400 hover:bg-slate-800 hover:text-white'
-                }`}
-                title="Financeiro • Controle de Caixa"
-              >
-                <Wallet className="w-4 h-4 shrink-0" />
-                <span>Financeiro</span>
-              </button>
-            )}
-
-            {/* 6. Relatórios */}
-            {hasPermission('passador-report') && (
-              <button
-                onClick={() => onTabChange('passador-report')}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
-                  currentTab === 'passador-report'
-                    ? 'bg-sky-700 text-white shadow-sm'
-                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                }`}
-                title="Relatórios Operacionais"
-              >
-                <FileText className="w-4 h-4 shrink-0" />
-                <span>Relatórios</span>
-              </button>
-            )}
-
-            {/* Dropdown 'Mais' para telas intermediárias (1024px a 1279px) */}
-            {hasAnySecondary && (
-              <div className="relative xl:hidden shrink-0" ref={moreMenuRef}>
-                <button
-                  type="button"
-                  onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
-                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                    isSecondaryActive
-                      ? 'bg-sky-700 text-white shadow-sm'
-                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                  }`}
-                >
-                  <span>{getSecondaryActiveLabel() ? `Mais: ${getSecondaryActiveLabel()}` : 'Mais'}</span>
-                  <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-150 ${isMoreMenuOpen ? 'rotate-180' : ''}`} />
-                </button>
-
-                {isMoreMenuOpen && (
-                  <div className="absolute right-0 mt-2 w-52 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl py-1.5 z-50 animate-in fade-in duration-150">
-                    {hasPermission('garment-catalog') && (
-                      <button
-                        type="button"
-                        onClick={() => { onTabChange('garment-catalog'); setIsMoreMenuOpen(false); }}
-                        className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-left transition-colors ${
-                          currentTab === 'garment-catalog' ? 'bg-sky-700 text-white' : 'text-slate-300 hover:bg-slate-800'
-                        }`}
-                      >
-                        <Tag className="w-4 h-4 text-sky-400 shrink-0" />
-                        <span>Tabela Peças</span>
-                      </button>
-                    )}
-                    {hasPermission('users') && (
-                      <button
-                        type="button"
-                        onClick={() => { onTabChange('users'); setIsMoreMenuOpen(false); }}
-                        className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-left transition-colors ${
-                          currentTab === 'users' ? 'bg-sky-700 text-white' : 'text-slate-300 hover:bg-slate-800'
-                        }`}
-                      >
-                        <ShieldCheck className="w-4 h-4 text-sky-400 shrink-0" />
-                        <span>Gestão de Usuários</span>
-                      </button>
-                    )}
-                    {hasPermission('passador-mobile') && (
-                      <button
-                        type="button"
-                        onClick={() => { onTabChange('passador-mobile'); setIsMoreMenuOpen(false); }}
-                        className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-left transition-colors ${
-                          currentTab === 'passador-mobile' ? 'bg-emerald-700 text-white' : 'text-emerald-400 hover:bg-slate-800'
-                        }`}
-                      >
-                        <QrCode className="w-4 h-4 text-emerald-400 shrink-0" />
-                        <span>Modo Passador</span>
-                      </button>
-                    )}
-                    {hasPermission('client-portal') && (
-                      <button
-                        type="button"
-                        onClick={() => { onTabChange('client-portal'); setIsMoreMenuOpen(false); }}
-                        className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-left transition-colors ${
-                          currentTab === 'client-portal' ? 'bg-sky-700 text-white' : 'text-sky-400 hover:bg-slate-800'
-                        }`}
-                      >
-                        <Receipt className="w-4 h-4 text-sky-400 shrink-0" />
-                        <span>Central do Assinante</span>
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Itens Secundários Diretos para telas a partir de 1280px (xl+) */}
+            {/* 4. Peça */}
             {hasPermission('garment-catalog') && (
               <button
                 onClick={() => onTabChange('garment-catalog')}
-                className={`hidden xl:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
+                className={`flex items-center gap-1.5 px-2 xl:px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
                   currentTab === 'garment-catalog'
                     ? 'bg-sky-700 text-white shadow-sm'
                     : 'text-slate-300 hover:bg-slate-800 hover:text-white'
@@ -272,10 +131,74 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange }) => {
               </button>
             )}
 
+            {/* 5. Clientes */}
+            {hasPermission('clients') && (
+              <button
+                onClick={() => onTabChange('clients')}
+                className={`flex items-center gap-1.5 px-2 xl:px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
+                  currentTab === 'clients'
+                    ? 'bg-sky-700 text-white shadow-sm'
+                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                }`}
+              >
+                <Users className="w-4 h-4 shrink-0" />
+                <span>Clientes</span>
+              </button>
+            )}
+
+            {/* 6. Financeiro */}
+            {hasPermission('finance') && (
+              <button
+                onClick={() => onTabChange('finance')}
+                className={`flex items-center gap-1.5 px-2 xl:px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
+                  currentTab === 'finance'
+                    ? 'bg-emerald-700 text-white shadow-sm'
+                    : 'text-emerald-400 hover:bg-slate-800 hover:text-white'
+                }`}
+                title="Financeiro • Controle de Caixa"
+              >
+                <Wallet className="w-4 h-4 shrink-0" />
+                <span>Financeiro</span>
+              </button>
+            )}
+
+            {/* 7. Relatório */}
+            {hasPermission('passador-report') && (
+              <button
+                onClick={() => onTabChange('passador-report')}
+                className={`flex items-center gap-1.5 px-2 xl:px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
+                  currentTab === 'passador-report'
+                    ? 'bg-sky-700 text-white shadow-sm'
+                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                }`}
+                title="Relatórios Operacionais"
+              >
+                <FileText className="w-4 h-4 shrink-0" />
+                <span>Relatórios</span>
+              </button>
+            )}
+
+            {/* 8. Passador */}
+            {hasPermission('passador-mobile') && (
+              <button
+                onClick={() => onTabChange('passador-mobile')}
+                className={`flex items-center gap-1.5 px-2 xl:px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
+                  currentTab === 'passador-mobile'
+                    ? 'bg-emerald-700 text-white shadow-sm'
+                    : 'text-emerald-400 hover:bg-slate-800 hover:text-white'
+                }`}
+                title="Modo Passador Mobile"
+              >
+                <QrCode className="w-4 h-4 shrink-0" />
+                <span>Passador</span>
+              </button>
+            )}
+
+            {/* 9. Usuários */}
             {hasPermission('users') && (
               <button
                 onClick={() => onTabChange('users')}
-                className={`hidden xl:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
+                className={`flex items-center gap-1.5 px-2 xl:px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
                   currentTab === 'users'
                     ? 'bg-sky-700 text-white shadow-sm'
                     : 'text-slate-300 hover:bg-slate-800 hover:text-white'
@@ -284,40 +207,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange }) => {
               >
                 <ShieldCheck className="w-4 h-4 shrink-0" />
                 <span>Usuários</span>
-              </button>
-            )}
-
-            {(hasPermission('passador-mobile') || hasPermission('client-portal')) && (
-              <div className="hidden xl:block h-4 w-px bg-slate-800 mx-1 shrink-0"></div>
-            )}
-
-            {hasPermission('passador-mobile') && (
-              <button
-                onClick={() => onTabChange('passador-mobile')}
-                className={`hidden xl:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-colors border whitespace-nowrap shrink-0 ${
-                  currentTab === 'passador-mobile'
-                    ? 'bg-emerald-700 text-white border-emerald-600'
-                    : 'bg-slate-800/80 text-emerald-400 border-slate-700 hover:bg-slate-800'
-                }`}
-                title="Modo Passador Mobile"
-              >
-                <QrCode className="w-3.5 h-3.5 shrink-0" />
-                <span>Passador</span>
-              </button>
-            )}
-
-            {hasPermission('client-portal') && (
-              <button
-                onClick={() => onTabChange('client-portal')}
-                className={`hidden xl:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-colors border whitespace-nowrap shrink-0 ${
-                  currentTab === 'client-portal'
-                    ? 'bg-sky-700 text-white border-sky-600'
-                    : 'bg-slate-800/80 text-sky-400 border-slate-700 hover:bg-slate-800'
-                }`}
-                title="Central do Assinante"
-              >
-                <Receipt className="w-3.5 h-3.5 shrink-0" />
-                <span>Assinante</span>
               </button>
             )}
           </nav>
@@ -364,6 +253,22 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange }) => {
                 <Settings className="w-4 h-4" />
               </button>
             )}
+
+            {/* Audit Logs Button (Super Admin Only) */}
+            {isSuperAdmin && (
+              <button
+                onClick={() => onTabChange('audit')}
+                className={`p-2 rounded-lg transition-colors shrink-0 flex items-center justify-center ${
+                  currentTab === 'audit'
+                    ? 'bg-rose-700 text-white shadow-sm'
+                    : 'text-rose-400 hover:text-white hover:bg-slate-800'
+                }`}
+                title="Auditoria & Logs de Segurança"
+              >
+                <ShieldAlert className="w-4 h-4" />
+              </button>
+            )}
+
 
             {/* Logout Button */}
             <button
@@ -425,6 +330,18 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange }) => {
                 </button>
               )}
 
+              {hasPermission('garment-catalog') && (
+                <button
+                  onClick={() => handleMobileNav('garment-catalog')}
+                  className={`p-2.5 rounded-xl flex items-center gap-2 font-semibold ${
+                    currentTab === 'garment-catalog' ? 'bg-sky-700 text-white' : 'text-slate-300 hover:bg-slate-800'
+                  }`}
+                >
+                  <Tag className="w-4 h-4" />
+                  Peças
+                </button>
+              )}
+
               {hasPermission('clients') && (
                 <button
                   onClick={() => handleMobileNav('clients')}
@@ -434,18 +351,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange }) => {
                 >
                   <Users className="w-4 h-4" />
                   Clientes
-                </button>
-              )}
-
-              {hasPermission('garment-catalog') && (
-                <button
-                  onClick={() => handleMobileNav('garment-catalog')}
-                  className={`p-2.5 rounded-xl flex items-center gap-2 font-semibold ${
-                    currentTab === 'garment-catalog' ? 'bg-sky-700 text-white' : 'text-slate-300 hover:bg-slate-800'
-                  }`}
-                >
-                  <Tag className="w-4 h-4" />
-                  Tabela Peças
                 </button>
               )}
 
@@ -473,18 +378,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange }) => {
                 </button>
               )}
 
-              {hasPermission('users') && (
-                <button
-                  onClick={() => handleMobileNav('users')}
-                  className={`p-2.5 rounded-xl flex items-center gap-2 font-semibold ${
-                    currentTab === 'users' ? 'bg-sky-700 text-white' : 'text-slate-300 hover:bg-slate-800'
-                  }`}
-                >
-                  <ShieldCheck className="w-4 h-4" />
-                  Usuários
-                </button>
-              )}
-
               {hasPermission('passador-mobile') && (
                 <button
                   onClick={() => handleMobileNav('passador-mobile')}
@@ -497,15 +390,15 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange }) => {
                 </button>
               )}
 
-              {hasPermission('client-portal') && (
+              {hasPermission('users') && (
                 <button
-                  onClick={() => handleMobileNav('client-portal')}
+                  onClick={() => handleMobileNav('users')}
                   className={`p-2.5 rounded-xl flex items-center gap-2 font-semibold ${
-                    currentTab === 'client-portal' ? 'bg-sky-700 text-white' : 'text-sky-400 hover:bg-slate-800'
+                    currentTab === 'users' ? 'bg-sky-700 text-white' : 'text-slate-300 hover:bg-slate-800'
                   }`}
                 >
-                  <Receipt className="w-4 h-4" />
-                  Assinante
+                  <ShieldCheck className="w-4 h-4" />
+                  Usuários
                 </button>
               )}
 
@@ -520,6 +413,19 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange }) => {
                   Configurações (WhatsApp, Relatórios & Backup)
                 </button>
               )}
+
+              {isSuperAdmin && (
+                <button
+                  onClick={() => handleMobileNav('audit')}
+                  className={`p-2.5 rounded-xl flex items-center gap-2 font-semibold col-span-2 ${
+                    currentTab === 'audit' ? 'bg-rose-700 text-white' : 'text-rose-400 hover:bg-slate-800'
+                  }`}
+                >
+                  <ShieldAlert className="w-4 h-4 text-rose-400" />
+                  Auditoria & Logs de Segurança
+                </button>
+              )}
+
 
               <button
                 onClick={handleLogout}

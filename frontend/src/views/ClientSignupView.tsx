@@ -20,28 +20,26 @@ export const ClientSignupView: React.FC<ClientSignupViewProps> = ({ onSignupSucc
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // Read URL query params on mount if available (?client=cli-1)
+  const [isDirectLink, setIsDirectLink] = useState(false);
+
+  // Read URL query params on mount if available (?client=cli-1 ou #/client-signup?client=cli-1)
   useEffect(() => {
-    const hash = window.location.hash || '';
-    const queryIndex = hash.indexOf('?');
-    if (queryIndex !== -1) {
-      const queryString = hash.substring(queryIndex + 1);
-      const params = new URLSearchParams(queryString);
-      const clientId = params.get('client');
-      if (clientId) {
-        const found = clients.find(c => c.id === clientId);
-        if (found) {
-          setSelectedClientId(found.id);
-        }
+    const full = (window.location.hash || '') + ' ' + (window.location.search || '');
+    const match = full.match(/[?&]client=([^& #]+)/);
+    const clientId = match ? decodeURIComponent(match[1]) : null;
+
+    if (clientId) {
+      const found = clients.find(c => c.id === clientId);
+      if (found) {
+        setSelectedClientId(found.id);
+        setIsDirectLink(true);
+        return;
       }
-    } else if (clients.length > 0) {
-      // Default to first pending client or first client
+    }
+
+    if (clients.length > 0 && !selectedClientId) {
       const pending = clients.find(c => c.portalStatus === 'pendente' || !c.passwordHash);
-      if (pending) {
-        setSelectedClientId(pending.id);
-      } else {
-        setSelectedClientId(clients[0].id);
-      }
+      setSelectedClientId(pending ? pending.id : clients[0].id);
     }
   }, [clients]);
 
@@ -110,28 +108,42 @@ export const ClientSignupView: React.FC<ClientSignupViewProps> = ({ onSignupSucc
           </div>
         </div>
 
-        {/* Client Selection (if accessing link or selecting) */}
-        <div className="space-y-1">
-          <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block">
-            Selecione seu Nome / Empresa
-          </label>
-          <select
-            value={selectedClientId}
-            onChange={e => setSelectedClientId(e.target.value)}
-            className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
-          >
-            {clients.map(c => (
-              <option key={c.id} value={c.id}>
-                {c.name} — {c.companyName} ({c.phone})
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {selectedClient && (
-          <div className="p-3 bg-slate-100 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-mono space-y-1 text-slate-700 dark:text-slate-300">
-            <div><Building className="w-3.5 h-3.5 inline mr-1 text-slate-400" /> {selectedClient.companyName}</div>
-            <div><Phone className="w-3.5 h-3.5 inline mr-1 text-slate-400" /> WhatsApp: {selectedClient.phone}</div>
+        {/* Identificação do Cliente */}
+        {isDirectLink && selectedClient ? (
+          <div className="p-4 bg-slate-50 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-1.5 shadow-sm">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-sky-600 dark:text-sky-400 font-bold block">
+              Central do Assinante • Acesso Exclusivo
+            </span>
+            <div className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <Building className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0" />
+              <span>{selectedClient.name}</span>
+              {selectedClient.companyName && selectedClient.companyName !== selectedClient.name && (
+                <span className="text-xs font-normal text-slate-500 dark:text-slate-400">({selectedClient.companyName})</span>
+              )}
+            </div>
+            {selectedClient.phone && (
+              <div className="text-xs text-slate-500 dark:text-slate-400 font-mono flex items-center gap-1.5">
+                <Phone className="w-3.5 h-3.5 text-slate-400" />
+                <span>WhatsApp: {selectedClient.phone}</span>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block">
+              Selecione seu Nome / Empresa
+            </label>
+            <select
+              value={selectedClientId}
+              onChange={e => setSelectedClientId(e.target.value)}
+              className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+            >
+              {clients.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.name} — {c.companyName} ({c.phone})
+                </option>
+              ))}
+            </select>
           </div>
         )}
 

@@ -623,6 +623,28 @@ export async function initDb() {
     );
   `);
 
+  // 12. Tabela de Logs de Auditoria & Segurança
+  await query(`
+    CREATE TABLE IF NOT EXISTS sysmauad.audit_logs (
+      id VARCHAR(100) PRIMARY KEY,
+      timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      level VARCHAR(20) NOT NULL DEFAULT 'info',
+      category VARCHAR(50) NOT NULL DEFAULT 'system',
+      action VARCHAR(100) NOT NULL,
+      user_id VARCHAR(100),
+      user_name VARCHAR(255),
+      ip_address VARCHAR(100),
+      user_agent TEXT,
+      details JSONB DEFAULT '{}'::jsonb
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON sysmauad.audit_logs (timestamp DESC);
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_level ON sysmauad.audit_logs (level);
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_category ON sysmauad.audit_logs (category);
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON sysmauad.audit_logs (user_id);
+  `);
+
+
   // SEED INICIAL CASO TABELAS ESTEJAM VAZIAS
   await seedInitialData();
   console.log('[Database] Tabelas do PostgreSQL inicializadas com sucesso.');
