@@ -145,6 +145,56 @@ export const INITIAL_STOCK: ChemicalStockItem[] = [
     defaultDosagePerKg: 10,
     category: 'amaciante',
     notes: 'Amaciante industrial concentrado para acabamento de toque (1% de dosagem).'
+  },
+  {
+    id: 'stk-peroxido',
+    name: 'PERÓXIDO DE HIDROGÊNIO 2',
+    unit: 'kg',
+    currentStock: 80.0,
+    minStockAlert: 15.0,
+    defaultDosagePerKg: 5,
+    category: 'alvejante',
+    notes: 'Agente alvejante (0,5% de dosagem).'
+  },
+  {
+    id: 'stk-pvderusto',
+    name: 'PVDERUSTO',
+    unit: 'kg',
+    currentStock: 40.0,
+    minStockAlert: 10.0,
+    defaultDosagePerKg: 2.5,
+    category: 'outros',
+    notes: 'Aditivo desferrizante/antimanchas (0,25% de dosagem).'
+  },
+  {
+    id: 'stk-pvscour',
+    name: 'PVSCOUR TOT AX(ALVEJANTE AZUL)',
+    unit: 'kg',
+    currentStock: 90.0,
+    minStockAlert: 20.0,
+    defaultDosagePerKg: 10,
+    category: 'alvejante',
+    notes: 'Alvejante azul óptico (1% de dosagem).'
+  },
+  {
+    id: 'stk-pvwhite',
+    name: 'PVWHITE SUPER CONC(ADITIVO BRANQUEADOR)',
+    unit: 'kg',
+    currentStock: 50.0,
+    minStockAlert: 10.0,
+    defaultDosagePerKg: 3,
+    category: 'outros',
+    notes: 'Aditivo branqueador concentrado (0,3% de dosagem).'
+  },
+  {
+    id: 'stk-pvsoft',
+    name: 'PVSOFT SEC(AMACIANTE)BASE',
+    unit: 'kg',
+    currentStock: 120.0,
+    minStockAlert: 25.0,
+    defaultDosagePerKg: 10,
+    category: 'amaciante',
+    notes: 'Base amaciante para acabamento têxtil (1% de dosagem).'
   }
 ];
 

@@ -107,6 +107,7 @@ function mapOrder(row: any): Order {
   return {
     id: row.id,
     osNumber: row.os_number,
+    corteOs: row.corte_os || (Array.isArray(row.items) && row.items[0]?.corteOs) || undefined,
     clientId: row.client_id,
     clientName: row.client_name,
     clientPhone: row.client_phone || undefined,
@@ -799,17 +800,20 @@ app.post('/orders', async (req: Request, res: Response) => {
       { timestamp: now, status: 'recebido', operator: orderData.operatorName || 'Operador', note: 'Entrada da ordem de serviço registrada.' }
     ];
 
+    const corteOs = orderData.corteOs || (Array.isArray(orderData.items) && orderData.items[0]?.corteOs) || null;
+
     const result = await query(
       `INSERT INTO sysmauad.orders (
-         id, os_number, client_id, client_name, client_phone, client_address,
+         id, os_number, corte_os, client_id, client_name, client_phone, client_address,
          created_at, operator_name, ref_piece_weight_grams, total_weight_kg,
          estimated_piece_count, total_service_value, payment_status, payment_method, discount_amount,
          items, chemical_recipe, status, total_ironed_pieces, ironing_logs, history, notes
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
        RETURNING *`,
       [
         id,
         osNumber,
+        corteOs,
         orderData.clientId,
         orderData.clientName,
         orderData.clientPhone || null,

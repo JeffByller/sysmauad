@@ -67,7 +67,7 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
             className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5"
           >
             <Printer className="w-4 h-4" />
-            Imprimir Nota (Meia A4)
+            Imprimir Nota / Receita do Lavado
           </button>
 
           {order.status !== 'pronto' && order.status !== 'entregue' && (
@@ -180,7 +180,7 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
                                   {chem.dosagePct !== undefined ? `${chem.dosagePct}%` : `${chem.dosagePerKg} g/kg`}
                                 </td>
                                 <td className="p-2.5 text-right font-mono font-bold text-sky-700 dark:text-sky-400">
-                                  {chem.totalGrams >= 1000 ? `${(chem.totalGrams / 1000).toFixed(2)} kg` : `${chem.totalGrams} g`}
+                                  {(chem.totalGrams / 1000).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg
                                 </td>
                               </tr>
                             ))}

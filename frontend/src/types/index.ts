@@ -53,6 +53,7 @@ export interface OrderItem {
   quantity: number;
   unitPrice?: number;     // Valor unitário da peça (R$)
   totalPrice?: number;    // Valor total do item (R$)
+  corteOs?: string;       // Referência ou Corte da confecção (ex: "0418")
 }
 
 export interface OrderHistoryEvent {
@@ -65,6 +66,7 @@ export interface OrderHistoryEvent {
 export interface Order {
   id: string;
   osNumber: string;         // e.g. "OS-9287"
+  corteOs?: string;         // Referência ou Corte da confecção (ex: "0418")
   clientId: string;
   clientName: string;
   clientPhone: string;

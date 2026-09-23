@@ -1,42 +1,9 @@
-
-
-Precisa de uma Aba para entradas de mercadorias (insumos)
-
-
-[14:03, 20/09/2026] +55 81 8103-1162: E consequentemente puxar um relatório para pagamento desses fornecedores...
-[14:05, 20/09/2026] +55 81 8103-1162: Geralmente esse relatório é puxado mensalmente
-Exemplo:
-01/09/2026  a 30/09/2026
-[14:11, 20/09/2026] +55 81 8103-1162: Falando em relatório.
-Geramos Relatórios de Tudo que é Lavado.(Semanal,Mensal) Geral e por Lavado.
-Exemplo:
-Amaciado                        5.000 Pçs
-Hiper Dest                       6.000 Pçs
-Alvejado                        10.000 Pçs
-
-Total de Pçs lavadas    21.000 Pçs
-
-
-Na parte do Financeiro.
-Observei a questão do desconto.
-Teria que ter uma opção de Porcentagem(%) no desconto.
-
-
-[11:03, 21/09/2026] +55 81 8103-1162: Bom dia.
- Essa questão dos insumos..
-[11:04, 21/09/2026] +55 81 8103-1162: Dosagem..
-Teria que ser numa aba onde eu vou montar as receitas dos lavados.
-E tem que ser porcentagem (%)
-[11:05, 21/09/2026] +55 81 8103-1162: Nesse esquema.. (video na pasta)
-[11:06, 21/09/2026] +55 81 8103-1162: Desengomagem
-
-Povwet lub conc1%
-[11:07, 21/09/2026] +55 81 8103-1162: Estonagem 
-
-Pvzyme 4hc super 0,3%
-Pvdep t12                0,5%
-[11:08, 21/09/2026] +55 81 8103-1162: Depois que eu monto o lavado 
-Quando estiver com os processos (Receitas) definidas.
-[11:09, 21/09/2026] +55 81 8103-1162: Exemplo..
-Hiper destroyed
-Ver foto
+[18:36, 22/09/2026] +55 81 8103-1162: Sempre por porcentagem..
+[18:37, 22/09/2026] +55 81 8103-1162: Exemplo:
+Cloro em pó 0,3%
+Enzima         1,00%
+[18:38, 22/09/2026] +55 81 8103-1162: Multiplica pelo peso total e temos o peso que será usado no lavado…
+[18:39, 22/09/2026] +55 81 8103-1162: Todas as receitas que irão compor os lavados.
+Os produtos terão uma porcentagem determinada.
+[18:39, 22/09/2026] +55 81 8103-1162: Não fixa.
+[18:40, 22/09/2026] +55 81 8103-1162: Cloro,por exemplo,pode entrar em outro lavado com uma porcentagem diferente

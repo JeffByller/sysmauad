@@ -140,7 +140,7 @@ export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
                         <button
                           onClick={() => onNavigate('order-print', ord.id)}
                           className="p-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-md transition-colors border border-transparent dark:border-slate-700"
-                          title="Imprimir Nota (Meia Folha A4)"
+                          title="Imprimir Nota de Entrada / Receita do Lavado"
                         >
                           <Printer className="w-3.5 h-3.5" />
                         </button>

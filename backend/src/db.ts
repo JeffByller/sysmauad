@@ -142,6 +142,56 @@ const INITIAL_STOCK: ChemicalStockItem[] = [
     defaultDosagePerKg: 10,
     category: 'amaciante',
     notes: 'Amaciante industrial concentrado para acabamento de toque (1% de dosagem).'
+  },
+  {
+    id: 'stk-peroxido',
+    name: 'PERÓXIDO DE HIDROGÊNIO 2',
+    unit: 'kg',
+    currentStock: 80.0,
+    minStockAlert: 15.0,
+    defaultDosagePerKg: 5,
+    category: 'alvejante',
+    notes: 'Agente alvejante (0,5% de dosagem).'
+  },
+  {
+    id: 'stk-pvderusto',
+    name: 'PVDERUSTO',
+    unit: 'kg',
+    currentStock: 40.0,
+    minStockAlert: 10.0,
+    defaultDosagePerKg: 2.5,
+    category: 'outros',
+    notes: 'Aditivo desferrizante/antimanchas (0,25% de dosagem).'
+  },
+  {
+    id: 'stk-pvscour',
+    name: 'PVSCOUR TOT AX(ALVEJANTE AZUL)',
+    unit: 'kg',
+    currentStock: 90.0,
+    minStockAlert: 20.0,
+    defaultDosagePerKg: 10,
+    category: 'alvejante',
+    notes: 'Alvejante azul óptico (1% de dosagem).'
+  },
+  {
+    id: 'stk-pvwhite',
+    name: 'PVWHITE SUPER CONC(ADITIVO BRANQUEADOR)',
+    unit: 'kg',
+    currentStock: 50.0,
+    minStockAlert: 10.0,
+    defaultDosagePerKg: 3,
+    category: 'outros',
+    notes: 'Aditivo branqueador concentrado (0,3% de dosagem).'
+  },
+  {
+    id: 'stk-pvsoft',
+    name: 'PVSOFT SEC(AMACIANTE)BASE',
+    unit: 'kg',
+    currentStock: 120.0,
+    minStockAlert: 25.0,
+    defaultDosagePerKg: 10,
+    category: 'amaciante',
+    notes: 'Base amaciante para acabamento têxtil (1% de dosagem).'
   }
 ];
 
@@ -255,6 +305,49 @@ const INITIAL_INSUMO_ENTRIES: InsumoEntry[] = [
 ];
 
 const INITIAL_RECEITAS: ReceitaLavado[] = [
+  {
+    id: 'rec-h-destroyed-po',
+    name: 'H DESTROYED NO PÓ',
+    description: 'Receita oficial de Hiper Destroyed no Pó com 4 fases conforme ficha técnica industrial (Lavado com Processos.PDF)',
+    fases: [
+      {
+        order: 1,
+        name: 'DESENGOMAGEM',
+        produtos: [
+          { productName: 'PVWET LUBE CONC', dosagePct: 1.00, notes: 'Desengomante têxtil de alta lubrificação' }
+        ]
+      },
+      {
+        order: 2,
+        name: 'ESTONAGEM PÓ',
+        produtos: [
+          { productName: 'PVZYME 4HC SUPER(ENZIMA)', dosagePct: 0.30, notes: 'Enzima concentrada para estonagem' },
+          { productName: 'PVSTONE PO GR NEW(PÓ ESTONAGEM)', dosagePct: 10.00, notes: 'Pó abrasivo mineral para efeito destroyed' },
+          { productName: 'PVDEP T12 SUPER NEW(ANTIMIGRANTE)', dosagePct: 0.50, notes: 'Agente antimigrante diluído' }
+        ]
+      },
+      {
+        order: 3,
+        name: 'ALVEJAMENTO ANTIMIGRANTE',
+        produtos: [
+          { productName: 'PERMANGANATO DE POTÁSSIO', dosagePct: 0.50, notes: 'Alvejante oxidante' },
+          { productName: 'PVDERUSTO', dosagePct: 0.25, notes: 'Aditivo desferrizante' },
+          { productName: 'PVSCOUR TOT AX(ALVEJANTE AZUL)', dosagePct: 1.00, notes: 'Alvejante azul óptico' },
+          { productName: 'PVWHITE SUPER CONC(ADITIVO BRANQUEADOR)', dosagePct: 0.30, notes: 'Aditivo concentrado' },
+          { productName: 'PVDEP T12 SUPER NEW(ANTIMIGRANTE)', dosagePct: 0.50, notes: 'Antimigrante' }
+        ]
+      },
+      {
+        order: 4,
+        name: 'AMACIAR',
+        produtos: [
+          { productName: 'PVSOFT SEC(AMACIANTE)BASE', dosagePct: 1.00, notes: 'Amaciante base de toque final' }
+        ]
+      }
+    ],
+    createdAt: '2026-09-01T08:00:00.000Z',
+    updatedAt: '2026-09-01T08:00:00.000Z'
+  },
   {
     id: 'rec-hiper-destroyed',
     name: 'HIPER DESTROYED',

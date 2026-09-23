@@ -61,6 +61,7 @@ export interface OrderItem {
   quantity: number;
   unitPrice?: number;
   totalPrice?: number;
+  corteOs?: string;
 }
 
 export interface ChemicalDose {
@@ -96,6 +97,7 @@ export interface OrderHistoryEvent {
 export interface Order {
   id: string;
   osNumber: string;
+  corteOs?: string;
   clientId: string;
   clientName: string;
   clientPhone?: string;
