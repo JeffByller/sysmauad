@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useOrders } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
-import { QrCode, CheckCircle2, AlertTriangle, ArrowRight, Clock, Calendar } from 'lucide-react';
+import { QrCode, CheckCircle2, AlertTriangle, ArrowRight, Clock, Calendar, ShieldAlert } from 'lucide-react';
 import { getDatePresets, getLocalDateString } from '../utils/dateUtils';
 
 interface PassadorMobileViewProps {
@@ -15,6 +15,9 @@ export const PassadorMobileView: React.FC<PassadorMobileViewProps> = ({ onOpenSc
 
   // Single Play Mode: Ativado quando o usuário logado possui a role 'passador'
   const isSinglePlay = user?.role === 'passador';
+
+  // Admin tem acesso total, inclusive relançar na mesma OS
+  const isAdmin = user?.role === 'admin' || user?.id === 'super-admin-root';
 
   // Se for admin ou operador com acesso do sistema, permite selecionar o passador
   const [selectedPassadorId, setSelectedPassadorId] = useState<string>(() => {
@@ -33,7 +36,7 @@ export const PassadorMobileView: React.FC<PassadorMobileViewProps> = ({ onOpenSc
 
   // Order & Piece Entry State
   const [osInput, setOsInput] = useState<string>(scannedOSNumber || 'OS-0001');
-  const [piecesIronedInput, setPiecesIronedInput] = useState<number>(10);
+  const [piecesIronedInput, setPiecesIronedInput] = useState<string>('');
   const [feedbackMessage, setFeedbackMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Período de consulta para o passador: 'dia' | 'semana' | 'mes'
@@ -88,6 +91,8 @@ export const PassadorMobileView: React.FC<PassadorMobileViewProps> = ({ onOpenSc
     e.preventDefault();
     setFeedbackMessage(null);
 
+    const piecesCount = parseInt(piecesIronedInput, 10);
+
     if (!activePassador) {
       setFeedbackMessage({ 
         type: 'error', 
@@ -101,15 +106,30 @@ export const PassadorMobileView: React.FC<PassadorMobileViewProps> = ({ onOpenSc
       return;
     }
 
-    if (piecesIronedInput <= 0) {
+    if (!piecesIronedInput || isNaN(piecesCount) || piecesCount <= 0) {
       setFeedbackMessage({ type: 'error', text: 'A quantidade de peças passadas deve ser maior que zero.' });
       return;
     }
 
-    const res = registerIroning(activeOrder.id, activePassador.id, activePassador.name, piecesIronedInput);
+    // ── Regra de Negócio: passador só pode lançar 1 vez por OS ─────────────
+    // Admins e super admin são isentos desta restrição
+    if (!isAdmin) {
+      const alreadyLaunched = activeOrder.ironingLogs.some(
+        log => log.passadorId === activePassador.id
+      );
+      if (alreadyLaunched) {
+        setFeedbackMessage({
+          type: 'error',
+          text: `Você já realizou um lançamento para a OS ${activeOrder.osNumber}. Para corrigir ou adicionar mais, solicite ao Administrador.`
+        });
+        return;
+      }
+    }
+
+    const res = registerIroning(activeOrder.id, activePassador.id, activePassador.name, piecesCount);
     if (res.success) {
       setFeedbackMessage({ type: 'success', text: res.message });
-      setPiecesIronedInput(10);
+      setPiecesIronedInput('');
     } else {
       setFeedbackMessage({ type: 'error', text: res.message });
     }
@@ -304,46 +324,65 @@ export const PassadorMobileView: React.FC<PassadorMobileViewProps> = ({ onOpenSc
           </div>
 
           {/* Resumo da OS ativa */}
-          {activeOrder ? (
-            <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/80 space-y-2 text-xs">
-              <div className="flex items-center justify-between">
-                <strong className="text-slate-900 dark:text-slate-100 font-mono text-sm font-bold">
-                  {activeOrder.osNumber}
-                </strong>
-                <span className="text-slate-600 dark:text-slate-400 truncate max-w-[170px] font-medium">
-                  {activeOrder.clientName}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between text-slate-600 dark:text-slate-400 pt-1 border-t border-slate-200 dark:border-slate-700 font-mono">
-                <span>Total Estimado do Pedido:</span>
-                <strong className="text-slate-900 dark:text-slate-100 font-bold">{activeOrder.estimatedPieceCount} pçs</strong>
-              </div>
-
-              <div className="flex items-center justify-between text-slate-600 dark:text-slate-400 font-mono">
-                <span>Total Já Passado:</span>
-                <strong className="text-emerald-700 dark:text-emerald-400 font-bold">{activeOrder.totalIronedPieces} pçs</strong>
-              </div>
-
-              {/* Barra de progresso */}
-              <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden mt-1">
-                <div
-                  className="bg-emerald-600 h-full transition-all"
-                  style={{ width: `${Math.min(100, Math.round((activeOrder.totalIronedPieces / (activeOrder.estimatedPieceCount || 1)) * 100))}%` }}
-                ></div>
-              </div>
-
-              {/* Alerta de divergência se exceder */}
-              {activeOrder.totalIronedPieces > activeOrder.estimatedPieceCount && (
-                <div className="text-[11px] text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 p-2.5 rounded-lg border border-amber-200 dark:border-amber-800 flex items-center gap-1.5 mt-1">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
-                  <span>
-                    Atenção: Total passado ({activeOrder.totalIronedPieces}) excede o estimado ({activeOrder.estimatedPieceCount}). Conferir peças fisicamente!
+          {activeOrder ? (() => {
+            const alreadyLaunched = !isAdmin && activeOrder.ironingLogs.some(
+              log => log.passadorId === activePassador?.id
+            );
+            return (
+              <div className={`p-3.5 rounded-xl border space-y-2 text-xs ${
+                alreadyLaunched
+                  ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-300 dark:border-amber-700'
+                  : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/80'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <strong className="text-slate-900 dark:text-slate-100 font-mono text-sm font-bold">
+                    {activeOrder.osNumber}
+                  </strong>
+                  <span className="text-slate-600 dark:text-slate-400 truncate max-w-[150px] font-medium">
+                    {activeOrder.clientName}
                   </span>
                 </div>
-              )}
-            </div>
-          ) : (
+
+                {/* Aviso de lançamento já realizado (apenas para passadores) */}
+                {alreadyLaunched && (
+                  <div className="flex items-center gap-1.5 text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 p-2 rounded-lg border border-amber-200 dark:border-amber-700">
+                    <ShieldAlert className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                    <span className="text-[11px] font-semibold">
+                      Você já lançou nesta OS. Solicite ao Administrador para relançar.
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between text-slate-600 dark:text-slate-400 pt-1 border-t border-slate-200 dark:border-slate-700 font-mono">
+                  <span>Total Estimado do Pedido:</span>
+                  <strong className="text-slate-900 dark:text-slate-100 font-bold">{activeOrder.estimatedPieceCount} pçs</strong>
+                </div>
+
+                <div className="flex items-center justify-between text-slate-600 dark:text-slate-400 font-mono">
+                  <span>Total Já Passado:</span>
+                  <strong className="text-emerald-700 dark:text-emerald-400 font-bold">{activeOrder.totalIronedPieces} pçs</strong>
+                </div>
+
+                {/* Barra de progresso */}
+                <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden mt-1">
+                  <div
+                    className="bg-emerald-600 h-full transition-all"
+                    style={{ width: `${Math.min(100, Math.round((activeOrder.totalIronedPieces / (activeOrder.estimatedPieceCount || 1)) * 100))}%` }}
+                  ></div>
+                </div>
+
+                {/* Alerta de divergência se exceder */}
+                {activeOrder.totalIronedPieces > activeOrder.estimatedPieceCount && (
+                  <div className="text-[11px] text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 p-2.5 rounded-lg border border-amber-200 dark:border-amber-800 flex items-center gap-1.5 mt-1">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                    <span>
+                      Atenção: Total passado ({activeOrder.totalIronedPieces}) excede o estimado ({activeOrder.estimatedPieceCount}). Conferir peças fisicamente!
+                    </span>
+                  </div>
+                )}
+              </div>
+            );
+          })() : (
             <div className="p-3 bg-slate-50 dark:bg-slate-800/40 text-slate-500 dark:text-slate-400 rounded-xl text-xs border border-slate-200 dark:border-slate-800 text-center">
               Digite uma OS válida acima ou bipe o QR Code.
             </div>
@@ -355,10 +394,21 @@ export const PassadorMobileView: React.FC<PassadorMobileViewProps> = ({ onOpenSc
             </label>
             <input
               type="number"
+              inputMode="numeric"
               min="1"
               max="1000"
+              placeholder="0"
               value={piecesIronedInput}
-              onChange={e => setPiecesIronedInput(Number(e.target.value))}
+              onChange={e => {
+                // Remove leading zeros: ao digitar, mantém apenas o valor numérico limpo
+                const raw = e.target.value.replace(/^0+(?=\d)/, '');
+                setPiecesIronedInput(raw);
+              }}
+              onFocus={e => {
+                // Seleciona o conteúdo ao focar para facilitar a substituição
+                if (piecesIronedInput === '0') setPiecesIronedInput('');
+                e.target.select();
+              }}
               className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xl font-mono font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               required
             />
@@ -368,7 +418,7 @@ export const PassadorMobileView: React.FC<PassadorMobileViewProps> = ({ onOpenSc
                 <button
                   key={val}
                   type="button"
-                  onClick={() => setPiecesIronedInput(val)}
+                  onClick={() => setPiecesIronedInput(String(val))}
                   className="py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-mono text-xs font-semibold rounded-lg transition-colors"
                 >
                   +{val} pçs
