@@ -11,7 +11,9 @@ import {
   MessageSquare, 
   Printer, 
   CalendarDays,
-  Package
+  Package,
+  Play,
+  PackageCheck
 } from 'lucide-react';
 import { OrderStatus } from '../types';
 
@@ -322,14 +324,36 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
                       <Printer className="w-4 h-4" />
                     </button>
 
-                    {ord.status !== 'pronto' && ord.status !== 'entregue' && (
+                    {ord.status === 'recebido' && (
+                      <button
+                        onClick={() => updateOrderStatus(ord.id, 'em_andamento', user?.name || 'Operador', 'Iniciada a lavagem.')}
+                        className="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 shadow-sm"
+                        title="Iniciar Produção (Mover para Em Andamento)"
+                      >
+                        <Play className="w-3.5 h-3.5 fill-current" />
+                        Iniciar
+                      </button>
+                    )}
+
+                    {ord.status === 'em_andamento' && (
                       <button
                         onClick={() => updateOrderStatus(ord.id, 'pronto', user?.name || 'Operador', 'Concluído no balcão')}
-                        className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 shadow-sm"
-                        title="Marcar como Pronto e Simular Envio no WhatsApp"
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 shadow-sm"
+                        title="Marcar como Pronto"
                       >
                         <MessageSquare className="w-3.5 h-3.5" />
-                        Marcar Pronto
+                        Pronto
+                      </button>
+                    )}
+
+                    {ord.status === 'pronto' && (
+                      <button
+                        onClick={() => updateOrderStatus(ord.id, 'entregue', user?.name || 'Operador', 'Lote entregue ao cliente.')}
+                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 shadow-sm"
+                        title="Registrar Entrega do Lote"
+                      >
+                        <PackageCheck className="w-3.5 h-3.5" />
+                        Entregar
                       </button>
                     )}
                   </div>

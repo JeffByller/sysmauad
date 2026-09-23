@@ -2,7 +2,7 @@ import React from 'react';
 import { useOrders } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
 import { QRCodeSVG } from 'qrcode.react';
-import { Printer, MessageSquare, ArrowLeft, Clock, FlaskConical, Shirt } from 'lucide-react';
+import { Printer, MessageSquare, ArrowLeft, Clock, FlaskConical, Shirt, Play, PackageCheck, CheckCircle2 } from 'lucide-react';
 import { OrderStatus } from '../types';
 
 interface OrderDetailViewProps {
@@ -83,7 +83,121 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
         </div>
       </div>
 
-      {/* Main Details Grid */}
+      {/* Workflow Stepper & Direct Status Advancement Bar */}
+      <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 transition-colors font-sans">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+          <div>
+            <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider font-mono">
+              FLUXO DE PRODUÇÃO DO LOTE
+            </h3>
+            <p className="text-[11px] text-slate-500">
+              Acompanhe as 4 etapas industriais ou altere o status do pedido manualmente.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500 font-semibold font-mono">Alterar Status:</span>
+            <select
+              value={order.status}
+              onChange={e => updateOrderStatus(order.id, e.target.value as OrderStatus, user?.name || 'Operador', `Status alterado manualmente para ${e.target.value}`)}
+              className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
+            >
+              <option value="recebido">1. Pedido Feito (Entrada)</option>
+              <option value="em_andamento">2. Em Andamento (Lavagem/Secagem)</option>
+              <option value="pronto">3. Pronto (Aguardando Retirada)</option>
+              <option value="entregue">4. Entregue (Finalizado)</option>
+            </select>
+          </div>
+        </div>
+
+        {/* 4-Step Visual Stepper */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
+          <div className={`p-3 rounded-xl border text-center transition-colors ${
+            order.status === 'recebido' 
+              ? 'bg-sky-50 dark:bg-sky-950/60 border-sky-300 dark:border-sky-800 text-sky-900 dark:text-sky-200 font-bold shadow-sm' 
+              : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-500'
+          }`}>
+            <span className="block text-[10px] uppercase font-mono font-bold text-slate-400">Etapa 1</span>
+            <span className="text-xs">1. Pedido Feito</span>
+          </div>
+
+          <div className={`p-3 rounded-xl border text-center transition-colors ${
+            order.status === 'em_andamento' 
+              ? 'bg-sky-50 dark:bg-sky-950/60 border-sky-300 dark:border-sky-800 text-sky-900 dark:text-sky-200 font-bold shadow-sm' 
+              : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-500'
+          }`}>
+            <span className="block text-[10px] uppercase font-mono font-bold text-slate-400">Etapa 2</span>
+            <span className="text-xs">2. Em Andamento</span>
+          </div>
+
+          <div className={`p-3 rounded-xl border text-center transition-colors ${
+            order.status === 'pronto' 
+              ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 font-bold shadow-sm' 
+              : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-500'
+          }`}>
+            <span className="block text-[10px] uppercase font-mono font-bold text-slate-400">Etapa 3</span>
+            <span className="text-xs">3. Pronto p/ Retirada</span>
+          </div>
+
+          <div className={`p-3 rounded-xl border text-center transition-colors ${
+            order.status === 'entregue' 
+              ? 'bg-indigo-50 dark:bg-indigo-950/60 border-indigo-300 dark:border-indigo-800 text-indigo-900 dark:text-indigo-200 font-bold shadow-sm' 
+              : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-500'
+          }`}>
+            <span className="block text-[10px] uppercase font-mono font-bold text-slate-400">Etapa 4</span>
+            <span className="text-xs">4. Entregue</span>
+          </div>
+        </div>
+
+        {/* Botão Contextual de Próxima Ação */}
+        <div className="pt-2 flex flex-wrap items-center justify-between gap-3 bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800">
+          <div className="text-xs text-slate-600 dark:text-slate-400 font-medium">
+            {order.status === 'recebido' && 'O lote está registrado na entrada e pronto para ser processado.'}
+            {order.status === 'em_andamento' && 'Lote em andamento na produção industrial de lavagem e secagem.'}
+            {order.status === 'pronto' && 'Lote pronto aguardando retirada pelo cliente ou envio.'}
+            {order.status === 'entregue' && 'Lote de roupas já entregue ao cliente e serviço finalizado.'}
+          </div>
+
+          <div>
+            {order.status === 'recebido' && (
+              <button
+                onClick={() => updateOrderStatus(order.id, 'em_andamento', user?.name || 'Operador', 'Iniciada a lavagem do lote.')}
+                className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm"
+              >
+                <Play className="w-3.5 h-3.5 fill-current" />
+                Iniciar Produção (Mover para Em Andamento)
+              </button>
+            )}
+
+            {order.status === 'em_andamento' && (
+              <button
+                onClick={() => updateOrderStatus(order.id, 'pronto', user?.name || 'Operador')}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm"
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                Concluir Lavado (Marcar como Pronto)
+              </button>
+            )}
+
+            {order.status === 'pronto' && (
+              <button
+                onClick={() => updateOrderStatus(order.id, 'entregue', user?.name || 'Operador', 'Lote entregue ao cliente.')}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm"
+              >
+                <PackageCheck className="w-3.5 h-3.5" />
+                Registrar Entrega (Marcar como Entregue)
+              </button>
+            )}
+
+            {order.status === 'entregue' && (
+              <span className="text-emerald-700 dark:text-emerald-400 text-xs font-bold flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4" />
+                Pedido Entregue e Concluído
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Left Column: Client & Weights */}
         <div className="space-y-6">

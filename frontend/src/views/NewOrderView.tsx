@@ -1,16 +1,20 @@
 import React, { useState } from 'react';
 import { useOrders } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
-import { Scale, Calculator, Printer, FlaskConical, User, UserPlus, AlertTriangle, Tag, CheckCircle2 } from 'lucide-react';
+import { Scale, Calculator, Printer, FlaskConical, User, UserPlus, AlertTriangle, Tag, CheckCircle2, ArrowRight } from 'lucide-react';
+import { Order } from '../types';
 
 interface NewOrderViewProps {
   onOrderCreated: (orderId: string) => void;
   onNavigateToClients: () => void;
+  onNavigateToOrders?: () => void;
 }
 
-export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNavigateToClients }) => {
+export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNavigateToClients, onNavigateToOrders }) => {
   const { createOrder, calculateChemicals, clients, garmentCatalog, receitasLavado } = useOrders();
   const { user } = useAuth();
+
+  const [createdOrderSuccess, setCreatedOrderSuccess] = useState<Order | null>(null);
 
   // Todos os campos iniciam completamente vazios ao abrir o Novo Pedido
   const [selectedClientId, setSelectedClientId] = useState<string>('');
@@ -160,8 +164,96 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
       notes
     });
 
-    onOrderCreated(newOrder.id);
+    setCreatedOrderSuccess(newOrder);
   };
+
+  const handleResetForm = () => {
+    setSelectedClientId('');
+    setSelectedCatalogId('');
+    setClothingType('');
+    setCorteOs('');
+    setProcessType('');
+    setUnitPrice(0);
+    setRefPieceWeightGrams(0);
+    setTotalWeightKg(0);
+    setNotes('');
+    setCreatedOrderSuccess(null);
+  };
+
+  if (createdOrderSuccess) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-12 space-y-6 animate-in fade-in duration-300">
+        <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl border border-emerald-200 dark:border-emerald-900/60 shadow-lg text-center space-y-5 transition-colors">
+          <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto shadow-sm">
+            <CheckCircle2 className="w-10 h-10" />
+          </div>
+
+          <div className="space-y-1">
+            <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+              SUCESSO • PEDIDO REGISTRADO
+            </span>
+            <h2 className="text-3xl font-black text-slate-900 dark:text-slate-100 font-mono tracking-tight">
+              {createdOrderSuccess.osNumber}
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+              O pedido foi salvo com sucesso no banco de dados e as dosagens químicas foram calculadas pelo peso total da balança.
+            </p>
+          </div>
+
+          {/* Resumo do Pedido */}
+          <div className="bg-slate-50 dark:bg-slate-800/60 p-5 rounded-xl border border-slate-200 dark:border-slate-700/80 text-xs font-mono space-y-2.5 text-left">
+            <div className="flex justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
+              <span className="text-slate-500">Cliente:</span>
+              <strong className="text-slate-900 dark:text-slate-100 font-sans">{createdOrderSuccess.clientName}</strong>
+            </div>
+            <div className="flex justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
+              <span className="text-slate-500">Roupa / Corte:</span>
+              <strong className="text-slate-900 dark:text-slate-100 uppercase">
+                {createdOrderSuccess.items?.[0]?.clothingType} {createdOrderSuccess.corteOs ? `(CORTE: ${createdOrderSuccess.corteOs})` : ''}
+              </strong>
+            </div>
+            <div className="flex justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
+              <span className="text-slate-500">Lavado / Receita:</span>
+              <strong className="text-sky-700 dark:text-sky-400 uppercase">{createdOrderSuccess.items?.[0]?.process}</strong>
+            </div>
+            <div className="flex justify-between pt-0.5">
+              <span className="text-slate-500">Peças Estimadas / Peso:</span>
+              <strong className="text-slate-900 dark:text-slate-100">
+                {createdOrderSuccess.estimatedPieceCount} pçs • {createdOrderSuccess.totalWeightKg} kg
+              </strong>
+            </div>
+          </div>
+
+          {/* Botões de Ação */}
+          <div className="pt-3 flex flex-col sm:flex-row items-center justify-center gap-3 font-sans">
+            <button
+              onClick={() => onOrderCreated(createdOrderSuccess.id)}
+              className="w-full sm:w-auto px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-colors shadow-md flex items-center justify-center gap-2 font-mono"
+            >
+              <Printer className="w-4 h-4" />
+              Imprimir Nota & Receita
+            </button>
+
+            {onNavigateToOrders && (
+              <button
+                onClick={onNavigateToOrders}
+                className="w-full sm:w-auto px-5 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold transition-colors"
+              >
+                Ir para Lista de Pedidos
+              </button>
+            )}
+
+            <button
+              onClick={handleResetForm}
+              className="w-full sm:w-auto px-5 py-3 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold transition-colors"
+            >
+              + Novo Pedido
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">

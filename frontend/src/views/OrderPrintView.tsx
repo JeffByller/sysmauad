@@ -9,53 +9,30 @@ interface OrderPrintViewProps {
 }
 
 export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack }) => {
-  const { getOrderById, getOrderByOS, calculateChemicals } = useOrders();
-  const order = getOrderById(orderId) || getOrderByOS(orderId);
+  const { getOrderById, getOrderByOS, calculateChemicals, orders } = useOrders();
+  
+  // Localiza o pedido com segurança por ID ou por OS
+  const order = useMemo(() => {
+    if (!orderId) return undefined;
+    return getOrderById(orderId) || getOrderByOS(orderId) || orders.find(o => o.id === orderId || o.osNumber === orderId);
+  }, [orderId, getOrderById, getOrderByOS, orders]);
 
   // Modo de visualização/impressão: 'ambos' | 'nota' | 'receita'
   const [printMode, setPrintMode] = useState<'ambos' | 'nota' | 'receita'>('ambos');
 
-  if (!order) {
-    return (
-      <div className="text-center py-12 font-sans">
-        <p className="text-slate-500">Pedido não encontrado.</p>
-        <button onClick={onBack} className="mt-4 px-4 py-2 bg-slate-900 text-white rounded-lg text-xs">
-          Voltar aos Pedidos
-        </button>
-      </div>
-    );
-  }
-
-  const handlePrint = () => {
-    window.print();
-  };
-
-  const orderDate = new Date(order.createdAt);
-  
-  // Formatação de data e hora no padrão dos relatórios industriais
-  // Ex: "22/09/26" e "Terça, 22/09/26 16:07:46"
-  const day = String(orderDate.getDate()).padStart(2, '0');
-  const month = String(orderDate.getMonth() + 1).padStart(2, '0');
-  const yearShort = String(orderDate.getFullYear()).slice(-2);
-  const dateShort = `${day}/${month}/${yearShort}`;
-
-  const weekdayCapitalized = orderDate.toLocaleDateString('pt-BR', { weekday: 'long' });
-  const weekdayFormatted = weekdayCapitalized.charAt(0).toUpperCase() + weekdayCapitalized.slice(1);
-  const timeFormatted = orderDate.toLocaleTimeString('pt-BR');
-
-  // Número puro da OS (ex: 9485)
-  const pureOsNumber = order.osNumber.replace(/^[A-Za-z]+-/, '');
-
   // Fases e produtos da receita técnica calculados por porcentagem sobre o peso total
+  // O hook useMemo DEVE SEMPRE rodar no topo, antes de qualquer retorno condicional!
   const recipeFases = useMemo(() => {
-    const hasStructuredPhases = order.chemicalRecipe && order.chemicalRecipe.some(c => c.faseName);
+    if (!order) return [];
+
+    const hasStructuredPhases = Array.isArray(order.chemicalRecipe) && order.chemicalRecipe.some(c => Boolean(c.faseName));
     const rawList = hasStructuredPhases 
       ? order.chemicalRecipe 
-      : calculateChemicals(order.totalWeightKg, [order.items[0]?.process || '']);
+      : calculateChemicals(order.totalWeightKg || 0, [order.items?.[0]?.process || '']);
 
     const map = new Map<string, { order: number; name: string; items: typeof rawList }>();
 
-    rawList.forEach(item => {
+    (rawList || []).forEach(item => {
       const orderNum = item.faseOrder || 1;
       const faseName = (item.faseName || 'PROCESSO GERAL').toUpperCase();
       const key = `${orderNum}-${faseName}`;
@@ -68,11 +45,58 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack 
     return Array.from(map.values()).sort((a, b) => a.order - b.order);
   }, [order, calculateChemicals]);
 
+  // Se o pedido não existir na memória
+  if (!order) {
+    return (
+      <div className="max-w-xl mx-auto my-12 bg-white dark:bg-slate-900 p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm text-center font-sans space-y-4">
+        <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto text-xl font-bold">
+          !
+        </div>
+        <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Ordem de Serviço Não Encontrada</h2>
+        <p className="text-xs text-slate-500">
+          Não localizamos o pedido com identificador <strong>{orderId || 'desconhecido'}</strong>. O pedido pode ter sido atualizado ou você pode voltar à listagem.
+        </p>
+        <div className="pt-2">
+          <button
+            onClick={onBack}
+            className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold shadow-sm transition-colors"
+          >
+            Voltar para Lista de Pedidos
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  // Formatação segura de datas
+  const rawDate = order.createdAt ? new Date(order.createdAt) : new Date();
+  const orderDate = isNaN(rawDate.getTime()) ? new Date() : rawDate;
+  
+  const day = String(orderDate.getDate()).padStart(2, '0');
+  const month = String(orderDate.getMonth() + 1).padStart(2, '0');
+  const yearShort = String(orderDate.getFullYear()).slice(-2);
+  const dateShort = `${day}/${month}/${yearShort}`;
+
+  const weekdayRaw = orderDate.toLocaleDateString('pt-BR', { weekday: 'long' }) || 'Terça';
+  const weekdayFormatted = weekdayRaw.charAt(0).toUpperCase() + weekdayRaw.slice(1);
+  const timeFormatted = orderDate.toLocaleTimeString('pt-BR') || '12:00:00';
+
+  // Número puro da OS (ex: 9485)
+  const pureOsNumber = (order.osNumber || '').replace(/^[A-Za-z]+-/, '') || '0001';
+
   // Primeiro item do pedido (lavado principal)
-  const primaryItem = order.items[0];
+  const primaryItem = order.items?.[0];
   const primaryLavado = primaryItem?.process?.toUpperCase() || 'LAVADO PADRÃO';
   const primaryRoupa = primaryItem?.clothingType?.toUpperCase() || 'ROUPA TÊXTIL';
   const primaryCorteOs = order.corteOs || primaryItem?.corteOs || '';
+
+  const clientNameSafe = (order.clientName || 'CLIENTE NÃO INFORMADO').toUpperCase();
+  const totalWeightSafe = Number(order.totalWeightKg || 0);
+  const totalPiecesSafe = Number(order.estimatedPieceCount || 0);
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
@@ -171,7 +195,7 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack 
           {/* Dados do Cliente */}
           <div className="space-y-1 pl-1 text-[11px]">
             <div>
-              <span className="font-bold">CLIENTE:</span> {order.clientName.toUpperCase()}
+              <span className="font-bold">CLIENTE:</span> {clientNameSafe}
             </div>
             {order.clientAddress && (
               <div>
@@ -179,7 +203,7 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack 
               </div>
             )}
             <div className="pl-10">
-              / {order.clientPhone || '99852-4888'}
+              / {order.clientPhone || 'Não informado'}
             </div>
             <div>
               <span className="font-bold">OBS:</span> {order.notes || ''}
@@ -210,7 +234,7 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack 
 
           {/* Linhas de Itens do Pedido */}
           <div className="space-y-2 text-[11px]">
-            {order.items.map((item, idx) => (
+            {(order.items || []).map((item, idx) => (
               <div key={idx} className="space-y-1">
                 <div className="grid grid-cols-12 items-baseline">
                   <div className="col-span-5 font-bold uppercase">{item.process}</div>
@@ -222,7 +246,7 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack 
                 <div className="grid grid-cols-12">
                   <div className="col-span-5"></div>
                   <div className="col-span-3 font-bold font-mono text-xs">
-                    {item.quantity || order.estimatedPieceCount}
+                    {item.quantity || totalPiecesSafe}
                   </div>
                   <div className="col-span-4"></div>
                 </div>
@@ -239,12 +263,12 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack 
           <div className="space-y-1 pt-1 font-bold text-xs">
             <div className="flex gap-4">
               <span>QtdTotPecas:</span>
-              <span className="font-mono">{order.estimatedPieceCount}</span>
+              <span className="font-mono">{totalPiecesSafe}</span>
             </div>
             <div className="flex gap-4">
               <span>PesTotal:</span>
               <span className="font-mono">
-                {order.totalWeightKg.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} Kg
+                {totalWeightSafe.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} Kg
               </span>
             </div>
           </div>
@@ -265,7 +289,7 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack 
           <div className="pt-4 flex items-center justify-end gap-2 text-[9px] text-slate-500">
             <span>QR Bipagem O.S:</span>
             <div className="p-0.5 border border-slate-700 bg-white inline-block">
-              <QRCodeSVG value={order.osNumber} size={36} />
+              <QRCodeSVG value={order.osNumber || pureOsNumber} size={36} />
             </div>
           </div>
         </div>
@@ -305,7 +329,7 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack 
               </div>
             </div>
             <div>
-              <span className="font-bold">CLIENTE.....:</span> {order.clientName.toUpperCase()}
+              <span className="font-bold">CLIENTE.....:</span> {clientNameSafe}
             </div>
             <div>
               <span className="font-bold">ROUPA.......:</span> {primaryRoupa} {primaryCorteOs ? `(REF.${primaryCorteOs})` : ''}
@@ -326,10 +350,10 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack 
           {/* Linha de Totais (Peças e Peso Total em Kg) */}
           <div className="flex justify-between font-bold text-xs py-0.5">
             <div>
-              <span>TOTAL.......:</span> <span className="font-mono text-sm ml-2">{order.estimatedPieceCount}</span>
+              <span>TOTAL.......:</span> <span className="font-mono text-sm ml-2">{totalPiecesSafe}</span>
             </div>
             <div className="font-mono text-sm">
-              {order.totalWeightKg.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 3 })} Kg
+              {totalWeightSafe.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 3 })} Kg
             </div>
           </div>
 
@@ -367,7 +391,7 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack 
 
                 {/* Lista de Produtos da Fase */}
                 {fase.items.map((prod, pIdx) => {
-                  const qtyKg = (prod.totalGrams / 1000).toLocaleString('pt-BR', {
+                  const qtyKg = ((Number(prod.totalGrams) || 0) / 1000).toLocaleString('pt-BR', {
                     minimumFractionDigits: 3,
                     maximumFractionDigits: 3
                   });
@@ -407,7 +431,7 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack 
           {/* Rodapé explicativo do cálculo da receita */}
           <div className="pt-4 flex justify-between items-center text-[9px] text-slate-500 border-t border-slate-200">
             <span>
-              * Quantidades calculadas por porcentagem (%) sobre o peso do lote ({order.totalWeightKg} Kg). Dosagens ajustáveis por tipo de lavado.
+              * Quantidades calculadas por porcentagem (%) sobre o peso do lote ({totalWeightSafe} Kg). Dosagens ajustáveis por tipo de lavado.
             </span>
             <span className="font-mono uppercase font-bold">
               SYSMAUAD INDUSTRIAL

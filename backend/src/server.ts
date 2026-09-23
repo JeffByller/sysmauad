@@ -788,17 +788,21 @@ app.get('/orders', async (_req: Request, res: Response) => {
 app.post('/orders', async (req: Request, res: Response) => {
   try {
     const orderData = req.body;
-    const id = `ord-${Date.now()}`;
+    const id = orderData.id || `ord-${Date.now()}`;
     
-    // Gera número sequencial de OS
-    const countResult = await query('SELECT count(*) FROM sysmauad.orders');
-    const seq = parseInt(countResult.rows[0].count, 10) + 1;
-    const osNumber = `OS-${String(seq).padStart(4, '0')}`;
+    let osNumber = orderData.osNumber;
+    if (!osNumber) {
+      const countResult = await query('SELECT count(*) FROM sysmauad.orders');
+      const seq = parseInt(countResult.rows[0].count, 10) + 1;
+      osNumber = `OS-${String(seq).padStart(4, '0')}`;
+    }
 
-    const now = new Date().toISOString();
-    const history = [
-      { timestamp: now, status: 'recebido', operator: orderData.operatorName || 'Operador', note: 'Entrada da ordem de serviço registrada.' }
-    ];
+    const now = orderData.createdAt || new Date().toISOString();
+    const history = Array.isArray(orderData.history) && orderData.history.length > 0
+      ? orderData.history
+      : [
+          { timestamp: now, status: 'recebido', operator: orderData.operatorName || 'Operador', note: 'Entrada da ordem de serviço registrada.' }
+        ];
 
     const corteOs = orderData.corteOs || (Array.isArray(orderData.items) && orderData.items[0]?.corteOs) || null;
 

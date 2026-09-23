@@ -132,6 +132,7 @@ export const AppContent: React.FC = () => {
           <NewOrderView
             onOrderCreated={orderId => handleNavigate('order-print', orderId)}
             onNavigateToClients={() => handleNavigate('clients')}
+            onNavigateToOrders={() => handleNavigate('orders')}
           />
         )}
 
