@@ -18,16 +18,16 @@ Toda a infraestrutura do SysMauad é orquestrada em contêineres Docker, garanti
 
 ```mermaid
 flowchart TD
-    ClientBrowser["🌐 Navegador / Celular (Desktop / Mobile)"] -->|HTTPS :443 / HTTP :80| Nginx["Nginx Reverse Proxy\n(SSL Let's Encrypt • sysmauad-nginx)"]
+    ClientBrowser["Navegador / Celular - Desktop e Mobile"] -->|HTTPS 443 e HTTP 80| Nginx["Nginx Reverse Proxy - SSL Lets Encrypt"]
     
-    subgraph DockerNetwork["Rede Interna Docker (sysmauad-net)"]
-        Nginx -->|"/" (SPA Estático)| Frontend["Frontend SPA\n(React 18 + Vite • porta 8000)"]
-        Nginx -->|"/api/"| Backend["Backend API\n(Node.js + Express TS • porta 3001)"]
-        Nginx -->|"/evolution/"| Evolution["Evolution API\n(WhatsApp Engine • porta 8080)"]
+    subgraph DockerNetwork["Rede Interna Docker - sysmauad-net"]
+        Nginx -->|Rota Raiz /| Frontend["Frontend SPA - React 18 e Vite (porta 8000)"]
+        Nginx -->|Rota /api/| Backend["Backend API - Node.js Express TS (porta 3001)"]
+        Nginx -->|Rota /evolution/| Evolution["Evolution API - WhatsApp Engine (porta 8080)"]
         
-        Backend -->|Pool PostgreSQL| Postgres[("PostgreSQL 16 Alpine\n(schema: sysmauad • porta 5432)")]
-        Evolution -->|Sessões WhatsApp| Postgres
-        Backend -->|HTTP Dispatch| Evolution
+        Backend -->|Pool PostgreSQL| Postgres[("PostgreSQL 16 Alpine - schema sysmauad")]
+        Evolution -->|Sessoes WhatsApp| Postgres
+        Backend -->|Envio de Mensagens| Evolution
     end
 ```
 
