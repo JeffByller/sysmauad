@@ -599,6 +599,30 @@ export async function initDb() {
     );
   `);
 
+  // 11. Tabela de Configurações do Sistema
+  await query(`
+    CREATE TABLE IF NOT EXISTS sysmauad.system_settings (
+      id VARCHAR(50) PRIMARY KEY DEFAULT 'default',
+      whatsapp_instance_name VARCHAR(100) DEFAULT 'sysmauad',
+      whatsapp_target_phone VARCHAR(50) DEFAULT '',
+      auto_reports_enabled BOOLEAN DEFAULT TRUE,
+      report_frequency VARCHAR(20) DEFAULT 'diario',
+      report_send_time VARCHAR(10) DEFAULT '18:00',
+      report_day_of_week INT DEFAULT 1,
+      report_day_of_month INT DEFAULT 1,
+      selected_reports JSONB DEFAULT '["producao", "passadoria", "financeiro", "estoque"]'::jsonb,
+      report_header_text TEXT DEFAULT '👔 *SYSMAUAD - Relatório Gerencial Automatizado*',
+      report_footer_text TEXT DEFAULT 'Mauad Lavanderia • Sistema de Gestão Industrial',
+      include_financial_values BOOLEAN DEFAULT TRUE,
+      include_low_stock_alerts BOOLEAN DEFAULT TRUE,
+      include_operator_breakdown BOOLEAN DEFAULT TRUE,
+      auto_backup_enabled BOOLEAN DEFAULT TRUE,
+      backup_retention_days INT DEFAULT 3,
+      backup_time VARCHAR(10) DEFAULT '02:00',
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+  `);
+
   // SEED INICIAL CASO TABELAS ESTEJAM VAZIAS
   await seedInitialData();
   console.log('[Database] Tabelas do PostgreSQL inicializadas com sucesso.');
@@ -744,6 +768,29 @@ async function seedInitialData() {
         [r.id, r.name, r.description, JSON.stringify(r.fases), r.createdAt, r.updatedAt]
       );
     }
+  }
+
+  // 10. Configurações Padrão
+  const settingsCount = await query('SELECT count(*) FROM sysmauad.system_settings');
+  if (parseInt(settingsCount.rows[0].count, 10) === 0) {
+    console.log('[Database] Semeando configurações padrão...');
+    await query(`
+      INSERT INTO sysmauad.system_settings (
+        id, whatsapp_instance_name, whatsapp_target_phone,
+        auto_reports_enabled, report_frequency, report_send_time,
+        report_day_of_week, report_day_of_month, selected_reports,
+        report_header_text, report_footer_text,
+        include_financial_values, include_low_stock_alerts, include_operator_breakdown,
+        auto_backup_enabled, backup_retention_days, backup_time
+      ) VALUES (
+        'default', 'sysmauad', '',
+        TRUE, 'diario', '18:00',
+        1, 1, '["producao", "passadoria", "financeiro", "estoque"]'::jsonb,
+        '👔 *SYSMAUAD - Relatório Gerencial Automatizado*', 'Mauad Lavanderia • Sistema de Gestão Industrial',
+        TRUE, TRUE, TRUE,
+        TRUE, 3, '02:00'
+      ) ON CONFLICT (id) DO NOTHING
+    `);
   }
 }
 

@@ -10,7 +10,8 @@ export const ALL_MENU_KEYS = [
   { id: 'passador-report', label: 'Relatórios' },
   { id: 'users', label: 'Gestão de Usuários' },
   { id: 'passador-mobile', label: 'Modo Passador Mobile' },
-  { id: 'client-portal', label: 'Central do Assinante' }
+  { id: 'client-portal', label: 'Central do Assinante' },
+  { id: 'settings', label: 'Configurações do Sistema' }
 ];
 
 export const INITIAL_SYSTEM_USERS: SystemUser[] = [

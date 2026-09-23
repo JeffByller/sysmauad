@@ -20,6 +20,17 @@ export const WhatsAppModal: React.FC = () => {
   const handleConfirmSend = (e: React.FormEvent) => {
     e.preventDefault();
     confirmOrderReady(markReadyOrder.id, messageText, user?.name || 'Operador');
+
+    if (markReadyOrder.clientPhone) {
+      fetch('/api/whatsapp/send-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          number: markReadyOrder.clientPhone,
+          text: messageText
+        })
+      }).catch(err => console.warn('[WhatsAppModal] Disparo de WhatsApp offline ou não conectado:', err));
+    }
   };
 
   return (

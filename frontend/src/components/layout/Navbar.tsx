@@ -18,7 +18,8 @@ import {
   FileText,
   Menu,
   X,
-  ChevronDown
+  ChevronDown,
+  Settings
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -349,6 +350,21 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange }) => {
               )}
             </div>
 
+            {/* Settings Button */}
+            {(user?.role === 'admin' || user?.id === 'super-admin-root' || hasPermission('settings')) && (
+              <button
+                onClick={() => onTabChange('settings')}
+                className={`p-2 rounded-lg transition-colors shrink-0 flex items-center justify-center ${
+                  currentTab === 'settings'
+                    ? 'bg-sky-700 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                }`}
+                title="Configurações (WhatsApp, Automação & Backup)"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+            )}
+
             {/* Logout Button */}
             <button
               onClick={handleLogout}
@@ -490,6 +506,18 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange }) => {
                 >
                   <Receipt className="w-4 h-4" />
                   Assinante
+                </button>
+              )}
+
+              {(user?.role === 'admin' || user?.id === 'super-admin-root' || hasPermission('settings')) && (
+                <button
+                  onClick={() => handleMobileNav('settings')}
+                  className={`p-2.5 rounded-xl flex items-center gap-2 font-semibold col-span-2 ${
+                    currentTab === 'settings' ? 'bg-sky-700 text-white' : 'text-slate-300 hover:bg-slate-800'
+                  }`}
+                >
+                  <Settings className="w-4 h-4" />
+                  Configurações (WhatsApp, Relatórios & Backup)
                 </button>
               )}
 

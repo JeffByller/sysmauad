@@ -166,3 +166,41 @@ export interface ReceitaLavado {
   updatedAt: string;
 }
 
+export interface SystemSettings {
+  id: string;
+  whatsappInstanceName: string;
+  whatsappTargetPhone: string;
+  autoReportsEnabled: boolean;
+  reportFrequency: 'diario' | 'semanal' | 'mensal';
+  reportSendTime: string;
+  reportDayOfWeek: number;
+  reportDayOfMonth: number;
+  selectedReports: string[];
+  reportHeaderText: string;
+  reportFooterText: string;
+  includeFinancialValues: boolean;
+  includeLowStockAlerts: boolean;
+  includeOperatorBreakdown: boolean;
+  autoBackupEnabled: boolean;
+  backupRetentionDays: number;
+  backupTime: string;
+  updatedAt?: string;
+}
+
+export interface BackupFile {
+  filename: string;
+  sizeBytes: number;
+  sizeFormatted: string;
+  createdAt: string;
+  downloadUrl: string;
+}
+
+export interface WhatsAppStatus {
+  instanceName: string;
+  state: 'open' | 'connecting' | 'close' | 'refused' | 'disconnected' | 'unknown';
+  connected: boolean;
+  qrcode?: string | null;
+  phone?: string | null;
+}
+
+

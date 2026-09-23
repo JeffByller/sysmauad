@@ -25,6 +25,7 @@ import { FinanceCaixaView } from './views/FinanceCaixaView';
 import { useAuth } from './context/AuthContext';
 import { UserManagementView } from './views/UserManagementView';
 import { ClientSignupView } from './views/ClientSignupView';
+import { SettingsView } from './views/SettingsView';
 
 export const AppContent: React.FC = () => {
   const { user } = useAuth();
@@ -186,6 +187,10 @@ export const AppContent: React.FC = () => {
 
         {currentTab === 'passador-report' && (
           <PassadorReportView />
+        )}
+
+        {currentTab === 'settings' && (
+          <SettingsView />
         )}
       </main>
 

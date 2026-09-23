@@ -1,5 +1,7 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
+import fs from 'fs';
+import path from 'path';
 import { pool, query, initDb } from './db';
 import { 
   SystemUser, 
@@ -10,7 +12,10 @@ import {
   Order, 
   InsumoEntry, 
   Supplier, 
-  ReceitaLavado 
+  ReceitaLavado,
+  SystemSettings,
+  BackupFile,
+  WhatsAppStatus
 } from './types';
 
 const app = express();
@@ -25,7 +30,7 @@ const SUPER_ADMIN = {
   username: 'superadmin',
   passwords: ['m51IqWR48pYNeg', 'admin123', 'mauad2026'],
   role: 'admin' as const,
-  allowedMenus: ['dashboard', 'orders', 'stock', 'clients', 'garment-catalog', 'finance', 'passador-report', 'users', 'passador-mobile', 'client-portal'],
+  allowedMenus: ['dashboard', 'orders', 'stock', 'clients', 'garment-catalog', 'finance', 'passador-report', 'users', 'passador-mobile', 'client-portal', 'settings'],
   active: true
 };
 
@@ -170,6 +175,256 @@ function mapReceita(row: any): ReceitaLavado {
     updatedAt: row.updated_at
   };
 }
+
+function mapSettings(row: any): SystemSettings {
+  return {
+    id: row.id,
+    whatsappInstanceName: row.whatsapp_instance_name || 'sysmauad',
+    whatsappTargetPhone: row.whatsapp_target_phone || '',
+    autoReportsEnabled: Boolean(row.auto_reports_enabled),
+    reportFrequency: row.report_frequency || 'diario',
+    reportSendTime: row.report_send_time || '18:00',
+    reportDayOfWeek: Number(row.report_day_of_week ?? 1),
+    reportDayOfMonth: Number(row.report_day_of_month ?? 1),
+    selectedReports: Array.isArray(row.selected_reports) ? row.selected_reports : ['producao', 'passadoria', 'financeiro', 'estoque'],
+    reportHeaderText: row.report_header_text || '👔 *SYSMAUAD - Relatório Gerencial Automatizado*',
+    reportFooterText: row.report_footer_text || 'Mauad Lavanderia • Sistema de Gestão Industrial',
+    includeFinancialValues: row.include_financial_values !== false,
+    includeLowStockAlerts: row.include_low_stock_alerts !== false,
+    includeOperatorBreakdown: row.include_operator_breakdown !== false,
+    autoBackupEnabled: row.auto_backup_enabled !== false,
+    backupRetentionDays: Number(row.backup_retention_days ?? 3),
+    backupTime: row.backup_time || '02:00',
+    updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : undefined
+  };
+}
+
+// Evolution API & Backup Configuration
+const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL || 'http://evolution-api:8080';
+const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY || 'sysmauad_evo_secret_key';
+const WHATSAPP_INSTANCE = 'sysmauad';
+const BACKUP_DIR = '/app/data/backups';
+
+function cleanPhone(phone: string): string {
+  const digits = (phone || '').replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.length === 10 || digits.length === 11) {
+    return `55${digits}`;
+  }
+  return digits;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+async function createBackupFile(): Promise<{ filename: string; sizeBytes: number; sizeFormatted: string; createdAt: string; downloadUrl: string }> {
+  if (!fs.existsSync(BACKUP_DIR)) {
+    fs.mkdirSync(BACKUP_DIR, { recursive: true });
+  }
+
+  const [users, clients, stock, garments, passadores, orders, suppliers, insumoEntries, receitas, settings] = await Promise.all([
+    query('SELECT * FROM sysmauad.users'),
+    query('SELECT * FROM sysmauad.clients'),
+    query('SELECT * FROM sysmauad.stock_items'),
+    query('SELECT * FROM sysmauad.garment_catalog'),
+    query('SELECT * FROM sysmauad.passadores'),
+    query('SELECT * FROM sysmauad.orders'),
+    query('SELECT * FROM sysmauad.suppliers'),
+    query('SELECT * FROM sysmauad.insumo_entries'),
+    query('SELECT * FROM sysmauad.receitas_lavado'),
+    query('SELECT * FROM sysmauad.system_settings')
+  ]);
+
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const dateStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  const filename = `sysmauad-backup-${dateStr}.json`;
+  const filePath = path.join(BACKUP_DIR, filename);
+
+  const backupData = {
+    system: "SYSMAUAD Lavanderia Industrial",
+    version: "1.0.0",
+    createdAt: now.toISOString(),
+    summary: {
+      users: users.rowCount,
+      clients: clients.rowCount,
+      stockItems: stock.rowCount,
+      garmentCatalog: garments.rowCount,
+      passadores: passadores.rowCount,
+      orders: orders.rowCount,
+      suppliers: suppliers.rowCount,
+      insumoEntries: insumoEntries.rowCount,
+      receitasLavado: receitas.rowCount
+    },
+    data: {
+      users: users.rows,
+      clients: clients.rows,
+      stock_items: stock.rows,
+      garment_catalog: garments.rows,
+      passadores: passadores.rows,
+      orders: orders.rows,
+      suppliers: suppliers.rows,
+      insumo_entries: insumoEntries.rows,
+      receitas_lavado: receitas.rows,
+      system_settings: settings.rows
+    }
+  };
+
+  fs.writeFileSync(filePath, JSON.stringify(backupData, null, 2), 'utf-8');
+  const stats = fs.statSync(filePath);
+
+  return {
+    filename,
+    sizeBytes: stats.size,
+    sizeFormatted: formatBytes(stats.size),
+    createdAt: now.toISOString(),
+    downloadUrl: `/api/backups/${encodeURIComponent(filename)}/download`
+  };
+}
+
+function purgeOldBackups(retentionDays: number = 3) {
+  if (!fs.existsSync(BACKUP_DIR)) return;
+  const cutoff = Date.now() - (retentionDays * 24 * 60 * 60 * 1000);
+  const files = fs.readdirSync(BACKUP_DIR);
+  for (const file of files) {
+    if (file.startsWith('sysmauad-backup-') && file.endsWith('.json')) {
+      const filePath = path.join(BACKUP_DIR, file);
+      try {
+        const stat = fs.statSync(filePath);
+        if (stat.mtimeMs < cutoff) {
+          console.log(`[Backup Retention] Apagando backup com mais de ${retentionDays} dias: ${file}`);
+          fs.unlinkSync(filePath);
+        }
+      } catch (e) {
+        console.error('[Backup Retention] Erro ao remover arquivo antigo:', file, e);
+      }
+    }
+  }
+}
+
+async function generateSystemReportText(settings: SystemSettings): Promise<string> {
+  const now = new Date();
+  const dateFormatted = now.toLocaleDateString('pt-BR', { timeZone: 'America/Recife' });
+  const timeFormatted = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Recife' });
+
+  const freqLabel = settings.reportFrequency === 'semanal' 
+    ? 'Semanal' 
+    : settings.reportFrequency === 'mensal' 
+      ? 'Mensal' 
+      : 'Diário';
+
+  let msg = `${settings.reportHeaderText || '👔 *SYSMAUAD - Relatório Gerencial Automatizado*'}\n`;
+  msg += `📅 *Período:* ${freqLabel} • ${dateFormatted} às ${timeFormatted}\n`;
+
+  const selected = settings.selectedReports || [];
+
+  // 1. Relatório de Produção e Lavados
+  if (selected.includes('producao')) {
+    const ordersRes = await query('SELECT * FROM sysmauad.orders');
+    const allOrders = ordersRes.rows;
+    const totalOrders = allOrders.length;
+
+    let recebidos = 0;
+    let emAndamento = 0;
+    let prontos = 0;
+    let entregues = 0;
+    let totalKg = 0;
+    let totalPecas = 0;
+
+    for (const o of allOrders) {
+      if (o.status === 'recebido') recebidos++;
+      else if (o.status === 'em_andamento') emAndamento++;
+      else if (o.status === 'pronto') prontos++;
+      else if (o.status === 'entregue') entregues++;
+
+      totalKg += Number(o.total_weight_kg || 0);
+      totalPecas += Number(o.estimated_piece_count || 0);
+    }
+
+    msg += `\n📦 *PRODUÇÃO E LAVADOS*\n`;
+    msg += `• Total de Pedidos Registrados: *${totalOrders}*\n`;
+    msg += `• Em Andamento: *${emAndamento}* | Recebidos: *${recebidos}*\n`;
+    msg += `• Prontos: *${prontos}* | Entregues: *${entregues}*\n`;
+    msg += `• Carga Total Processada: *${totalKg.toFixed(1)} Kg*\n`;
+    msg += `• Volume Total Estimado: *${totalPecas} peças*\n`;
+  }
+
+  // 2. Relatório de Passadoria
+  if (selected.includes('passadoria')) {
+    const passadoresRes = await query('SELECT * FROM sysmauad.passadores WHERE active = TRUE');
+    const passadores = passadoresRes.rows;
+    let totalIroned = 0;
+
+    for (const p of passadores) {
+      totalIroned += Number(p.total_pieces_ironed || 0);
+    }
+
+    msg += `\n✨ *PASSADORIA & ACABAMENTO*\n`;
+    msg += `• Total de Peças Passadas: *${totalIroned} peças*\n`;
+    if (settings.includeOperatorBreakdown) {
+      msg += `• Detalhado por Passador:\n`;
+      for (const p of passadores) {
+        msg += `   └ ${p.name}: *${p.total_pieces_ironed || 0}* peças\n`;
+      }
+    }
+  }
+
+  // 3. Relatório Financeiro
+  if (selected.includes('financeiro') && settings.includeFinancialValues) {
+    const ordersRes = await query('SELECT total_service_value, payment_status FROM sysmauad.orders');
+    let totalFaturado = 0;
+    let totalPago = 0;
+    let totalAberto = 0;
+
+    for (const row of ordersRes.rows) {
+      const val = Number(row.total_service_value || 0);
+      totalFaturado += val;
+      if (row.payment_status === 'pago') {
+        totalPago += val;
+      } else {
+        totalAberto += val;
+      }
+    }
+
+    const ticketMedio = ordersRes.rows.length > 0 ? (totalFaturado / ordersRes.rows.length) : 0;
+
+    msg += `\n💰 *FINANCEIRO / CAIXA*\n`;
+    msg += `• Faturamento Total: *R$ ${totalFaturado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}*\n`;
+    msg += `• Recebido (Pago): *R$ ${totalPago.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}*\n`;
+    msg += `• A Receber (Em Aberto): *R$ ${totalAberto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}*\n`;
+    msg += `• Ticket Médio / Pedido: *R$ ${ticketMedio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}*\n`;
+  }
+
+  // 4. Relatório de Estoque e Insumos Químicos
+  if (selected.includes('estoque')) {
+    const stockRes = await query('SELECT * FROM sysmauad.stock_items ORDER BY name ASC');
+    const allStock = stockRes.rows;
+    const lowStock = allStock.filter((s: any) => Number(s.current_stock || 0) <= Number(s.min_stock_alert || 0));
+
+    msg += `\n🧪 *ESTOQUE DE INSUMOS QUÍMICOS*\n`;
+    msg += `• Itens Cadastrados: *${allStock.length} produtos*\n`;
+    if (settings.includeLowStockAlerts) {
+      if (lowStock.length === 0) {
+        msg += `• ✅ Todos os insumos estão acima da margem mínima.\n`;
+      } else {
+        msg += `• ⚠️ *${lowStock.length} produto(s) em nível crítico/alerta:*\n`;
+        for (const item of lowStock) {
+          msg += `   └ ${item.name}: *${Number(item.current_stock).toFixed(1)} ${item.unit}* (Alerta: ${Number(item.min_stock_alert).toFixed(1)} ${item.unit})\n`;
+        }
+      }
+    }
+  }
+
+  msg += `\n─────────────────────\n`;
+  msg += `${settings.reportFooterText || 'Mauad Lavanderia • Sistema de Gestão Industrial'}`;
+
+  return msg;
+}
+
+
 
 
 // ----------------------------------------------------
@@ -1213,11 +1468,437 @@ app.delete('/receitas-lavado/:id', async (req: Request, res: Response) => {
 });
 
 // ----------------------------------------------------
+// 11. CONFIGURAÇÕES DO SISTEMA (SETTINGS)
+// ----------------------------------------------------
+app.get('/settings', async (_req: Request, res: Response) => {
+  try {
+    let result = await query('SELECT * FROM sysmauad.system_settings WHERE id = $1', ['default']);
+    if (result.rows.length === 0) {
+      await query(`
+        INSERT INTO sysmauad.system_settings (id, whatsapp_instance_name, auto_reports_enabled, report_frequency, report_send_time, selected_reports, auto_backup_enabled, backup_retention_days)
+        VALUES ('default', 'sysmauad', TRUE, 'diario', '18:00', '["producao", "passadoria", "financeiro", "estoque"]'::jsonb, TRUE, 3)
+        ON CONFLICT (id) DO NOTHING
+      `);
+      result = await query('SELECT * FROM sysmauad.system_settings WHERE id = $1', ['default']);
+    }
+    res.json(mapSettings(result.rows[0]));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/settings', async (req: Request, res: Response) => {
+  try {
+    const body = req.body;
+    const current = await query('SELECT * FROM sysmauad.system_settings WHERE id = $1', ['default']);
+    const row = current.rows.length > 0 ? current.rows[0] : {};
+
+    const whatsappTargetPhone = body.whatsappTargetPhone !== undefined ? body.whatsappTargetPhone : (row.whatsapp_target_phone || '');
+    const autoReportsEnabled = body.autoReportsEnabled !== undefined ? Boolean(body.autoReportsEnabled) : (row.auto_reports_enabled ?? true);
+    const reportFrequency = body.reportFrequency !== undefined ? body.reportFrequency : (row.report_frequency || 'diario');
+    const reportSendTime = body.reportSendTime !== undefined ? body.reportSendTime : (row.report_send_time || '18:00');
+    const reportDayOfWeek = body.reportDayOfWeek !== undefined ? Number(body.reportDayOfWeek) : (row.report_day_of_week ?? 1);
+    const reportDayOfMonth = body.reportDayOfMonth !== undefined ? Number(body.reportDayOfMonth) : (row.report_day_of_month ?? 1);
+    const selectedReports = body.selectedReports !== undefined ? body.selectedReports : (row.selected_reports || ['producao', 'passadoria', 'financeiro', 'estoque']);
+    const reportHeaderText = body.reportHeaderText !== undefined ? body.reportHeaderText : (row.report_header_text || '👔 *SYSMAUAD - Relatório Gerencial Automatizado*');
+    const reportFooterText = body.reportFooterText !== undefined ? body.reportFooterText : (row.report_footer_text || 'Mauad Lavanderia • Sistema de Gestão Industrial');
+    const includeFinancialValues = body.includeFinancialValues !== undefined ? Boolean(body.includeFinancialValues) : (row.include_financial_values ?? true);
+    const includeLowStockAlerts = body.includeLowStockAlerts !== undefined ? Boolean(body.includeLowStockAlerts) : (row.include_low_stock_alerts ?? true);
+    const includeOperatorBreakdown = body.includeOperatorBreakdown !== undefined ? Boolean(body.includeOperatorBreakdown) : (row.include_operator_breakdown ?? true);
+    const autoBackupEnabled = body.autoBackupEnabled !== undefined ? Boolean(body.autoBackupEnabled) : (row.auto_backup_enabled ?? true);
+    const backupRetentionDays = body.backupRetentionDays !== undefined ? Number(body.backupRetentionDays) : (row.backup_retention_days ?? 3);
+    const backupTime = body.backupTime !== undefined ? body.backupTime : (row.backup_time || '02:00');
+
+    const result = await query(`
+      INSERT INTO sysmauad.system_settings (
+        id, whatsapp_instance_name, whatsapp_target_phone,
+        auto_reports_enabled, report_frequency, report_send_time,
+        report_day_of_week, report_day_of_month, selected_reports,
+        report_header_text, report_footer_text,
+        include_financial_values, include_low_stock_alerts, include_operator_breakdown,
+        auto_backup_enabled, backup_retention_days, backup_time,
+        updated_at
+      ) VALUES (
+        'default', 'sysmauad', $1,
+        $2, $3, $4,
+        $5, $6, $7,
+        $8, $9,
+        $10, $11, $12,
+        $13, $14, $15,
+        NOW()
+      ) ON CONFLICT (id) DO UPDATE SET
+        whatsapp_target_phone = EXCLUDED.whatsapp_target_phone,
+        auto_reports_enabled = EXCLUDED.auto_reports_enabled,
+        report_frequency = EXCLUDED.report_frequency,
+        report_send_time = EXCLUDED.report_send_time,
+        report_day_of_week = EXCLUDED.report_day_of_week,
+        report_day_of_month = EXCLUDED.report_day_of_month,
+        selected_reports = EXCLUDED.selected_reports,
+        report_header_text = EXCLUDED.report_header_text,
+        report_footer_text = EXCLUDED.report_footer_text,
+        include_financial_values = EXCLUDED.include_financial_values,
+        include_low_stock_alerts = EXCLUDED.include_low_stock_alerts,
+        include_operator_breakdown = EXCLUDED.include_operator_breakdown,
+        auto_backup_enabled = EXCLUDED.auto_backup_enabled,
+        backup_retention_days = EXCLUDED.backup_retention_days,
+        backup_time = EXCLUDED.backup_time,
+        updated_at = NOW()
+      RETURNING *
+    `, [
+      whatsappTargetPhone,
+      autoReportsEnabled,
+      reportFrequency,
+      reportSendTime,
+      reportDayOfWeek,
+      reportDayOfMonth,
+      JSON.stringify(selectedReports),
+      reportHeaderText,
+      reportFooterText,
+      includeFinancialValues,
+      includeLowStockAlerts,
+      includeOperatorBreakdown,
+      autoBackupEnabled,
+      backupRetentionDays,
+      backupTime
+    ]);
+
+    res.json(mapSettings(result.rows[0]));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------------------
+// 12. WHATSAPP & EVOLUTION API INTEGRATION
+// ----------------------------------------------------
+app.get('/whatsapp/status', async (_req: Request, res: Response) => {
+  try {
+    const resp = await fetch(`${EVOLUTION_API_URL}/instance/connectionState/${WHATSAPP_INSTANCE}`, {
+      headers: { 'apikey': EVOLUTION_API_KEY }
+    });
+
+    if (resp.status === 404) {
+      await fetch(`${EVOLUTION_API_URL}/instance/create`, {
+        method: 'POST',
+        headers: { 'apikey': EVOLUTION_API_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          instanceName: WHATSAPP_INSTANCE,
+          qrcode: true,
+          integration: 'WHATSAPP-BAILEYS'
+        })
+      });
+      return res.json({ instanceName: WHATSAPP_INSTANCE, state: 'connecting', connected: false });
+    }
+
+    const data = await resp.json() as any;
+    const state = data?.instance?.state || data?.state || 'close';
+    res.json({
+      instanceName: WHATSAPP_INSTANCE,
+      state,
+      connected: state === 'open'
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message, connected: false });
+  }
+});
+
+app.get('/whatsapp/qrcode', async (_req: Request, res: Response) => {
+  try {
+    const stateResp = await fetch(`${EVOLUTION_API_URL}/instance/connectionState/${WHATSAPP_INSTANCE}`, {
+      headers: { 'apikey': EVOLUTION_API_KEY }
+    });
+
+    if (stateResp.ok) {
+      const stateData = await stateResp.json() as any;
+      if (stateData?.instance?.state === 'open') {
+        return res.json({ connected: true, qrcode: null, state: 'open' });
+      }
+    } else if (stateResp.status === 404) {
+      const createResp = await fetch(`${EVOLUTION_API_URL}/instance/create`, {
+        method: 'POST',
+        headers: { 'apikey': EVOLUTION_API_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          instanceName: WHATSAPP_INSTANCE,
+          qrcode: true,
+          integration: 'WHATSAPP-BAILEYS'
+        })
+      });
+      const createData = await createResp.json() as any;
+      if (createData?.qrcode?.base64) {
+        return res.json({
+          connected: false,
+          qrcode: createData.qrcode.base64,
+          pairingCode: createData.qrcode.pairingCode,
+          count: createData.qrcode.count || 1,
+          state: 'connecting'
+        });
+      }
+    }
+
+    const connResp = await fetch(`${EVOLUTION_API_URL}/instance/connect/${WHATSAPP_INSTANCE}`, {
+      headers: { 'apikey': EVOLUTION_API_KEY }
+    });
+    const connData = await connResp.json() as any;
+
+    if (connData?.base64) {
+      return res.json({
+        connected: false,
+        qrcode: connData.base64,
+        pairingCode: connData.pairingCode,
+        count: connData.count || 1,
+        state: 'connecting'
+      });
+    }
+
+    if (connData?.instance?.state === 'open') {
+      return res.json({ connected: true, qrcode: null, state: 'open' });
+    }
+
+    res.json({ connected: false, qrcode: null, state: connData?.state || 'close' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message, connected: false });
+  }
+});
+
+app.post('/whatsapp/disconnect', async (_req: Request, res: Response) => {
+  try {
+    await fetch(`${EVOLUTION_API_URL}/instance/logout/${WHATSAPP_INSTANCE}`, {
+      method: 'DELETE',
+      headers: { 'apikey': EVOLUTION_API_KEY }
+    });
+    res.json({ success: true, message: 'WhatsApp desconectado com sucesso.' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/whatsapp/send-message', async (req: Request, res: Response) => {
+  try {
+    const { number, text } = req.body;
+    if (!number || !text) {
+      return res.status(400).json({ error: 'Número de telefone e texto da mensagem são obrigatórios.' });
+    }
+    const cleanNum = cleanPhone(number);
+    const resp = await fetch(`${EVOLUTION_API_URL}/message/sendText/${WHATSAPP_INSTANCE}`, {
+      method: 'POST',
+      headers: {
+        'apikey': EVOLUTION_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        number: cleanNum,
+        text
+      })
+    });
+
+    const result = await resp.json() as any;
+    if (!resp.ok) {
+      return res.status(resp.status).json({ error: result?.message || 'Falha ao enviar mensagem via WhatsApp' });
+    }
+    res.json({ success: true, result });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/whatsapp/send-test-report', async (req: Request, res: Response) => {
+  try {
+    const settingsRow = await query('SELECT * FROM sysmauad.system_settings WHERE id = $1', ['default']);
+    if (settingsRow.rows.length === 0) {
+      return res.status(404).json({ error: 'Configurações do sistema não encontradas.' });
+    }
+    const settings = mapSettings(settingsRow.rows[0]);
+    const targetPhone = req.body.phone || settings.whatsappTargetPhone;
+    if (!targetPhone) {
+      return res.status(400).json({ error: 'Nenhum número cadastrado para envio. Informe o número nas configurações.' });
+    }
+
+    const reportText = await generateSystemReportText(settings);
+    const cleanNum = cleanPhone(targetPhone);
+
+    const resp = await fetch(`${EVOLUTION_API_URL}/message/sendText/${WHATSAPP_INSTANCE}`, {
+      method: 'POST',
+      headers: {
+        'apikey': EVOLUTION_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        number: cleanNum,
+        text: reportText
+      })
+    });
+
+    const result = await resp.json() as any;
+    if (!resp.ok) {
+      return res.status(resp.status).json({
+        error: result?.message || 'Falha ao enviar relatório. Verifique se o WhatsApp está conectado via QR Code.'
+      });
+    }
+
+    res.json({ success: true, message: `Relatório enviado com sucesso para ${targetPhone}!`, preview: reportText });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------------------
+// 13. GERENCIAMENTO DE BACKUPS
+// ----------------------------------------------------
+app.get('/backups', async (_req: Request, res: Response) => {
+  try {
+    if (!fs.existsSync(BACKUP_DIR)) {
+      fs.mkdirSync(BACKUP_DIR, { recursive: true });
+    }
+
+    const files = fs.readdirSync(BACKUP_DIR);
+    const backups: BackupFile[] = [];
+
+    for (const filename of files) {
+      if (filename.startsWith('sysmauad-backup-') && filename.endsWith('.json')) {
+        const filePath = path.join(BACKUP_DIR, filename);
+        try {
+          const stats = fs.statSync(filePath);
+          backups.push({
+            filename,
+            sizeBytes: stats.size,
+            sizeFormatted: formatBytes(stats.size),
+            createdAt: stats.mtime.toISOString(),
+            downloadUrl: `/api/backups/${encodeURIComponent(filename)}/download`
+          });
+        } catch (e) {
+          // ignore stat errors
+        }
+      }
+    }
+
+    backups.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    res.json(backups);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/backups/generate', async (_req: Request, res: Response) => {
+  try {
+    const backup = await createBackupFile();
+
+    const settingsRow = await query('SELECT backup_retention_days FROM sysmauad.system_settings WHERE id = $1', ['default']);
+    const retentionDays = settingsRow.rows.length > 0 ? Number(settingsRow.rows[0].backup_retention_days || 3) : 3;
+    purgeOldBackups(retentionDays);
+
+    res.status(201).json({ success: true, backup });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/backups/:filename/download', (req: Request, res: Response) => {
+  try {
+    const safeFilename = path.basename(req.params.filename);
+    const filePath = path.join(BACKUP_DIR, safeFilename);
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Arquivo de backup não encontrado.' });
+    }
+
+    res.download(filePath, safeFilename);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/backups/:filename', (req: Request, res: Response) => {
+  try {
+    const safeFilename = path.basename(req.params.filename);
+    const filePath = path.join(BACKUP_DIR, safeFilename);
+
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------------------
+// 14. SCHEDULER DE AUTOMAÇÃO EM SEGUNDO PLANO
+// ----------------------------------------------------
+let lastBackupDate = '';
+let lastReportDate = '';
+
+function startAutomationScheduler() {
+  console.log('[Automation Scheduler] Iniciando monitoramento periódico de relatórios e backups...');
+
+  setInterval(async () => {
+    try {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Recife' });
+      const dateStr = now.toLocaleDateString('pt-BR', { timeZone: 'America/Recife' });
+      const dayOfWeek = now.getDay();
+      const dayOfMonth = now.getDate();
+
+      const settingsRes = await query('SELECT * FROM sysmauad.system_settings WHERE id = $1', ['default']);
+      if (settingsRes.rows.length === 0) return;
+      const settings = mapSettings(settingsRes.rows[0]);
+
+      // 1. Verificação de Backup Automático Diário
+      if (settings.autoBackupEnabled && timeStr === settings.backupTime && lastBackupDate !== dateStr) {
+        lastBackupDate = dateStr;
+        console.log(`[Automation] Disparando rotina de backup diário programado (${settings.backupTime})...`);
+        await createBackupFile();
+        purgeOldBackups(settings.backupRetentionDays || 3);
+        console.log('[Automation] Backup diário gerado e política de retenção aplicada com sucesso.');
+      }
+
+      // 2. Verificação de Envio Automático de Relatório WhatsApp
+      if (settings.autoReportsEnabled && settings.whatsappTargetPhone && timeStr === settings.reportSendTime && lastReportDate !== dateStr) {
+        let shouldSend = false;
+
+        if (settings.reportFrequency === 'diario') {
+          shouldSend = true;
+        } else if (settings.reportFrequency === 'semanal' && dayOfWeek === settings.reportDayOfWeek) {
+          shouldSend = true;
+        } else if (settings.reportFrequency === 'mensal' && dayOfMonth === settings.reportDayOfMonth) {
+          shouldSend = true;
+        }
+
+        if (shouldSend) {
+          lastReportDate = dateStr;
+          console.log(`[Automation] Disparando relatório automático ${settings.reportFrequency} para ${settings.whatsappTargetPhone}...`);
+          const reportText = await generateSystemReportText(settings);
+          const cleanNum = cleanPhone(settings.whatsappTargetPhone);
+
+          await fetch(`${EVOLUTION_API_URL}/message/sendText/${WHATSAPP_INSTANCE}`, {
+            method: 'POST',
+            headers: {
+              'apikey': EVOLUTION_API_KEY,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              number: cleanNum,
+              text: reportText
+            })
+          }).then(r => r.json()).then(res => {
+            console.log('[Automation] Relatório disparado com sucesso via WhatsApp:', res);
+          }).catch(err => {
+            console.error('[Automation] Erro ao disparar relatório automático:', err.message);
+          });
+        }
+      }
+    } catch (err: any) {
+      console.error('[Automation Scheduler] Erro no ciclo de verificação:', err.message);
+    }
+  }, 60000);
+}
+
+// ----------------------------------------------------
 // INICIALIZAÇÃO DO SERVIDOR COM CONEXÃO POSTGRESQL
 // ----------------------------------------------------
 async function startServer() {
   try {
     await initDb();
+    startAutomationScheduler();
     app.listen(port, () => {
       console.log(`[Sysmauad Backend API] Conectado ao PostgreSQL e ouvindo na porta ${port}`);
     });

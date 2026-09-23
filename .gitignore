@@ -28,3 +28,7 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# Runtime Data & Backups
+data/backups/*
+!data/backups/.gitkeep
