@@ -91,8 +91,12 @@ export interface Order {
   discountAmount?: number;      // Desconto no pagamento (R$)
   finalPaidAmount?: number;     // Valor final pago (R$)
   paymentMethod?: string;       // e.g. 'pix', 'boleto', 'dinheiro', 'cartao_credito', 'cartao_debito'
+  receiverName?: string;        // Quem recebeu o pagamento
   paidAt?: string;
   paidByOperator?: string;
+  paymentNotes?: string;        // Observação da baixa
+  docRef?: string;              // Nº Documento / Boleto Ref
+  paymentHistory?: PaymentHistoryEntry[];
   
   // Ironing workflow tracking (volatile/flexible)
   totalIronedPieces: number;
@@ -100,6 +104,42 @@ export interface Order {
   
   history: OrderHistoryEvent[];
   notes?: string;
+}
+
+export interface PaymentHistoryEntry {
+  id: string;
+  action: string;
+  amountPaid: number;
+  discountAmount?: number;
+  finalPaidAmount?: number;
+  paymentMethod: string;
+  receiverName: string;
+  performedBy: string;
+  paidAt: string;
+  notes?: string;
+  docRef?: string;
+}
+
+export interface ClientAuditEntry {
+  timestamp: string;
+  operator: string;
+  field: string;
+  previousValue?: string;
+  newValue?: string;
+}
+
+export interface ClientMessageLog {
+  id: string;
+  clientId?: string;
+  clientName?: string;
+  phone: string;
+  channel: string;
+  eventType: string;
+  messageText: string;
+  status: string;
+  errorDetails?: string;
+  operatorName?: string;
+  createdAt: string;
 }
 
 export interface Passador {
@@ -129,12 +169,16 @@ export interface Client {
   name: string;
   companyName: string;
   phone: string;
+  email?: string;
+  secondaryPhone?: string;
+  notes?: string;
   cnpjCpf?: string;
   address?: string;
   totalOrders: number;
   portalStatus?: ClientPortalStatus;
   passwordHash?: string;
   inviteToken?: string;
+  auditHistory?: ClientAuditEntry[];
 }
 
 export interface WhatsAppNotification {

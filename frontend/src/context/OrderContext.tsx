@@ -11,7 +11,9 @@ import {
   GarmentProcessCatalogItem, 
   InsumoEntry, 
   Supplier, 
-  ReceitaLavado 
+  ReceitaLavado,
+  ClientMessageLog,
+  PaymentHistoryEntry
 } from '../types';
 import { useAuth } from './AuthContext';
 
@@ -40,15 +42,17 @@ interface OrderContextType {
   updateStockQuantity: (id: string, newQuantity: number) => void;
   updateStockItem: (id: string, updated: Partial<ChemicalStockItem>) => void;
   addClient: (clientData: Omit<Client, 'id' | 'totalOrders'>) => Client;
-  updateClient: (id: string, updatedData: Partial<Client>) => void;
+  updateClient: (id: string, updatedData: Partial<Client> & { operatorName?: string }) => void;
   resetClientPassword: (clientId: string) => void;
   toggleBlockClientPortal: (clientId: string) => void;
   setClientPasswordByToken: (clientId: string, rawPassword: string) => boolean;
   addGarmentCatalogItem: (item: Omit<GarmentProcessCatalogItem, 'id'>) => GarmentProcessCatalogItem;
   updateGarmentCatalogItem: (id: string, updated: Partial<GarmentProcessCatalogItem>) => void;
   deleteGarmentCatalogItem: (id: string) => void;
-  payInvoiceOrder: (orderId: string, discountAmount: number, paymentMethod: string, operatorName?: string) => void;
-  payMultipleInvoiceOrders: (orderIds: string[], totalDiscountAmount?: number, paymentMethod?: string, operatorName?: string, unifiedDocRef?: string) => void;
+  payInvoiceOrder: (orderId: string, discountAmount: number, paymentMethod: string, operatorName?: string, receiverName?: string, notes?: string, docRef?: string) => void;
+  payMultipleInvoiceOrders: (orderIds: string[], totalDiscountAmount?: number, paymentMethod?: string, operatorName?: string, unifiedDocRef?: string, receiverName?: string, notes?: string) => void;
+  fetchClientMessages: (clientId: string, phone?: string) => Promise<ClientMessageLog[]>;
+  auditViewBoleto: (params: { boletoRef: string; orderIds: string[]; osNumbers: string[]; clientName?: string; userName?: string; }) => Promise<void>;
   getOrderById: (orderId: string) => Order | undefined;
   getOrderByOS: (osNumber: string) => Order | undefined;
   calculateChemicals: (totalWeightKg: number, processes: string[]) => ChemicalDose[];
@@ -290,7 +294,8 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       id: tempId,
       totalOrders: 0,
       portalStatus: 'pendente',
-      inviteToken: `tok-${Date.now()}`
+      inviteToken: `tok-${Date.now()}`,
+      auditHistory: []
     };
     setClients(prev => [...prev, newClient]);
 
@@ -301,6 +306,9 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         name: clientData.name,
         companyName: clientData.companyName,
         phone: clientData.phone,
+        email: clientData.email,
+        secondaryPhone: clientData.secondaryPhone,
+        notes: clientData.notes,
         cnpjCpf: clientData.cnpjCpf,
         address: clientData.address
       })
@@ -315,14 +323,21 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return newClient;
   };
 
-  const updateClient = (id: string, updatedData: Partial<Client>) => {
+  const updateClient = (id: string, updatedData: Partial<Client> & { operatorName?: string }) => {
     setClients(prev => prev.map(c => c.id === id ? { ...c, ...updatedData } : c));
 
     fetch(`/api/clients/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updatedData)
-    }).catch(err => console.error('[OrderContext] Erro ao atualizar cliente no banco:', err));
+    })
+      .then(res => res.ok ? res.json() : null)
+      .then(saved => {
+        if (saved) {
+          setClients(prev => prev.map(c => c.id === id ? saved : c));
+        }
+      })
+      .catch(err => console.error('[OrderContext] Erro ao atualizar cliente no banco:', err));
   };
 
   const resetClientPassword = (clientId: string) => {
@@ -709,15 +724,23 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       .catch(err => console.error('[OrderContext] Erro ao excluir catálogo no PostgreSQL:', err));
   };
 
-  // Pagamento de fatura de OS
-  const payInvoiceOrder = (orderId: string, discountAmount: number = 0, paymentMethod: string = 'pix', operatorName: string = 'Ana (Financeiro)') => {
+  // Pagamento de fatura de OS com Auditoria e Registro Permanente (Tarefa 1)
+  const payInvoiceOrder = (
+    orderId: string, 
+    discountAmount: number, 
+    paymentMethod: string, 
+    operatorName: string = 'Ana (Financeiro)',
+    receiverName?: string,
+    notes?: string,
+    docRef?: string
+  ) => {
     const paidAt = new Date().toISOString();
-    const target = orders.find(o => o.id === orderId);
-    const totalVal = target?.totalServiceValue || 0;
-    const finalPaidAmount = Math.max(0, totalVal - discountAmount);
+    const receiver = receiverName || operatorName;
 
     setOrders(prev => prev.map(ord => {
       if (ord.id !== orderId) return ord;
+      const orderGross = ord.totalServiceValue || 0;
+      const finalPaidAmount = Math.max(0, orderGross - discountAmount);
 
       const updatedHistory = [
         ...ord.history,
@@ -725,9 +748,25 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           timestamp: paidAt,
           status: ord.status,
           operator: operatorName,
-          note: `Fatura Paga / Baixa efetuada no Caixa: Valor Pago R$ ${finalPaidAmount.toFixed(2)} (Desconto R$ ${discountAmount.toFixed(2)}, Forma: ${paymentMethod.toUpperCase()})`
+          note: `Fatura Paga / Baixa efetuada: Valor Pago R$ ${finalPaidAmount.toFixed(2)} (${paymentMethod.toUpperCase()}) • Recebido por: ${receiver}${docRef ? ` • Doc: ${docRef}` : ''}${notes ? ` • Obs: ${notes}` : ''}`
         }
       ];
+
+      const newPaymentEntry: PaymentHistoryEntry = {
+        id: `pay-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        action: 'baixa',
+        amountPaid: orderGross,
+        discountAmount,
+        finalPaidAmount,
+        paymentMethod,
+        receiverName: receiver,
+        performedBy: operatorName,
+        paidAt,
+        notes: notes ? String(notes).trim() : undefined,
+        docRef: docRef ? String(docRef).trim() : undefined
+      };
+
+      const paymentHistory = [newPaymentEntry, ...(ord.paymentHistory || [])];
 
       return {
         ...ord,
@@ -735,8 +774,12 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         discountAmount,
         finalPaidAmount,
         paymentMethod,
+        receiverName: receiver,
         paidAt,
         paidByOperator: operatorName,
+        paymentNotes: notes ? String(notes).trim() : undefined,
+        docRef: docRef ? String(docRef).trim() : undefined,
+        paymentHistory,
         history: updatedHistory
       };
     }));
@@ -744,8 +787,22 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     fetch(`/api/orders/${orderId}/pay`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ discountAmount, paymentMethod, operatorName })
-    }).catch(err => console.error('[OrderContext] Erro ao registrar baixa da fatura no PostgreSQL:', err));
+      body: JSON.stringify({ 
+        discountAmount, 
+        paymentMethod, 
+        operatorName, 
+        receiverName: receiver, 
+        notes, 
+        docRef 
+      })
+    })
+      .then(res => res.ok ? res.json() : null)
+      .then(saved => {
+        if (saved) {
+          setOrders(prev => prev.map(o => o.id === orderId ? saved : o));
+        }
+      })
+      .catch(err => console.error('[OrderContext] Erro ao registrar baixa da fatura no PostgreSQL:', err));
   };
 
   const payMultipleInvoiceOrders = (
@@ -753,10 +810,13 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     totalDiscountAmount: number = 0,
     paymentMethod: string = 'boleto',
     operatorName: string = 'Ana (Financeiro)',
-    unifiedDocRef?: string
+    unifiedDocRef?: string,
+    receiverName?: string,
+    notes?: string
   ) => {
     if (!orderIds || orderIds.length === 0) return;
     const paidAt = new Date().toISOString();
+    const receiver = receiverName || operatorName;
     const targetOrders = orders.filter(o => orderIds.includes(o.id));
     const totalGross = targetOrders.reduce((sum, o) => sum + (o.totalServiceValue || 0), 0);
 
@@ -768,16 +828,33 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const orderDiscount = totalGross > 0 ? (orderGross / totalGross) * totalDiscountAmount : 0;
       const finalPaidAmount = Math.max(0, orderGross - orderDiscount);
 
-      const docNote = unifiedDocRef ? ` [Doc/Ref: ${unifiedDocRef}]` : '';
+      const docNote = unifiedDocRef ? ` • Doc: ${unifiedDocRef}` : '';
+      const obsNote = notes ? ` • Obs: ${notes}` : '';
       const updatedHistory = [
         ...ord.history,
         {
           timestamp: paidAt,
           status: ord.status,
           operator: operatorName,
-          note: `Baixa em Fatura Unificada (${orderIds.length} OSs): Valor R$ ${finalPaidAmount.toFixed(2)} (Desconto rateado R$ ${orderDiscount.toFixed(2)}, Forma: ${paymentMethod.toUpperCase()})${docNote}`
+          note: `Baixa em Fatura Unificada (${orderIds.length} OSs): R$ ${finalPaidAmount.toFixed(2)} (${paymentMethod.toUpperCase()}) • Recebido por: ${receiver}${docNote}${obsNote}`
         }
       ];
+
+      const newPaymentEntry: PaymentHistoryEntry = {
+        id: `pay-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        action: 'baixa',
+        amountPaid: orderGross,
+        discountAmount: orderDiscount,
+        finalPaidAmount,
+        paymentMethod,
+        receiverName: receiver,
+        performedBy: operatorName,
+        paidAt,
+        notes: notes ? String(notes).trim() : undefined,
+        docRef: unifiedDocRef ? String(unifiedDocRef).trim() : undefined
+      };
+
+      const paymentHistory = [newPaymentEntry, ...(ord.paymentHistory || [])];
 
       return {
         ...ord,
@@ -785,8 +862,12 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         discountAmount: orderDiscount,
         finalPaidAmount,
         paymentMethod,
+        receiverName: receiver,
         paidAt,
         paidByOperator: operatorName,
+        paymentNotes: notes ? String(notes).trim() : undefined,
+        docRef: unifiedDocRef ? String(unifiedDocRef).trim() : undefined,
+        paymentHistory,
         history: updatedHistory
       };
     }));
@@ -796,17 +877,54 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const ord = orders.find(o => o.id === orderId);
       const orderGross = ord?.totalServiceValue || 0;
       const orderDiscount = totalGross > 0 ? (orderGross / totalGross) * totalDiscountAmount : 0;
+      const finalPaidAmount = Math.max(0, orderGross - orderDiscount);
 
       fetch(`/api/orders/${orderId}/pay`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           discountAmount: orderDiscount, 
+          finalPaidAmount,
           paymentMethod, 
-          operatorName: `${operatorName} (Fatura Unificada)` 
+          operatorName,
+          receiverName: receiver,
+          notes,
+          docRef: unifiedDocRef
         })
-      }).catch(err => console.error(`[OrderContext] Erro ao registrar baixa unificada da OS ${orderId}:`, err));
+      })
+        .then(res => res.ok ? res.json() : null)
+        .then(saved => {
+          if (saved) {
+            setOrders(prev => prev.map(o => o.id === orderId ? saved : o));
+          }
+        })
+        .catch(err => console.error(`[OrderContext] Erro ao registrar baixa unificada da OS ${orderId}:`, err));
     });
+  };
+
+  const fetchClientMessages = async (clientId: string, phone?: string): Promise<ClientMessageLog[]> => {
+    try {
+      const res = await fetch(`/api/clients/${clientId}/messages`);
+      if (res.ok) {
+        return await res.json();
+      }
+      return [];
+    } catch (err) {
+      console.error('[OrderContext] Erro ao carregar mensagens do cliente:', err);
+      return [];
+    }
+  };
+
+  const auditViewBoleto = async (params: { boletoRef: string; orderIds: string[]; osNumbers: string[]; clientName?: string; userName?: string; }) => {
+    try {
+      await fetch('/api/finance/boletos/audit-view', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params)
+      });
+    } catch (err) {
+      console.warn('[OrderContext] Falha ao registrar auditoria de visualização de boleto:', err);
+    }
   };
 
   const getOrderById = (orderId: string) => orders.find(o => o.id === orderId);
@@ -935,6 +1053,8 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       deleteGarmentCatalogItem,
       payInvoiceOrder,
       payMultipleInvoiceOrders,
+      fetchClientMessages,
+      auditViewBoleto,
       getOrderById,
       getOrderByOS,
       calculateChemicals,

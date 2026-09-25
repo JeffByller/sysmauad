@@ -646,10 +646,46 @@ export async function initDb() {
     CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON sysmauad.audit_logs (user_id);
   `);
 
+  // 13. Tabela de Histórico de Mensagens aos Clientes (Auditoria)
+  await query(`
+    CREATE TABLE IF NOT EXISTS sysmauad.client_messages (
+      id VARCHAR(100) PRIMARY KEY,
+      client_id VARCHAR(100),
+      client_name VARCHAR(255),
+      phone VARCHAR(50) NOT NULL,
+      channel VARCHAR(50) NOT NULL DEFAULT 'whatsapp',
+      event_type VARCHAR(100) NOT NULL,
+      message_text TEXT NOT NULL,
+      status VARCHAR(50) NOT NULL DEFAULT 'enviado',
+      error_details TEXT,
+      operator_name VARCHAR(255),
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_client_messages_client_id ON sysmauad.client_messages (client_id);
+    CREATE INDEX IF NOT EXISTS idx_client_messages_phone ON sysmauad.client_messages (phone);
+    CREATE INDEX IF NOT EXISTS idx_client_messages_created_at ON sysmauad.client_messages (created_at DESC);
+  `);
+
   // Migrações incrementais seguras
   await query(`
     ALTER TABLE sysmauad.passadores ADD COLUMN IF NOT EXISTS rate_per_piece NUMERIC(10,2) DEFAULT 0.15;
     ALTER TABLE sysmauad.system_settings ADD COLUMN IF NOT EXISTS default_passador_rate NUMERIC(10,2) DEFAULT 0.15;
+    
+    -- Campos extras para Clientes e Auditoria
+    ALTER TABLE sysmauad.clients ADD COLUMN IF NOT EXISTS email VARCHAR(255);
+    ALTER TABLE sysmauad.clients ADD COLUMN IF NOT EXISTS secondary_phone VARCHAR(50);
+    ALTER TABLE sysmauad.clients ADD COLUMN IF NOT EXISTS notes TEXT;
+    ALTER TABLE sysmauad.clients ADD COLUMN IF NOT EXISTS audit_history JSONB NOT NULL DEFAULT '[]'::jsonb;
+
+    -- Campos extras para Pagamentos e Auditoria Financeira nas Ordens
+    ALTER TABLE sysmauad.orders ADD COLUMN IF NOT EXISTS receiver_name VARCHAR(255);
+    ALTER TABLE sysmauad.orders ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP WITH TIME ZONE;
+    ALTER TABLE sysmauad.orders ADD COLUMN IF NOT EXISTS paid_by_operator VARCHAR(255);
+    ALTER TABLE sysmauad.orders ADD COLUMN IF NOT EXISTS payment_notes TEXT;
+    ALTER TABLE sysmauad.orders ADD COLUMN IF NOT EXISTS doc_ref VARCHAR(100);
+    ALTER TABLE sysmauad.orders ADD COLUMN IF NOT EXISTS final_paid_amount NUMERIC(10,2);
+    ALTER TABLE sysmauad.orders ADD COLUMN IF NOT EXISTS payment_history JSONB NOT NULL DEFAULT '[]'::jsonb;
   `);
 
   // SEED INICIAL CASO TABELAS ESTEJAM VAZIAS

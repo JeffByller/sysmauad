@@ -6,6 +6,9 @@ import { pool, query, initDb } from './db';
 import { 
   SystemUser, 
   Client, 
+  ClientAuditEntry,
+  ClientMessageLog,
+  PaymentHistoryEntry,
   ChemicalStockItem, 
   GarmentProcessCatalogItem, 
   Passador, 
@@ -80,11 +83,31 @@ function mapClient(row: any): Client {
     name: row.name,
     companyName: row.company_name || undefined,
     phone: row.phone,
+    email: row.email || undefined,
+    secondaryPhone: row.secondary_phone || undefined,
+    notes: row.notes || undefined,
     cnpjCpf: row.cnpj_cpf || undefined,
     address: row.address || undefined,
     totalOrders: Number(row.total_orders || 0),
     portalStatus: row.portal_status || 'ativo',
-    passwordHash: row.password_hash || undefined
+    passwordHash: row.password_hash || undefined,
+    auditHistory: Array.isArray(row.audit_history) ? row.audit_history : []
+  };
+}
+
+function mapClientMessage(row: any): ClientMessageLog {
+  return {
+    id: row.id,
+    clientId: row.client_id || undefined,
+    clientName: row.client_name || undefined,
+    phone: row.phone,
+    channel: row.channel || 'whatsapp',
+    eventType: row.event_type || 'notificacao',
+    messageText: row.message_text || '',
+    status: row.status || 'enviado',
+    errorDetails: row.error_details || undefined,
+    operatorName: row.operator_name || undefined,
+    createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString()
   };
 }
 
@@ -143,6 +166,13 @@ function mapOrder(row: any): Order {
     paymentStatus: row.payment_status || 'aberto',
     paymentMethod: row.payment_method || undefined,
     discountAmount: Number(row.discount_amount || 0),
+    finalPaidAmount: row.final_paid_amount !== null && row.final_paid_amount !== undefined ? Number(row.final_paid_amount) : undefined,
+    receiverName: row.receiver_name || undefined,
+    paidAt: row.paid_at ? new Date(row.paid_at).toISOString() : undefined,
+    paidByOperator: row.paid_by_operator || undefined,
+    paymentNotes: row.payment_notes || undefined,
+    docRef: row.doc_ref || undefined,
+    paymentHistory: Array.isArray(row.payment_history) ? row.payment_history : [],
     items: Array.isArray(row.items) ? row.items : [],
     chemicalRecipe: Array.isArray(row.chemical_recipe) ? row.chemical_recipe : [],
     status: row.status || 'recebido',
@@ -863,7 +893,7 @@ app.get('/clients', async (_req: Request, res: Response) => {
 
 app.post('/clients', async (req: Request, res: Response) => {
   try {
-    const { name, companyName, phone, cnpjCpf, address, portalStatus, passwordHash } = req.body;
+    const { name, companyName, phone, email, secondaryPhone, notes, cnpjCpf, address, portalStatus, passwordHash } = req.body;
     if (!name || !phone) {
       return res.status(400).json({ success: false, message: 'Nome e telefone são obrigatórios.' });
     }
@@ -875,10 +905,22 @@ app.post('/clients', async (req: Request, res: Response) => {
 
     const id = `cli-${Date.now()}`;
     const result = await query(
-      `INSERT INTO sysmauad.clients (id, name, company_name, phone, cnpj_cpf, address, total_orders, portal_status, password_hash)
-       VALUES ($1, $2, $3, $4, $5, $6, 0, $7, $8)
+      `INSERT INTO sysmauad.clients (id, name, company_name, phone, email, secondary_phone, notes, cnpj_cpf, address, total_orders, portal_status, password_hash, audit_history)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 0, $10, $11, '[]'::jsonb)
        RETURNING *`,
-      [id, name.trim(), companyName || null, phone.trim(), cnpjCpf || null, address || null, portalStatus || 'ativo', passwordHash || null]
+      [
+        id,
+        name.trim(),
+        companyName || null,
+        phone.trim(),
+        email ? email.trim() : null,
+        secondaryPhone ? secondaryPhone.trim() : null,
+        notes || null,
+        cnpjCpf || null,
+        address || null,
+        portalStatus || 'ativo',
+        passwordHash || null
+      ]
     );
 
     res.status(201).json(mapClient(result.rows[0]));
@@ -890,7 +932,20 @@ app.post('/clients', async (req: Request, res: Response) => {
 app.put('/clients/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, companyName, phone, cnpjCpf, address, totalOrders, portalStatus, passwordHash } = req.body;
+    const { 
+      name, 
+      companyName, 
+      phone, 
+      email, 
+      secondaryPhone, 
+      notes, 
+      cnpjCpf, 
+      address, 
+      totalOrders, 
+      portalStatus, 
+      passwordHash,
+      operatorName 
+    } = req.body;
 
     const current = await query('SELECT * FROM sysmauad.clients WHERE id = $1', [id]);
     if (current.rows.length === 0) {
@@ -905,26 +960,104 @@ app.put('/clients/:id', async (req: Request, res: Response) => {
     }
 
     const row = current.rows[0];
+    const nowIso = new Date().toISOString();
+    const operator = operatorName || 'Administrador';
+
+    // Rastreamento detalhado de alterações campo a campo (Auditoria)
+    const existingAuditHistory = Array.isArray(row.audit_history) ? [...row.audit_history] : [];
+    const newChanges: any[] = [];
+
+    const checkFieldChange = (fieldLabel: string, oldVal: any, newVal: any) => {
+      const cleanOld = oldVal === null || oldVal === undefined ? '' : String(oldVal).trim();
+      const cleanNew = newVal === null || newVal === undefined ? '' : String(newVal).trim();
+      if (cleanOld !== cleanNew) {
+        newChanges.push({
+          timestamp: nowIso,
+          operator,
+          field: fieldLabel,
+          previousValue: cleanOld || '(Vazio)',
+          newValue: cleanNew || '(Vazio)'
+        });
+      }
+    };
+
+    if (name !== undefined) checkFieldChange('Nome / Razão Social', row.name, name);
+    if (companyName !== undefined) checkFieldChange('Nome Fantasia', row.company_name, companyName);
+    if (phone !== undefined) checkFieldChange('Telefone (WhatsApp)', row.phone, phone);
+    if (email !== undefined) checkFieldChange('E-mail', row.email, email);
+    if (secondaryPhone !== undefined) checkFieldChange('Segundo Contato', row.secondary_phone, secondaryPhone);
+    if (cnpjCpf !== undefined) checkFieldChange('CNPJ / CPF', row.cnpj_cpf, cnpjCpf);
+    if (address !== undefined) checkFieldChange('Endereço', row.address, address);
+    if (notes !== undefined) checkFieldChange('Observações', row.notes, notes);
+    if (portalStatus !== undefined) checkFieldChange('Status do Portal', row.portal_status, portalStatus);
+
+    const updatedAuditHistory = [...newChanges, ...existingAuditHistory];
+
     const updated = await query(
       `UPDATE sysmauad.clients
-       SET name = $1, company_name = $2, phone = $3, cnpj_cpf = $4, address = $5,
-           total_orders = $6, portal_status = $7, password_hash = $8, updated_at = NOW()
-       WHERE id = $9
+       SET name = $1, company_name = $2, phone = $3, email = $4, secondary_phone = $5,
+           notes = $6, cnpj_cpf = $7, address = $8, total_orders = $9, portal_status = $10,
+           password_hash = $11, audit_history = $12, updated_at = NOW()
+       WHERE id = $13
        RETURNING *`,
       [
         name !== undefined ? name.trim() : row.name,
         companyName !== undefined ? companyName : row.company_name,
         phone !== undefined ? phone.trim() : row.phone,
+        email !== undefined ? (email ? email.trim() : null) : row.email,
+        secondaryPhone !== undefined ? (secondaryPhone ? secondaryPhone.trim() : null) : row.secondary_phone,
+        notes !== undefined ? notes : row.notes,
         cnpjCpf !== undefined ? cnpjCpf : row.cnpj_cpf,
         address !== undefined ? address : row.address,
         totalOrders !== undefined ? Number(totalOrders) : row.total_orders,
         portalStatus !== undefined ? portalStatus : row.portal_status,
         passwordHash !== undefined ? passwordHash : row.password_hash,
+        JSON.stringify(updatedAuditHistory),
         id
       ]
     );
 
+    if (newChanges.length > 0) {
+      recordAuditLog({
+        level: 'info',
+        category: 'client',
+        action: 'client_updated',
+        userName: operator,
+        ipAddress: getClientIp(req),
+        userAgent: req.headers['user-agent'] as string,
+        details: {
+          clientId: id,
+          clientName: row.name,
+          changesCount: newChanges.length,
+          changes: newChanges
+        }
+      }).catch(() => {});
+    }
+
     res.json(mapClient(updated.rows[0]));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Histórico de mensagens enviadas para o cliente (Auditoria)
+app.get('/clients/:id/messages', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const clientRes = await query('SELECT * FROM sysmauad.clients WHERE id = $1', [id]);
+    const clientPhone = clientRes.rows[0]?.phone || '';
+    const cleanNum = clientPhone ? clientPhone.replace(/\D/g, '') : '';
+
+    const messagesRes = await query(
+      `SELECT * FROM sysmauad.client_messages 
+       WHERE client_id = $1 
+          OR ($2 <> '' AND phone LIKE '%' || $2 || '%')
+       ORDER BY created_at DESC 
+       LIMIT 200`,
+      [id, cleanNum]
+    );
+
+    res.json(messagesRes.rows.map(mapClientMessage));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -1675,26 +1808,81 @@ app.post('/orders/:id/ironing', async (req: Request, res: Response) => {
 app.post('/orders/:id/pay', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { discountAmount, paymentMethod, operatorName } = req.body;
+    const { 
+      discountAmount, 
+      paymentMethod, 
+      operatorName, 
+      receiverName, 
+      notes, 
+      docRef, 
+      finalPaidAmount 
+    } = req.body;
 
     const current = await query('SELECT * FROM sysmauad.orders WHERE id = $1', [id]);
     if (current.rows.length === 0) return res.status(404).json({ error: 'Pedido não encontrado.' });
     const row = current.rows[0];
 
-    const history = Array.isArray(row.history) ? row.history : [];
+    const nowIso = new Date().toISOString();
+    const grossValue = Number(row.total_service_value || 0);
+    const disc = Number(discountAmount || 0);
+    const netPaid = finalPaidAmount !== undefined ? Number(finalPaidAmount) : Math.max(0, grossValue - disc);
+    const receiver = receiverName || operatorName || 'Caixa';
+    const performedBy = operatorName || 'Caixa';
+
+    // 1. Atualiza histórico do pedido
+    const history = Array.isArray(row.history) ? [...row.history] : [];
     history.push({
-      timestamp: new Date().toISOString(),
+      timestamp: nowIso,
       status: row.status,
-      operator: operatorName || 'Caixa',
-      note: `Pagamento recebido (${paymentMethod || 'PIX'}). Desconto: R$ ${(Number(discountAmount || 0)).toFixed(2)}`
+      operator: performedBy,
+      note: `Baixa Financeira: Quitado R$ ${netPaid.toFixed(2)} (${(paymentMethod || 'Dinheiro').toUpperCase()}) • Recebido por: ${receiver}${docRef ? ` • Doc: ${docRef}` : ''}${notes ? ` • Obs: ${notes}` : ''}`
     });
+
+    // 2. Registra histórico permanente de pagamento/baixa (Auditoria Financeira)
+    const paymentHistory = Array.isArray(row.payment_history) ? [...row.payment_history] : [];
+    const newPaymentEntry: PaymentHistoryEntry = {
+      id: `pay-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      action: 'baixa',
+      amountPaid: grossValue,
+      discountAmount: disc,
+      finalPaidAmount: netPaid,
+      paymentMethod: paymentMethod || 'Dinheiro',
+      receiverName: receiver,
+      performedBy,
+      paidAt: nowIso,
+      notes: notes ? String(notes).trim() : undefined,
+      docRef: docRef ? String(docRef).trim() : undefined
+    };
+    paymentHistory.unshift(newPaymentEntry);
 
     const result = await query(
       `UPDATE sysmauad.orders 
-       SET payment_status = 'pago', payment_method = $1, discount_amount = $2, history = $3, updated_at = NOW()
-       WHERE id = $4
+       SET payment_status = 'pago', 
+           payment_method = $1, 
+           discount_amount = $2, 
+           final_paid_amount = $3,
+           receiver_name = $4,
+           paid_at = NOW(),
+           paid_by_operator = $5,
+           payment_notes = $6,
+           doc_ref = $7,
+           payment_history = $8,
+           history = $9, 
+           updated_at = NOW()
+       WHERE id = $10
        RETURNING *`,
-      [paymentMethod || 'Dinheiro', Number(discountAmount || 0), JSON.stringify(history), id]
+      [
+        paymentMethod || 'Dinheiro',
+        disc,
+        netPaid,
+        receiver,
+        performedBy,
+        notes ? String(notes).trim() : null,
+        docRef ? String(docRef).trim() : null,
+        JSON.stringify(paymentHistory),
+        JSON.stringify(history),
+        id
+      ]
     );
 
     const ip = getClientIp(req);
@@ -1702,7 +1890,7 @@ app.post('/orders/:id/pay', async (req: Request, res: Response) => {
       level: 'info',
       category: 'finance',
       action: 'order_paid',
-      userName: operatorName || 'Caixa',
+      userName: performedBy,
       ipAddress: ip,
       userAgent: req.headers['user-agent'] as string,
       details: {
@@ -1710,12 +1898,62 @@ app.post('/orders/:id/pay', async (req: Request, res: Response) => {
         osNumber: row.os_number,
         clientName: row.client_name,
         paymentMethod: paymentMethod || 'Dinheiro',
-        discountAmount: Number(discountAmount || 0),
-        totalValue: Number(row.total_service_value || 0)
+        receiverName: receiver,
+        performedBy,
+        grossValue,
+        discountAmount: disc,
+        finalPaidAmount: netPaid,
+        docRef: docRef || null,
+        notes: notes || null
       }
     }).catch(() => {});
 
     res.json(mapOrder(result.rows[0]));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Auditoria de Visualização de Boleto Pago ou em Aberto
+app.post('/finance/boletos/audit-view', async (req: Request, res: Response) => {
+  try {
+    const { boletoRef, orderIds, osNumbers, clientName, userName } = req.body;
+    const nowIso = new Date().toISOString();
+    const operator = userName || 'Usuário';
+
+    await recordAuditLog({
+      level: 'info',
+      category: 'finance',
+      action: 'boleto_viewed',
+      userName: operator,
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string,
+      details: {
+        boletoRef: boletoRef || 'Fatura / Boleto',
+        clientName: clientName || 'Geral',
+        orderIds: orderIds || [],
+        osNumbers: osNumbers || []
+      }
+    }).catch(() => {});
+
+    // Registra no histórico de cada OS vinculada
+    if (Array.isArray(orderIds) && orderIds.length > 0) {
+      for (const ordId of orderIds) {
+        const cur = await query('SELECT history, status FROM sysmauad.orders WHERE id = $1', [ordId]);
+        if (cur.rows.length > 0) {
+          const hist = Array.isArray(cur.rows[0].history) ? cur.rows[0].history : [];
+          hist.push({
+            timestamp: nowIso,
+            status: cur.rows[0].status || 'recebido',
+            operator,
+            note: `Boleto / Documento [${boletoRef || 'Fatura'}] aberto e consultado por ${operator}`
+          });
+          await query('UPDATE sysmauad.orders SET history = $1 WHERE id = $2', [JSON.stringify(hist), ordId]);
+        }
+      }
+    }
+
+    res.json({ success: true, message: 'Visualização de boleto registrada com sucesso.' });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -2135,26 +2373,59 @@ app.post('/whatsapp/disconnect', async (_req: Request, res: Response) => {
 
 app.post('/whatsapp/send-message', async (req: Request, res: Response) => {
   try {
-    const { number, text } = req.body;
+    const { number, text, clientId, clientName, eventType, operatorName } = req.body;
     if (!number || !text) {
       return res.status(400).json({ error: 'Número de telefone e texto da mensagem são obrigatórios.' });
     }
     const cleanNum = cleanPhone(number);
-    const resp = await fetch(`${EVOLUTION_API_URL}/message/sendText/${WHATSAPP_INSTANCE}`, {
-      method: 'POST',
-      headers: {
-        'apikey': EVOLUTION_API_KEY,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        number: cleanNum,
-        text
-      })
-    });
+    let sendStatus = 'enviado';
+    let errorDetails: string | null = null;
+    let result: any = null;
 
-    const result = await resp.json() as any;
-    if (!resp.ok) {
-      return res.status(resp.status).json({ error: result?.message || 'Falha ao enviar mensagem via WhatsApp' });
+    try {
+      const resp = await fetch(`${EVOLUTION_API_URL}/message/sendText/${WHATSAPP_INSTANCE}`, {
+        method: 'POST',
+        headers: {
+          'apikey': EVOLUTION_API_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          number: cleanNum,
+          text
+        })
+      });
+
+      result = await resp.json() as any;
+      if (!resp.ok) {
+        sendStatus = 'falha';
+        errorDetails = result?.message || 'Falha ao enviar mensagem via Evolution API';
+      }
+    } catch (apiErr: any) {
+      sendStatus = 'erro';
+      errorDetails = apiErr.message || 'Erro de conexão com o WhatsApp Evolution';
+    }
+
+    // Grava histórico permanente da mensagem para auditoria do cliente
+    const msgId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+    await query(
+      `INSERT INTO sysmauad.client_messages 
+       (id, client_id, client_name, phone, channel, event_type, message_text, status, error_details, operator_name, created_at)
+       VALUES ($1, $2, $3, $4, 'whatsapp', $5, $6, $7, $8, $9, NOW())`,
+      [
+        msgId,
+        clientId || null,
+        clientName || null,
+        number,
+        eventType || 'Notificação Operacional',
+        text,
+        sendStatus,
+        errorDetails,
+        operatorName || 'Sistema'
+      ]
+    ).catch(dbErr => console.error('[WhatsApp] Erro ao gravar client_messages no PostgreSQL:', dbErr));
+
+    if (sendStatus !== 'enviado') {
+      return res.status(500).json({ error: errorDetails || 'Falha ao enviar mensagem via WhatsApp' });
     }
     res.json({ success: true, result });
   } catch (err: any) {

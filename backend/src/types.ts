@@ -12,16 +12,56 @@ export interface SystemUser {
   active: boolean;
 }
 
+export interface ClientAuditEntry {
+  timestamp: string;
+  operator: string;
+  field: string;
+  previousValue?: string;
+  newValue?: string;
+}
+
 export interface Client {
   id: string;
   name: string;
   companyName?: string;
   phone: string;
+  email?: string;
+  secondaryPhone?: string;
+  notes?: string;
   cnpjCpf?: string;
   address?: string;
   totalOrders: number;
   portalStatus?: 'ativo' | 'bloqueado';
   passwordHash?: string;
+  auditHistory?: ClientAuditEntry[];
+}
+
+export interface ClientMessageLog {
+  id: string;
+  clientId?: string;
+  clientName?: string;
+  phone: string;
+  channel: string;
+  eventType: string;
+  messageText: string;
+  status: string;
+  errorDetails?: string;
+  operatorName?: string;
+  createdAt: string;
+}
+
+export interface PaymentHistoryEntry {
+  id: string;
+  action: string; // 'baixa', 'estorno', 'alteracao'
+  amountPaid: number;
+  discountAmount?: number;
+  finalPaidAmount?: number;
+  paymentMethod: string;
+  receiverName: string;
+  performedBy: string;
+  paidAt: string;
+  notes?: string;
+  docRef?: string;
 }
 
 export interface ChemicalStockItem {
@@ -112,6 +152,13 @@ export interface Order {
   paymentStatus: PaymentStatus;
   paymentMethod?: string;
   discountAmount?: number;
+  finalPaidAmount?: number;
+  receiverName?: string;
+  paidAt?: string;
+  paidByOperator?: string;
+  paymentNotes?: string;
+  docRef?: string;
+  paymentHistory?: PaymentHistoryEntry[];
   items: OrderItem[];
   chemicalRecipe: ChemicalDose[];
   status: OrderStatus;
