@@ -79,14 +79,6 @@ export const PassadorMobileView: React.FC<PassadorMobileViewProps> = ({ onOpenSc
     .filter(l => getLocalDateString(l.timestamp) >= thirtyDaysAgo)
     .reduce((sum, l) => sum + l.piecesIroned, 0);
 
-  // Valor unitário de remuneração da peça passada (padrão 0.15)
-  const currentPassadorObj = passadores.find(p => p.id === targetPassadorId);
-  const currentRate = currentPassadorObj?.ratePerPiece ?? 0.15;
-
-  const valueToday = piecesToday * currentRate;
-  const valueWeek = piecesWeek * currentRate;
-  const valueMonth = piecesMonth * currentRate;
-
   // Logs filtrados pelo período selecionado (apenas visualização)
   const filteredConsultLogs = myLogs.filter(l => {
     const logDate = getLocalDateString(l.timestamp);
@@ -157,9 +149,6 @@ export const PassadorMobileView: React.FC<PassadorMobileViewProps> = ({ onOpenSc
             <span className="text-2xl font-black text-emerald-400 font-mono">
               {piecesToday} <span className="text-xs text-emerald-300 font-normal">pçs</span>
             </span>
-            <span className="text-xs text-emerald-300 font-mono block font-bold">
-              {Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valueToday)}
-            </span>
           </div>
         </div>
       ) : (
@@ -176,7 +165,7 @@ export const PassadorMobileView: React.FC<PassadorMobileViewProps> = ({ onOpenSc
           >
             {passadores.map(p => (
               <option key={p.id} value={p.id}>
-                {p.name} ({p.totalPiecesIroned} pçs total • R$ {(p.ratePerPiece ?? 0.15).toFixed(2)}/pç)
+                {p.name} ({p.totalPiecesIroned} pçs total)
               </option>
             ))}
           </select>
@@ -190,9 +179,7 @@ export const PassadorMobileView: React.FC<PassadorMobileViewProps> = ({ onOpenSc
             <Calendar className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
             Consulta de Produção
           </span>
-          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono font-bold">
-            Taxa: R$ {currentRate.toFixed(2)} / pç
-          </span>
+          <span className="text-[10px] text-slate-400 font-mono">Somente Visualização</span>
         </div>
 
         {/* Botões/Cards Seletores: Dia, Semana, Mês */}
@@ -200,55 +187,49 @@ export const PassadorMobileView: React.FC<PassadorMobileViewProps> = ({ onOpenSc
           <button
             type="button"
             onClick={() => setConsultPeriod('dia')}
-            className={`p-2.5 rounded-xl border text-center transition-all ${
+            className={`p-3 rounded-xl border text-center transition-all ${
               consultPeriod === 'dia'
                 ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-500 dark:border-emerald-600 text-emerald-900 dark:text-emerald-200 shadow-sm'
                 : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
           >
             <span className="text-[10px] font-bold uppercase tracking-wider block">Hoje</span>
-            <span className="text-base font-black font-mono mt-0.5 block text-emerald-600 dark:text-emerald-400">
-              {piecesToday} <span className="text-[10px] font-normal">pçs</span>
+            <span className="text-lg font-black font-mono mt-0.5 block text-emerald-600 dark:text-emerald-400">
+              {piecesToday}
             </span>
-            <span className="text-[11px] font-mono font-bold text-emerald-700 dark:text-emerald-300 block">
-              {Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valueToday)}
-            </span>
+            <span className="text-[10px] text-slate-400 font-mono">peças</span>
           </button>
 
           <button
             type="button"
             onClick={() => setConsultPeriod('semana')}
-            className={`p-2.5 rounded-xl border text-center transition-all ${
+            className={`p-3 rounded-xl border text-center transition-all ${
               consultPeriod === 'semana'
                 ? 'bg-sky-50 dark:bg-sky-950/60 border-sky-500 dark:border-sky-600 text-sky-900 dark:text-sky-200 shadow-sm'
                 : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
           >
             <span className="text-[10px] font-bold uppercase tracking-wider block">Semana</span>
-            <span className="text-base font-black font-mono mt-0.5 block text-sky-600 dark:text-sky-400">
-              {piecesWeek} <span className="text-[10px] font-normal">pçs</span>
+            <span className="text-lg font-black font-mono mt-0.5 block text-sky-600 dark:text-sky-400">
+              {piecesWeek}
             </span>
-            <span className="text-[11px] font-mono font-bold text-sky-700 dark:text-sky-300 block">
-              {Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valueWeek)}
-            </span>
+            <span className="text-[10px] text-slate-400 font-mono">peças</span>
           </button>
 
           <button
             type="button"
             onClick={() => setConsultPeriod('mes')}
-            className={`p-2.5 rounded-xl border text-center transition-all ${
+            className={`p-3 rounded-xl border text-center transition-all ${
               consultPeriod === 'mes'
                 ? 'bg-indigo-50 dark:bg-indigo-950/60 border-indigo-500 dark:border-indigo-600 text-indigo-900 dark:text-indigo-200 shadow-sm'
                 : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
           >
             <span className="text-[10px] font-bold uppercase tracking-wider block">Mês</span>
-            <span className="text-base font-black font-mono mt-0.5 block text-indigo-600 dark:text-indigo-400">
-              {piecesMonth} <span className="text-[10px] font-normal">pçs</span>
+            <span className="text-lg font-black font-mono mt-0.5 block text-indigo-600 dark:text-indigo-400">
+              {piecesMonth}
             </span>
-            <span className="text-[11px] font-mono font-bold text-indigo-700 dark:text-indigo-300 block">
-              {Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valueMonth)}
-            </span>
+            <span className="text-[10px] text-slate-400 font-mono">peças</span>
           </button>
         </div>
 
@@ -281,9 +262,6 @@ export const PassadorMobileView: React.FC<PassadorMobileViewProps> = ({ onOpenSc
                   <div className="text-right">
                     <span className="text-emerald-600 dark:text-emerald-400 font-bold text-sm block">
                       +{l.piecesIroned} pçs
-                    </span>
-                    <span className="text-[10px] text-emerald-700 dark:text-emerald-300 font-semibold block">
-                      {Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(l.piecesIroned * currentRate)}
                     </span>
                     <span className="text-[10px] text-slate-400 flex items-center gap-1 justify-end">
                       <Clock className="w-3 h-3" />

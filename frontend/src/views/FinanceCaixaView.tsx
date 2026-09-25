@@ -527,10 +527,9 @@ export const FinanceCaixaView: React.FC = () => {
                       <td className="p-3 font-mono text-slate-600 dark:text-slate-400">
                         {ord.corteOs || ord.items.find(i => i.corteOs)?.corteOs || '—'}
                       </td>
-                      <td className="p-3 font-sans text-slate-700 dark:text-slate-300">
-                        <span className="font-semibold">{ord.estimatedPieceCount} pçs</span>
-                        <span className="text-[11px] text-slate-400 font-mono block">
-                          {ord.items.map(i => i.process).join(', ')}
+                      <td className="p-3 font-mono text-slate-700 dark:text-slate-300">
+                        <span className="font-bold text-slate-900 dark:text-slate-100">
+                          {ord.estimatedPieceCount} — {ord.items.map(i => i.process).join(', ') || 'Sem processo'}
                         </span>
                       </td>
                       <td className="p-3 text-right font-mono text-slate-600 dark:text-slate-400">
@@ -628,7 +627,7 @@ export const FinanceCaixaView: React.FC = () => {
               <th className="border border-black p-1.5 text-left">Nº OS</th>
               {!filteredClient && <th className="border border-black p-1.5 text-left">Cliente</th>}
               <th className="border border-black p-1.5 text-left">Ref / Corte</th>
-              <th className="border border-black p-1.5 text-left">Processo / Serviço</th>
+              <th className="border border-black p-1.5 text-left">Quantidade & Lavagem</th>
               <th className="border border-black p-1.5 text-right">Peças</th>
               <th className="border border-black p-1.5 text-right">Peso (kg)</th>
               <th className="border border-black p-1.5 text-right">Valor R$</th>
@@ -642,7 +641,7 @@ export const FinanceCaixaView: React.FC = () => {
                 <td className="border border-black p-1.5 font-mono font-bold">{ord.osNumber}</td>
                 {!filteredClient && <td className="border border-black p-1.5">{ord.clientName}</td>}
                 <td className="border border-black p-1.5 font-mono">{ord.corteOs || ord.items.find(i => i.corteOs)?.corteOs || '—'}</td>
-                <td className="border border-black p-1.5">{ord.items.map(i => `${i.clothingType || ''} (${i.process})`).join('; ')}</td>
+                <td className="border border-black p-1.5 font-mono">{ord.estimatedPieceCount} — {ord.items.map(i => i.process).join(', ') || 'Sem processo'}</td>
                 <td className="border border-black p-1.5 text-right font-mono">{ord.estimatedPieceCount}</td>
                 <td className="border border-black p-1.5 text-right font-mono">{(ord.totalWeightKg || 0).toFixed(1)}</td>
                 <td className="border border-black p-1.5 text-right font-mono font-bold">
