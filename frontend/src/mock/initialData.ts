@@ -70,6 +70,7 @@ export const INITIAL_PASSADORES: Passador[] = [
     name: 'Passador Teste (Beta)',
     phone: '81999999999',
     totalPiecesIroned: 50,
+    ratePerPiece: 0.15,
     createdAt: '2026-09-01',
     active: true
   }

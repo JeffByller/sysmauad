@@ -519,6 +519,7 @@ export async function initDb() {
       name VARCHAR(255) NOT NULL,
       phone VARCHAR(50),
       total_pieces_ironed INT DEFAULT 0,
+      rate_per_piece NUMERIC(10,2) DEFAULT 0.15,
       active BOOLEAN DEFAULT TRUE,
       created_at VARCHAR(50) DEFAULT TO_CHAR(NOW(), 'YYYY-MM-DD'),
       updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -619,6 +620,7 @@ export async function initDb() {
       auto_backup_enabled BOOLEAN DEFAULT TRUE,
       backup_retention_days INT DEFAULT 3,
       backup_time VARCHAR(10) DEFAULT '02:00',
+      default_passador_rate NUMERIC(10,2) DEFAULT 0.15,
       updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
     );
   `);
@@ -644,6 +646,11 @@ export async function initDb() {
     CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON sysmauad.audit_logs (user_id);
   `);
 
+  // Migrações incrementais seguras
+  await query(`
+    ALTER TABLE sysmauad.passadores ADD COLUMN IF NOT EXISTS rate_per_piece NUMERIC(10,2) DEFAULT 0.15;
+    ALTER TABLE sysmauad.system_settings ADD COLUMN IF NOT EXISTS default_passador_rate NUMERIC(10,2) DEFAULT 0.15;
+  `);
 
   // SEED INICIAL CASO TABELAS ESTEJAM VAZIAS
   await seedInitialData();

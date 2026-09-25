@@ -35,6 +35,7 @@ interface OrderContextType {
   updateOrderStatus: (orderId: string, status: OrderStatus, operatorName: string, note?: string) => void;
   registerIroning: (orderId: string, passadorId: string, passadorName: string, piecesIroned: number) => { success: boolean; message: string };
   registerNewPassador: (name: string, phone?: string) => Passador;
+  updatePassador: (id: string, data: Partial<Passador>) => Promise<{ success: boolean; message: string }>;
   addStockItem: (item: Omit<ChemicalStockItem, 'id'>) => ChemicalStockItem;
   updateStockQuantity: (id: string, newQuantity: number) => void;
   updateStockItem: (id: string, updated: Partial<ChemicalStockItem>) => void;
@@ -170,6 +171,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             id: u.id,
             name: u.name,
             phone: u.phone || existing.phone,
+            ratePerPiece: existing.ratePerPiece !== undefined ? existing.ratePerPiece : 0.15,
             active: u.active
           });
         } else {
@@ -178,6 +180,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             name: u.name,
             phone: u.phone,
             totalPiecesIroned: 0,
+            ratePerPiece: 0.15,
             createdAt: new Date().toISOString().split('T')[0],
             active: u.active
           });
@@ -631,6 +634,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       name,
       phone,
       totalPiecesIroned: 0,
+      ratePerPiece: 0.15,
       createdAt: new Date().toISOString().split('T')[0],
       active: true
     };
@@ -643,6 +647,25 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }).catch(err => console.error('[OrderContext] Erro ao salvar passador no PostgreSQL:', err));
 
     return newPassador;
+  };
+
+  const updatePassador = async (id: string, data: Partial<Passador>): Promise<{ success: boolean; message: string }> => {
+    setPassadores(prev => prev.map(p => p.id === id ? { ...p, ...data } : p));
+    try {
+      const res = await fetch(`/api/passadores/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setPassadores(prev => prev.map(p => p.id === id ? updated : p));
+        return { success: true, message: 'Passador atualizado com sucesso!' };
+      }
+    } catch (err) {
+      console.error('[OrderContext] Erro ao atualizar passador no PostgreSQL:', err);
+    }
+    return { success: false, message: 'Erro ao salvar alterações do passador.' };
   };
 
   // Catálogo de peças & processos
@@ -898,6 +921,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       updateOrderStatus,
       registerIroning,
       registerNewPassador,
+      updatePassador,
       addStockItem,
       updateStockQuantity,
       updateStockItem,

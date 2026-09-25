@@ -45,7 +45,8 @@ export const SettingsView: React.FC = () => {
     includeOperatorBreakdown: true,
     autoBackupEnabled: true,
     backupRetentionDays: 3,
-    backupTime: '02:00'
+    backupTime: '02:00',
+    defaultPassadorRate: 0.15
   });
 
   const [loadingSettings, setLoadingSettings] = useState(true);
@@ -867,6 +868,27 @@ export const SettingsView: React.FC = () => {
                       />
                       <span>Detalhar por Passador</span>
                     </label>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                      Valor Padrão por Peça Passada (Passadoria):
+                    </label>
+                    <div className="relative max-w-xs">
+                      <span className="absolute left-3 top-2 text-xs text-slate-400 font-bold">R$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        value={settings.defaultPassadorRate ?? 0.15}
+                        onChange={e => setSettings({ ...settings, defaultPassadorRate: parseFloat(e.target.value) || 0.15 })}
+                        className="w-full pl-8 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-sky-500"
+                        placeholder="0.15"
+                      />
+                    </div>
+                    <span className="text-[11px] text-slate-400 block mt-1">
+                      Valor monetário unitário utilizado para apurar o total a pagar da produção de passadoria em relatórios.
+                    </span>
                   </div>
                 </div>
               </div>

@@ -24,8 +24,9 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
   const [corteOs, setCorteOs] = useState<string>('');
   const [processType, setProcessType] = useState<string>('');
   const [unitPrice, setUnitPrice] = useState<number>(0);
-  const [refPieceWeightGrams, setRefPieceWeightGrams] = useState<number>(0);
-  const [totalWeightKg, setTotalWeightKg] = useState<number>(0);
+  // Nova lógica: usuário informa quantidade + peso por peça → sistema calcula peso total
+  const [pieceCount, setPieceCount] = useState<number>(0);
+  const [weightPerPieceKg, setWeightPerPieceKg] = useState<number>(0);
   const [notes, setNotes] = useState<string>('');
 
   const selectedClient = clients.find(c => c.id === selectedClientId) || null;
@@ -37,7 +38,7 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
       setClothingType('');
       setProcessType('');
       setUnitPrice(0);
-      setRefPieceWeightGrams(0);
+      setWeightPerPieceKg(0);
       return;
     }
 
@@ -46,16 +47,18 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
       setClothingType(found.clothingType);
       setProcessType(found.processName);
       setUnitPrice(found.unitPrice);
-      setRefPieceWeightGrams(found.defaultRefWeightGrams);
+      // Pré-preenche peso/peça a partir do catálogo (convertendo g → kg) como sugestão; operador pode ajustar
+      setWeightPerPieceKg(found.defaultRefWeightGrams > 0 ? Math.round(found.defaultRefWeightGrams) / 1000 : 0);
     }
   };
 
-  const estimatedPieceCount = (refPieceWeightGrams > 0 && totalWeightKg > 0)
-    ? Math.round((totalWeightKg * 1000) / refPieceWeightGrams)
+  // Peso total calculado automaticamente: quantidade de peças × peso por peça
+  const totalWeightKg = (pieceCount > 0 && weightPerPieceKg > 0)
+    ? Math.round(pieceCount * weightPerPieceKg * 1000) / 1000
     : 0;
 
   // Valor calculado para persistência no pedido (exibido apenas no financeiro/relatórios)
-  const totalServiceValue = Math.round(estimatedPieceCount * unitPrice * 100) / 100;
+  const totalServiceValue = Math.round(pieceCount * unitPrice * 100) / 100;
 
   const chemicalRecipe = (totalWeightKg > 0 && processType)
     ? calculateChemicals(totalWeightKg, [processType])
@@ -133,8 +136,8 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
       return;
     }
 
-    if (totalWeightKg <= 0 || refPieceWeightGrams <= 0) {
-      alert('Por favor, informe o peso de referência e o peso total do pedido na balança.');
+    if (totalWeightKg <= 0 || pieceCount <= 0 || weightPerPieceKg <= 0) {
+      alert('Por favor, informe a quantidade de peças e o peso por peça para calcular o peso total do lote.');
       return;
     }
 
@@ -144,9 +147,9 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
       clientPhone: selectedClient.phone,
       clientAddress: selectedClient.address,
       operatorName: user?.name || 'Operador',
-      refPieceWeightGrams,
+      refPieceWeightGrams: weightPerPieceKg * 1000, // peso/peça em gramas para compatibilidade
       totalWeightKg,
-      estimatedPieceCount,
+      estimatedPieceCount: pieceCount, // quantidade real informada pelo usuário
       totalServiceValue,
       corteOs: corteOs.trim() || undefined,
       items: [
@@ -154,7 +157,7 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
           id: `item-${Date.now()}`,
           clothingType,
           process: processType, // Fixo/estático da tabela de peças
-          quantity: estimatedPieceCount,
+          quantity: pieceCount,
           unitPrice,
           totalPrice: totalServiceValue,
           corteOs: corteOs.trim() || undefined
@@ -174,8 +177,8 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
     setCorteOs('');
     setProcessType('');
     setUnitPrice(0);
-    setRefPieceWeightGrams(0);
-    setTotalWeightKg(0);
+    setPieceCount(0);
+    setWeightPerPieceKg(0);
     setNotes('');
     setCreatedOrderSuccess(null);
   };
@@ -196,7 +199,7 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
               {createdOrderSuccess.osNumber}
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-              O pedido foi salvo com sucesso no banco de dados e as dosagens químicas foram calculadas pelo peso total da balança.
+              O pedido foi salvo com sucesso no banco de dados. O peso total foi calculado com base na quantidade e peso por peça informados.
             </p>
           </div>
 
@@ -217,7 +220,7 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
               <strong className="text-sky-700 dark:text-sky-400 uppercase">{createdOrderSuccess.items?.[0]?.process}</strong>
             </div>
             <div className="flex justify-between pt-0.5">
-              <span className="text-slate-500">Peças Estimadas / Peso:</span>
+              <span className="text-slate-500">Peças / Peso Total:</span>
               <strong className="text-slate-900 dark:text-slate-100">
                 {createdOrderSuccess.estimatedPieceCount} pçs • {createdOrderSuccess.totalWeightKg} kg
               </strong>
@@ -389,72 +392,75 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
                 )}
               </select>
             </div>
+          </div>
 
-            <div>
-              <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">
-                Peso de Referência (1 Peça) *
+        </div>
+
+        {/* Section 3: Quantidade de Peças & Pesagem */}
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 transition-colors">
+          <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+            <Calculator className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+            3. Quantidade de Peças & Pesagem do Lote
+          </h2>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+            {/* Input: Quantidade de Peças */}
+            <div className="bg-slate-50 dark:bg-slate-800/60 p-5 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+              <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block">
+                Quantidade de Peças *
               </label>
               <div className="relative">
                 <input
                   type="number"
                   step="1"
                   min="1"
-                  value={refPieceWeightGrams === 0 ? '' : refPieceWeightGrams}
-                  onChange={e => setRefPieceWeightGrams(Number(e.target.value))}
+                  value={pieceCount === 0 ? '' : pieceCount}
+                  onChange={e => setPieceCount(Number(e.target.value))}
                   placeholder="0"
-                  className="w-full pl-3 pr-10 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  className="w-full pl-3 pr-8 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-2xl font-mono font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
                   required
                 />
-                <span className="absolute right-3.5 top-2.5 text-xs font-mono text-slate-400">g</span>
+                <span className="absolute right-3 top-3.5 text-sm font-mono text-slate-400">pçs</span>
               </div>
+              <span className="text-[11px] text-slate-500 block">Contagem real das peças recebidas</span>
             </div>
-          </div>
-        </div>
 
-        {/* Section 3: Weighing & Estimated Piece Count */}
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 transition-colors">
-          <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
-            <Calculator className="w-4 h-4 text-sky-600 dark:text-sky-400" />
-            3. Pesagem do Lote & Quantidade de Peças
-          </h2>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            {/* Input: Total Batch Weight */}
+            {/* Input: Peso por Peça */}
             <div className="bg-slate-50 dark:bg-slate-800/60 p-5 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
               <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block">
-                Peso Total do Pedido na Balança (Kg) *
+                Peso por Peça *
               </label>
               <div className="relative">
                 <input
                   type="number"
-                  step="0.1"
-                  min="0.1"
-                  value={totalWeightKg === 0 ? '' : totalWeightKg}
-                  onChange={e => setTotalWeightKg(Number(e.target.value))}
-                  placeholder="0.0"
-                  className="w-full pl-3 pr-12 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-2xl font-mono font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  step="0.001"
+                  min="0.001"
+                  value={weightPerPieceKg === 0 ? '' : weightPerPieceKg}
+                  onChange={e => setWeightPerPieceKg(Number(e.target.value))}
+                  placeholder="0.000"
+                  className="w-full pl-3 pr-10 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-2xl font-mono font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
                   required
                 />
-                <span className="absolute right-3.5 top-3.5 text-sm font-mono text-slate-400 font-bold">kg</span>
+                <span className="absolute right-3 top-3.5 text-sm font-mono text-slate-400 font-bold">kg</span>
               </div>
-              <span className="text-[11px] text-slate-500 block">Informe a pesagem direta da balança</span>
+              <span className="text-[11px] text-slate-500 block">Peso de uma unidade na balança</span>
             </div>
 
-            {/* Calculated Output: Estimated Pieces */}
+            {/* Calculated Output: Peso Total */}
             <div className="bg-sky-900 dark:bg-sky-950 p-5 rounded-xl border border-sky-800 dark:border-sky-800 text-white flex flex-col justify-between">
               <span className="text-xs font-mono uppercase tracking-widest text-sky-300 block">
-                Quantidade Estimada de Peças
+                Peso Total do Lote
               </span>
               <div className="my-2">
                 <span className="text-4xl font-extrabold font-mono text-white tracking-tight">
-                  {estimatedPieceCount}
+                  {totalWeightKg > 0 ? totalWeightKg.toFixed(3) : '—'}
                 </span>
-                <span className="text-sm text-sky-200 font-mono ml-2 font-semibold">peças</span>
+                <span className="text-sm text-sky-200 font-mono ml-2 font-semibold">kg</span>
               </div>
               <span className="text-[11px] text-sky-300 font-mono">
-                {totalWeightKg > 0 && refPieceWeightGrams > 0
-                  ? `(${(totalWeightKg * 1000).toFixed(0)}g ÷ ${refPieceWeightGrams}g)`
-                  : '(Aguardando peso e peça)'}
+                {pieceCount > 0 && weightPerPieceKg > 0
+                  ? `${pieceCount} pçs × ${weightPerPieceKg} kg`
+                  : '(Informe quantidade e peso/peça)'}
               </span>
             </div>
           </div>
@@ -530,9 +536,9 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
                               </td>
                               <td className="p-3 font-mono text-[11px] text-slate-500 dark:text-slate-400">
                                 {chem.dosagePct !== undefined ? (
-                                  <span>{totalWeightKg.toFixed(1)}kg × {chem.dosagePct}% ({estimatedPieceCount} pçs × {refPieceWeightGrams}g)</span>
+                                  <span>{totalWeightKg.toFixed(3)}kg × {chem.dosagePct}% ({pieceCount} pçs × {weightPerPieceKg}kg)</span>
                                 ) : (
-                                  <span>{totalWeightKg.toFixed(1)}kg × {chem.dosagePerKg}g/kg</span>
+                                  <span>{totalWeightKg.toFixed(3)}kg × {chem.dosagePerKg}g/kg</span>
                                 )}
                               </td>
                               <td className="p-3 font-mono">

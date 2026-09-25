@@ -72,6 +72,7 @@ export interface Order {
   clientPhone: string;
   clientAddress?: string;
   createdAt: string;
+  updatedAt?: string;
   operatorName: string;
   
   // Weight & piece calculation
@@ -106,6 +107,7 @@ export interface Passador {
   name: string;
   phone?: string;
   totalPiecesIroned: number;
+  ratePerPiece?: number;
   createdAt: string;
   active: boolean;
 }
@@ -212,6 +214,7 @@ export interface SystemSettings {
   autoBackupEnabled: boolean;
   backupRetentionDays: number;
   backupTime: string;
+  defaultPassadorRate?: number;
   updatedAt?: string;
 }
 

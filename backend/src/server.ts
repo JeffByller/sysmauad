@@ -119,6 +119,7 @@ function mapPassador(row: any): Passador {
     name: row.name,
     phone: row.phone || undefined,
     totalPiecesIroned: Number(row.total_pieces_ironed || 0),
+    ratePerPiece: Number(row.rate_per_piece !== null && row.rate_per_piece !== undefined ? row.rate_per_piece : 0.15),
     createdAt: row.created_at,
     active: Boolean(row.active)
   };
@@ -211,6 +212,7 @@ function mapSettings(row: any): SystemSettings {
     autoBackupEnabled: row.auto_backup_enabled !== false,
     backupRetentionDays: Number(row.backup_retention_days ?? 3),
     backupTime: row.backup_time || '02:00',
+    defaultPassadorRate: Number(row.default_passador_rate !== null && row.default_passador_rate !== undefined ? row.default_passador_rate : 0.15),
     updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : undefined
   };
 }
@@ -415,17 +417,33 @@ async function generateSystemReportText(settings: SystemSettings): Promise<strin
     const passadoresRes = await query('SELECT * FROM sysmauad.passadores WHERE active = TRUE');
     const passadores = passadoresRes.rows;
     let totalIroned = 0;
+    let totalIronedValue = 0;
 
     for (const p of passadores) {
-      totalIroned += Number(p.total_pieces_ironed || 0);
+      const pcs = Number(p.total_pieces_ironed || 0);
+      const rate = Number(p.rate_per_piece ?? 0.15);
+      totalIroned += pcs;
+      totalIronedValue += pcs * rate;
     }
 
     msg += `\n✨ *PASSADORIA & ACABAMENTO*\n`;
-    msg += `• Total de Peças Passadas: *${totalIroned} peças*\n`;
+    msg += `• Total de Peças Passadas: *${totalIroned} peças*`;
+    if (settings.includeFinancialValues) {
+      msg += ` (R$ ${totalIronedValue.toFixed(2)})`;
+    }
+    msg += `\n`;
+
     if (settings.includeOperatorBreakdown) {
       msg += `• Detalhado por Passador:\n`;
       for (const p of passadores) {
-        msg += `   └ ${p.name}: *${p.total_pieces_ironed || 0}* peças\n`;
+        const pcs = Number(p.total_pieces_ironed || 0);
+        const rate = Number(p.rate_per_piece ?? 0.15);
+        const val = pcs * rate;
+        msg += `   └ ${p.name}: *${pcs}* peças`;
+        if (settings.includeFinancialValues) {
+          msg += ` (R$ ${val.toFixed(2)})`;
+        }
+        msg += `\n`;
       }
     }
   }
@@ -1331,14 +1349,17 @@ app.get('/passadores', async (_req: Request, res: Response) => {
 
 app.post('/passadores', async (req: Request, res: Response) => {
   try {
-    const { id, name, phone, totalPiecesIroned, active } = req.body;
+    const { id, name, phone, totalPiecesIroned, ratePerPiece, active } = req.body;
     const pId = id || `pas-${Date.now()}`;
     const result = await query(
-      `INSERT INTO sysmauad.passadores (id, name, phone, total_pieces_ironed, active)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, phone = EXCLUDED.phone
+      `INSERT INTO sysmauad.passadores (id, name, phone, total_pieces_ironed, rate_per_piece, active)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (id) DO UPDATE SET 
+         name = EXCLUDED.name, 
+         phone = EXCLUDED.phone,
+         rate_per_piece = COALESCE(EXCLUDED.rate_per_piece, sysmauad.passadores.rate_per_piece)
        RETURNING *`,
-      [pId, name.trim(), phone || null, Number(totalPiecesIroned || 0), active !== undefined ? Boolean(active) : true]
+      [pId, name.trim(), phone || null, Number(totalPiecesIroned || 0), Number(ratePerPiece ?? 0.15), active !== undefined ? Boolean(active) : true]
     );
     res.status(201).json(mapPassador(result.rows[0]));
   } catch (err: any) {
@@ -1349,20 +1370,21 @@ app.post('/passadores', async (req: Request, res: Response) => {
 app.put('/passadores/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, phone, totalPiecesIroned, active } = req.body;
+    const { name, phone, totalPiecesIroned, ratePerPiece, active } = req.body;
     const current = await query('SELECT * FROM sysmauad.passadores WHERE id = $1', [id]);
     if (current.rows.length === 0) return res.status(404).json({ error: 'Passador não encontrado.' });
     const row = current.rows[0];
 
     const result = await query(
       `UPDATE sysmauad.passadores 
-       SET name = $1, phone = $2, total_pieces_ironed = $3, active = $4, updated_at = NOW()
-       WHERE id = $5
+       SET name = $1, phone = $2, total_pieces_ironed = $3, rate_per_piece = $4, active = $5, updated_at = NOW()
+       WHERE id = $6
        RETURNING *`,
       [
         name !== undefined ? name.trim() : row.name,
         phone !== undefined ? phone : row.phone,
         totalPiecesIroned !== undefined ? Number(totalPiecesIroned) : row.total_pieces_ironed,
+        ratePerPiece !== undefined ? Number(ratePerPiece) : (row.rate_per_piece ?? 0.15),
         active !== undefined ? Boolean(active) : row.active,
         id
       ]
@@ -1942,6 +1964,7 @@ app.put('/settings', async (req: Request, res: Response) => {
     const autoBackupEnabled = body.autoBackupEnabled !== undefined ? Boolean(body.autoBackupEnabled) : (row.auto_backup_enabled ?? true);
     const backupRetentionDays = body.backupRetentionDays !== undefined ? Number(body.backupRetentionDays) : (row.backup_retention_days ?? 3);
     const backupTime = body.backupTime !== undefined ? body.backupTime : (row.backup_time || '02:00');
+    const defaultPassadorRate = body.defaultPassadorRate !== undefined ? Number(body.defaultPassadorRate) : Number(row.default_passador_rate ?? 0.15);
 
     const result = await query(`
       INSERT INTO sysmauad.system_settings (
@@ -1951,6 +1974,7 @@ app.put('/settings', async (req: Request, res: Response) => {
         report_header_text, report_footer_text,
         include_financial_values, include_low_stock_alerts, include_operator_breakdown,
         auto_backup_enabled, backup_retention_days, backup_time,
+        default_passador_rate,
         updated_at
       ) VALUES (
         'default', 'sysmauad', $1,
@@ -1959,6 +1983,7 @@ app.put('/settings', async (req: Request, res: Response) => {
         $8, $9,
         $10, $11, $12,
         $13, $14, $15,
+        $16,
         NOW()
       ) ON CONFLICT (id) DO UPDATE SET
         whatsapp_target_phone = EXCLUDED.whatsapp_target_phone,
@@ -1976,6 +2001,7 @@ app.put('/settings', async (req: Request, res: Response) => {
         auto_backup_enabled = EXCLUDED.auto_backup_enabled,
         backup_retention_days = EXCLUDED.backup_retention_days,
         backup_time = EXCLUDED.backup_time,
+        default_passador_rate = EXCLUDED.default_passador_rate,
         updated_at = NOW()
       RETURNING *
     `, [
@@ -1993,7 +2019,8 @@ app.put('/settings', async (req: Request, res: Response) => {
       includeOperatorBreakdown,
       autoBackupEnabled,
       backupRetentionDays,
-      backupTime
+      backupTime,
+      defaultPassadorRate
     ]);
 
     res.json(mapSettings(result.rows[0]));
