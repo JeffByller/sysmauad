@@ -52,7 +52,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange }) => {
           {/* Brand Logo & Title */}
           <div 
             className="flex items-center gap-2.5 cursor-pointer shrink-0 select-none mr-2 sm:mr-3" 
-            onClick={() => onTabChange('dashboard')}
+            onClick={() => onTabChange(user?.role === 'passador' ? 'passador-mobile' : 'dashboard')}
           >
             <img 
               src="/logo.jpg" 
@@ -279,14 +279,16 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange }) => {
               <LogOut className="w-4 h-4" />
             </button>
 
-            {/* Mobile Hamburger Button */}
-            <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors lg:hidden shrink-0"
-              title="Abrir Menu de Navegação"
-            >
-              {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-            </button>
+            {/* Mobile Hamburger Button (Oculto para perfil Passador) */}
+            {user?.role !== 'passador' && (
+              <button
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors lg:hidden shrink-0"
+                title="Abrir Menu de Navegação"
+              >
+                {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              </button>
+            )}
           </div>
         </div>
 

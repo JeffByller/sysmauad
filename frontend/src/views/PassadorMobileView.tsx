@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useOrders } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
-import { QrCode, CheckCircle2, AlertTriangle, ArrowRight, Clock, Calendar, ShieldAlert } from 'lucide-react';
+import { QrCode, CheckCircle2, AlertTriangle, ArrowRight, Clock, Calendar } from 'lucide-react';
 import { getDatePresets, getLocalDateString } from '../utils/dateUtils';
 
 interface PassadorMobileViewProps {
@@ -35,21 +35,35 @@ export const PassadorMobileView: React.FC<PassadorMobileViewProps> = ({ onOpenSc
   }, [isSinglePlay, user]);
 
   // Order & Piece Entry State
-  const [osInput, setOsInput] = useState<string>(scannedOSNumber || 'OS-0001');
+  const [osNumberOnly, setOsNumberOnly] = useState<string>(() => {
+    if (scannedOSNumber) {
+      return scannedOSNumber.replace(/^OS-/i, '');
+    }
+    return '';
+  });
   const [piecesIronedInput, setPiecesIronedInput] = useState<string>('');
   const [feedbackMessage, setFeedbackMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Período de consulta para o passador: 'dia' | 'semana' | 'mes'
-  const [consultPeriod, setConsultPeriod] = useState<'dia' | 'semana' | 'mes'>('dia');
+  // Consulta de produção simplificada: padrão 'hoje'
+  const [showCustomDateFilter, setShowCustomDateFilter] = useState<boolean>(false);
+  const { todayStr } = getDatePresets();
+  const [selectedDate, setSelectedDate] = useState<string>(todayStr);
 
   // Sync scanned OS if changed from modal
   React.useEffect(() => {
     if (scannedOSNumber) {
-      setOsInput(scannedOSNumber);
+      setOsNumberOnly(scannedOSNumber.replace(/^OS-/i, ''));
     }
   }, [scannedOSNumber]);
 
-  const activeOrder = getOrderByOS(osInput);
+  // Formata o número da OS para consulta
+  const fullOSNumber = osNumberOnly.trim()
+    ? (osNumberOnly.trim().toUpperCase().startsWith('OS-')
+        ? osNumberOnly.trim().toUpperCase()
+        : `OS-${osNumberOnly.trim()}`)
+    : '';
+
+  const activeOrder = fullOSNumber ? getOrderByOS(fullOSNumber) : null;
 
   // Determina quem é o passador ativo para este lançamento
   const activePassador = isSinglePlay && user
@@ -64,28 +78,17 @@ export const PassadorMobileView: React.FC<PassadorMobileViewProps> = ({ onOpenSc
     .filter(l => l.passadorId === targetPassadorId)
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-  // Datas de referência para Dia, Semana e Mês (America/Sao_Paulo)
-  const { todayStr, sevenDaysAgo, thirtyDaysAgo } = getDatePresets();
-
   const piecesToday = myLogs
     .filter(l => getLocalDateString(l.timestamp) === todayStr)
     .reduce((sum, l) => sum + l.piecesIroned, 0);
 
-  const piecesWeek = myLogs
-    .filter(l => getLocalDateString(l.timestamp) >= sevenDaysAgo)
-    .reduce((sum, l) => sum + l.piecesIroned, 0);
-
-  const piecesMonth = myLogs
-    .filter(l => getLocalDateString(l.timestamp) >= thirtyDaysAgo)
-    .reduce((sum, l) => sum + l.piecesIroned, 0);
-
-  // Logs filtrados pelo período selecionado (apenas visualização)
+  // Logs filtrados: por padrão a data de hoje, ou a data selecionada no filtro simples
   const filteredConsultLogs = myLogs.filter(l => {
     const logDate = getLocalDateString(l.timestamp);
-    if (consultPeriod === 'dia') return logDate === todayStr;
-    if (consultPeriod === 'semana') return logDate >= sevenDaysAgo;
-    return logDate >= thirtyDaysAgo;
+    return logDate === (showCustomDateFilter ? selectedDate : todayStr);
   });
+
+  const totalPiecesFiltered = filteredConsultLogs.reduce((sum, l) => sum + l.piecesIroned, 0);
 
   const handleIroningSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -172,82 +175,71 @@ export const PassadorMobileView: React.FC<PassadorMobileViewProps> = ({ onOpenSc
         </div>
       )}
 
-      {/* Painel de Consulta Rápida: Dia, Semana, Mês (Apenas Visualização) */}
+      {/* Painel de Consulta Rápida Simplificado: Fixo Hoje por padrão + Filtro simples de data */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-sm border border-slate-200 dark:border-slate-800 space-y-3 transition-colors">
         <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
           <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-            <Calendar className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
-            Consulta de Produção
+            <Calendar className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            Produção {showCustomDateFilter && selectedDate !== todayStr ? `• ${new Date(selectedDate + 'T12:00:00').toLocaleDateString('pt-BR')}` : 'de Hoje'}
           </span>
-          <span className="text-[10px] text-slate-400 font-mono">Somente Visualização</span>
-        </div>
-
-        {/* Botões/Cards Seletores: Dia, Semana, Mês */}
-        <div className="grid grid-cols-3 gap-2">
           <button
             type="button"
-            onClick={() => setConsultPeriod('dia')}
-            className={`p-3 rounded-xl border text-center transition-all ${
-              consultPeriod === 'dia'
-                ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-500 dark:border-emerald-600 text-emerald-900 dark:text-emerald-200 shadow-sm'
-                : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
+            onClick={() => {
+              if (showCustomDateFilter) {
+                setShowCustomDateFilter(false);
+                setSelectedDate(todayStr);
+              } else {
+                setShowCustomDateFilter(true);
+              }
+            }}
+            className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 hover:underline flex items-center gap-1"
           >
-            <span className="text-[10px] font-bold uppercase tracking-wider block">Hoje</span>
-            <span className="text-lg font-black font-mono mt-0.5 block text-emerald-600 dark:text-emerald-400">
-              {piecesToday}
-            </span>
-            <span className="text-[10px] text-slate-400 font-mono">peças</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setConsultPeriod('semana')}
-            className={`p-3 rounded-xl border text-center transition-all ${
-              consultPeriod === 'semana'
-                ? 'bg-sky-50 dark:bg-sky-950/60 border-sky-500 dark:border-sky-600 text-sky-900 dark:text-sky-200 shadow-sm'
-                : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            <span className="text-[10px] font-bold uppercase tracking-wider block">Semana</span>
-            <span className="text-lg font-black font-mono mt-0.5 block text-sky-600 dark:text-sky-400">
-              {piecesWeek}
-            </span>
-            <span className="text-[10px] text-slate-400 font-mono">peças</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setConsultPeriod('mes')}
-            className={`p-3 rounded-xl border text-center transition-all ${
-              consultPeriod === 'mes'
-                ? 'bg-indigo-50 dark:bg-indigo-950/60 border-indigo-500 dark:border-indigo-600 text-indigo-900 dark:text-indigo-200 shadow-sm'
-                : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            <span className="text-[10px] font-bold uppercase tracking-wider block">Mês</span>
-            <span className="text-lg font-black font-mono mt-0.5 block text-indigo-600 dark:text-indigo-400">
-              {piecesMonth}
-            </span>
-            <span className="text-[10px] text-slate-400 font-mono">peças</span>
+            {showCustomDateFilter ? 'Voltar para Hoje' : 'Consultar outra data'}
           </button>
         </div>
 
-        {/* Lista de Registros do Período Selecionado (Apenas Visualização) */}
+        {/* Filtro simples de data quando acionado */}
+        {showCustomDateFilter && (
+          <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-2">
+            <label className="text-[11px] font-medium text-slate-600 dark:text-slate-300 whitespace-nowrap">
+              Data:
+            </label>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={e => setSelectedDate(e.target.value)}
+              className="flex-1 px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-xs font-mono text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+          </div>
+        )}
+
+        {/* Totalizador do dia */}
+        <div className="p-3 bg-emerald-50/70 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-800/60 flex items-center justify-between">
+          <span className="text-xs font-medium text-emerald-900 dark:text-emerald-200">
+            {showCustomDateFilter && selectedDate !== todayStr
+              ? `Total em ${new Date(selectedDate + 'T12:00:00').toLocaleDateString('pt-BR')}`
+              : 'Total de Peças Hoje'}
+          </span>
+          <span className="text-xl font-black font-mono text-emerald-700 dark:text-emerald-400">
+            {totalPiecesFiltered} <span className="text-xs font-normal">pçs</span>
+          </span>
+        </div>
+
+        {/* Lista de Registros */}
         <div className="pt-1">
           <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-mono mb-1.5">
             <span>
-              Registros {consultPeriod === 'dia' ? 'de hoje' : consultPeriod === 'semana' ? 'da semana' : 'do mês'}:
+              Lançamentos {showCustomDateFilter && selectedDate !== todayStr ? 'do dia' : 'de hoje'}:
             </span>
-            <span>{filteredConsultLogs.length} lançamento(s)</span>
+            <span>{filteredConsultLogs.length} registro(s)</span>
           </div>
 
           {filteredConsultLogs.length === 0 ? (
-            <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-xl text-center text-xs text-slate-400 border border-slate-100 dark:border-slate-800">
-              Nenhuma peça registrada no período selecionado.
+            <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl text-center text-xs text-slate-400 border border-slate-100 dark:border-slate-800">
+              Nenhuma peça registrada nesta data.
             </div>
           ) : (
-            <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
+            <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
               {filteredConsultLogs.map(l => (
                 <div
                   key={l.id}
@@ -265,7 +257,7 @@ export const PassadorMobileView: React.FC<PassadorMobileViewProps> = ({ onOpenSc
                     </span>
                     <span className="text-[10px] text-slate-400 flex items-center gap-1 justify-end">
                       <Clock className="w-3 h-3" />
-                      {new Date(l.timestamp).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} • {new Date(l.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                      {new Date(l.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
                 </div>
@@ -303,14 +295,23 @@ export const PassadorMobileView: React.FC<PassadorMobileViewProps> = ({ onOpenSc
               Número da OS / Bipagem QR Code
             </label>
             <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Ex: OS-0001"
-                value={osInput}
-                onChange={e => setOsInput(e.target.value)}
-                className="flex-1 px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-mono font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                required
-              />
+              <div className="flex flex-1 rounded-xl overflow-hidden border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus-within:ring-2 focus-within:ring-emerald-500">
+                <span className="inline-flex items-center px-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-mono font-bold text-sm select-none border-r border-slate-300 dark:border-slate-600">
+                  OS-
+                </span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="0001"
+                  value={osNumberOnly}
+                  onChange={e => {
+                    const val = e.target.value.replace(/^OS-/i, '');
+                    setOsNumberOnly(val);
+                  }}
+                  className="w-full px-3 py-2.5 bg-transparent text-sm font-mono font-bold text-slate-900 dark:text-slate-100 focus:outline-none"
+                  required
+                />
+              </div>
               <button
                 type="button"
                 onClick={onOpenScanner}
@@ -329,29 +330,27 @@ export const PassadorMobileView: React.FC<PassadorMobileViewProps> = ({ onOpenSc
               log => log.passadorId === activePassador?.id
             );
             return (
-              <div className={`p-3.5 rounded-xl border space-y-2 text-xs ${
+              <div className={`p-3.5 rounded-xl border space-y-2 text-xs transition-colors ${
                 alreadyLaunched
-                  ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-300 dark:border-amber-700'
+                  ? 'bg-amber-50/50 dark:bg-amber-950/20 border-amber-300 dark:border-amber-600/60'
                   : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/80'
               }`}>
                 <div className="flex items-center justify-between">
-                  <strong className="text-slate-900 dark:text-slate-100 font-mono text-sm font-bold">
-                    {activeOrder.osNumber}
-                  </strong>
-                  <span className="text-slate-600 dark:text-slate-400 truncate max-w-[150px] font-medium">
+                  <div className="flex items-center gap-2">
+                    <strong className="text-slate-900 dark:text-slate-100 font-mono text-sm font-bold">
+                      {activeOrder.osNumber}
+                    </strong>
+                    {alreadyLaunched && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-100/80 dark:bg-amber-900/40 px-2 py-0.5 rounded-md border border-amber-300 dark:border-amber-700">
+                        <AlertTriangle className="w-3 h-3 text-amber-500 flex-shrink-0" />
+                        Você já lançou nesta OS
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-slate-600 dark:text-slate-400 truncate max-w-[140px] font-medium text-right">
                     {activeOrder.clientName}
                   </span>
                 </div>
-
-                {/* Aviso de lançamento já realizado (apenas para passadores) */}
-                {alreadyLaunched && (
-                  <div className="flex items-center gap-1.5 text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 p-2 rounded-lg border border-amber-200 dark:border-amber-700">
-                    <ShieldAlert className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
-                    <span className="text-[11px] font-semibold">
-                      Você já lançou nesta OS. Solicite ao Administrador para relançar.
-                    </span>
-                  </div>
-                )}
 
                 <div className="flex items-center justify-between text-slate-600 dark:text-slate-400 pt-1 border-t border-slate-200 dark:border-slate-700 font-mono">
                   <span>Total Estimado do Pedido:</span>
