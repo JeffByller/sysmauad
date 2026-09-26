@@ -45,7 +45,7 @@ export const AppContent: React.FC = () => {
 
   const [currentTab, setCurrentTab] = useState<string>(getTabFromLocation);
   const [selectedOrderId, setSelectedOrderId] = useState<string>('ord-teste');
-  const [scannedOSNumber, setScannedOSNumber] = useState<string>('OS-0001');
+  const [scannedOSNumber, setScannedOSNumber] = useState<string>('');
   const [isScannerOpen, setIsScannerOpen] = useState<boolean>(false);
 
   // Sincroniza abas com a URL / Hash do navegador
