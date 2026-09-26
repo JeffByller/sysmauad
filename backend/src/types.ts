@@ -99,6 +99,7 @@ export interface OrderItem {
   id: string;
   clothingType: string;
   process: string;
+  serviceType?: 'lavado' | 'diferenciado';
   quantity: number;
   unitPrice?: number;
   totalPrice?: number;

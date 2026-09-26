@@ -13,12 +13,13 @@ import {
   AlertTriangle, 
   Check, 
   X,
-  CheckCircle2
+  CheckCircle2,
+  Receipt
 } from 'lucide-react';
 import { Order, OrderStatus } from '../types';
 
 interface OrderListViewProps {
-  onNavigate: (tab: string, param?: string) => void;
+  onNavigate: (tab: string, param?: string, printMode?: 'ambos' | 'nota' | 'receita' | 'saida') => void;
 }
 
 export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
@@ -26,6 +27,10 @@ export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('todos');
+
+  // Estado para Fechamento de Saída / Faturamento
+  const [closingSaidaOrder, setClosingSaidaOrder] = useState<Order | null>(null);
+  const [isCompletingDelivery, setIsCompletingDelivery] = useState(false);
 
   // Estado para Edição Rápida de Peso
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
@@ -35,6 +40,16 @@ export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
   const [editReason, setEditReason] = useState<string>('');
   const [isSavingWeight, setIsSavingWeight] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const handleConfirmSaida = async () => {
+    if (!closingSaidaOrder) return;
+    setIsCompletingDelivery(true);
+    await updateOrderStatus(closingSaidaOrder.id, 'entregue', user?.name || 'Operador', 'Saída registrada e entregue ao cliente.');
+    setIsCompletingDelivery(false);
+    setToastMessage(`Saída da O.S. ${closingSaidaOrder.osNumber} concluída com sucesso!`);
+    setClosingSaidaOrder(null);
+    setTimeout(() => setToastMessage(null), 4000);
+  };
 
   // Helper para verificar se a OS está parada (sem movimentação >= 3 dias e não entregue)
   const getOrderStalledInfo = (ord: Order) => {
@@ -306,6 +321,13 @@ export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
                           >
                             <Printer className="w-3.5 h-3.5" />
                           </button>
+                          <button
+                            onClick={() => onNavigate('order-print', ord.id, 'saida')}
+                            className="p-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-md transition-colors border border-transparent dark:border-slate-700"
+                            title="Imprimir Comprovante de Saída / Faturamento"
+                          >
+                            <Receipt className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                          </button>
 
                           {/* Botões contextuais de avanço do fluxo de produção */}
                           {ord.status === 'recebido' && (
@@ -332,9 +354,9 @@ export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
 
                           {ord.status === 'pronto' && (
                             <button
-                              onClick={() => updateOrderStatus(ord.id, 'entregue', user?.name || 'Operador', 'Pedido entregue ao cliente.')}
+                              onClick={() => setClosingSaidaOrder(ord)}
                               className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md font-semibold text-xs transition-colors flex items-center gap-1 shadow-sm"
-                              title="Registrar Entrega do Lote ao Cliente"
+                              title="Conferir Faturamento e Fechar Saída"
                             >
                               <PackageCheck className="w-3.5 h-3.5" />
                               Entregar
@@ -470,6 +492,125 @@ export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL: CONFERÊNCIA DE SAÍDA & FECHAMENTO DA NOTA ───────────────── */}
+      {closingSaidaOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 font-sans">
+            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 rounded-xl">
+                  <PackageCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 dark:text-slate-100 text-base">Conferência de Saída & Fechamento</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">O.S. {closingSaidaOrder.osNumber} • {closingSaidaOrder.clientName}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setClosingSaidaOrder(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Informações Básicas do Lote */}
+              <div className="grid grid-cols-2 gap-3 bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/60 text-xs font-mono">
+                <div>
+                  <span className="text-slate-500 block text-[10px] uppercase font-bold">Total de Peças</span>
+                  <strong className="text-slate-900 dark:text-slate-100 text-sm">{closingSaidaOrder.estimatedPieceCount} pçs</strong>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[10px] uppercase font-bold">Peso Total do Lote</span>
+                  <strong className="text-slate-900 dark:text-slate-100 text-sm">{(closingSaidaOrder.totalWeightKg || 0).toFixed(1)} kg</strong>
+                </div>
+              </div>
+
+              {/* Detalhamento de Valores por Tipo de Serviço */}
+              <div className="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2.5 font-mono">
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-1.5">
+                  <span className="font-bold text-[11px] text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                    Discriminação dos Serviços:
+                  </span>
+                  <span className="text-[10px] text-slate-400 uppercase font-sans">Valor Unitário</span>
+                </div>
+
+                <div className="space-y-1.5 text-xs">
+                  {closingSaidaOrder.items.map((item, idx) => (
+                    <div key={idx} className="flex justify-between items-center py-0.5">
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 uppercase">
+                        {item.process || 'Serviço'}:
+                      </span>
+                      <strong className="text-slate-900 dark:text-slate-100 text-sm">
+                        {closingSaidaOrder.isRelavado
+                          ? 'R$ 0,00'
+                          : (item.unitPrice || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </strong>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Total da Nota (Unitário) */}
+                <div className="border-t-2 border-slate-900 dark:border-slate-200 pt-2 flex justify-between items-center text-sm font-black">
+                  <span className="uppercase text-slate-900 dark:text-slate-100">Total da Nota:</span>
+                  <strong className="text-sky-700 dark:text-sky-400 text-base">
+                    {closingSaidaOrder.isRelavado
+                      ? 'R$ 0,00'
+                      : (closingSaidaOrder.items.reduce((acc, it) => acc + (it.unitPrice || 0), 0)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </strong>
+                </div>
+
+                {/* Total Geral do Lote Faturado */}
+                <div className="border-t border-dashed border-slate-300 dark:border-slate-700 pt-2 flex justify-between items-center text-xs">
+                  <span className="text-slate-600 dark:text-slate-400">Total Faturado ({closingSaidaOrder.estimatedPieceCount} pçs):</span>
+                  <strong className="text-base font-black text-emerald-700 dark:text-emerald-400">
+                    {closingSaidaOrder.isRelavado ? 'R$ 0,00 (Isento)' : (closingSaidaOrder.totalServiceValue || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </strong>
+                </div>
+              </div>
+
+              {/* Botões de Ação */}
+              <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const id = closingSaidaOrder.id;
+                    setClosingSaidaOrder(null);
+                    onNavigate('order-print', id, 'saida');
+                  }}
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <Receipt className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                  Imprimir Comprovante
+                </button>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => setClosingSaidaOrder(null)}
+                    className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isCompletingDelivery}
+                    onClick={handleConfirmSaida}
+                    className="flex-1 sm:flex-initial px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+                  >
+                    <PackageCheck className="w-4 h-4" />
+                    {isCompletingDelivery ? 'Concluindo...' : 'Confirmar Saída'}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

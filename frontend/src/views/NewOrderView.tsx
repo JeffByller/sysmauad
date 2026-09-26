@@ -1,13 +1,19 @@
 import React, { useState } from 'react';
 import { useOrders } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
-import { Scale, Calculator, Printer, FlaskConical, User, UserPlus, AlertTriangle, Tag, CheckCircle2, ArrowRight, RotateCcw } from 'lucide-react';
-import { Order } from '../types';
+import { Scale, Calculator, Printer, FlaskConical, User, UserPlus, AlertTriangle, Tag, CheckCircle2, ArrowRight, RotateCcw, Plus, Trash2, Sparkles, DollarSign, X } from 'lucide-react';
+import { Order, OrderItem } from '../types';
 
 interface NewOrderViewProps {
   onOrderCreated: (orderId: string) => void;
   onNavigateToClients: () => void;
   onNavigateToOrders?: () => void;
+}
+
+export interface ExtraServiceItem {
+  id: string;
+  name: string;
+  unitPrice: number;
 }
 
 export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNavigateToClients, onNavigateToOrders }) => {
@@ -28,6 +34,12 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
   const [corteOs, setCorteOs] = useState<string>('');
   const [processType, setProcessType] = useState<string>('');
   const [unitPrice, setUnitPrice] = useState<number>(0);
+  
+  // Serviços Diferenciados adicionais combinados na mesma O.S.
+  const [extraServices, setExtraServices] = useState<ExtraServiceItem[]>([]);
+  const [newServiceName, setNewServiceName] = useState('');
+  const [newServicePrice, setNewServicePrice] = useState<number | ''>('');
+
   // Nova lógica: usuário informa quantidade + peso por peça → sistema calcula peso total
   const [pieceCount, setPieceCount] = useState<number>(0);
   const [weightPerPieceKg, setWeightPerPieceKg] = useState<number>(0);
@@ -56,13 +68,33 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
     }
   };
 
+  const handleAddExtraService = (name: string, price: number) => {
+    if (!name.trim()) return;
+    setExtraServices(prev => [
+      ...prev,
+      { id: `diff-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`, name: name.trim(), unitPrice: Number(price) || 0 }
+    ]);
+    setNewServiceName('');
+    setNewServicePrice('');
+  };
+
+  const handleRemoveExtraService = (id: string) => {
+    setExtraServices(prev => prev.filter(s => s.id !== id));
+  };
+
   // Peso total calculado automaticamente: quantidade de peças × peso por peça
   const totalWeightKg = (pieceCount > 0 && weightPerPieceKg > 0)
     ? Math.round(pieceCount * weightPerPieceKg * 1000) / 1000
     : 0;
 
-  // Valor calculado para persistência no pedido (se relavado, forçado a R$ 0,00 - Isento)
-  const totalServiceValue = isRelavado ? 0 : Math.round(pieceCount * unitPrice * 100) / 100;
+  // Soma dos serviços diferenciados por peça
+  const extraServicesTotalPerPiece = extraServices.reduce((sum, s) => sum + (s.unitPrice || 0), 0);
+  
+  // Valor unitário combinado por peça: Lavado Padrão + Serviços Diferenciados
+  const combinedUnitPrice = isRelavado ? 0 : Math.round((unitPrice + extraServicesTotalPerPiece) * 100) / 100;
+
+  // Valor total do lote / nota (se relavado, forçado a R$ 0,00 - Isento)
+  const totalServiceValue = isRelavado ? 0 : Math.round(pieceCount * combinedUnitPrice * 100) / 100;
 
   const chemicalRecipe = (totalWeightKg > 0 && processType)
     ? calculateChemicals(totalWeightKg, [processType])
@@ -149,6 +181,30 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
       ? `[RELAVADO] ${relavadoReason ? `Motivo: ${relavadoReason}. ` : ''}${notes.trim()}`.trim()
       : (notes.trim() || undefined);
 
+    const mainItem: OrderItem = {
+      id: `item-${Date.now()}-main`,
+      clothingType,
+      process: processType,
+      serviceType: 'lavado',
+      quantity: pieceCount,
+      unitPrice: isRelavado ? 0 : unitPrice,
+      totalPrice: isRelavado ? 0 : Math.round(pieceCount * unitPrice * 100) / 100,
+      corteOs: corteOs.trim() || undefined
+    };
+
+    const diffItems: OrderItem[] = extraServices.map((s, idx) => ({
+      id: `item-${Date.now()}-diff-${idx}`,
+      clothingType,
+      process: s.name,
+      serviceType: 'diferenciado',
+      quantity: pieceCount,
+      unitPrice: isRelavado ? 0 : s.unitPrice,
+      totalPrice: isRelavado ? 0 : Math.round(pieceCount * s.unitPrice * 100) / 100,
+      corteOs: corteOs.trim() || undefined
+    }));
+
+    const allItems: OrderItem[] = [mainItem, ...diffItems];
+
     const newOrder = createOrder({
       clientId: selectedClient.id,
       clientName: `${selectedClient.name} (${selectedClient.companyName})`,
@@ -161,17 +217,7 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
       totalServiceValue,
       isRelavado,
       corteOs: corteOs.trim() || undefined,
-      items: [
-        {
-          id: `item-${Date.now()}`,
-          clothingType,
-          process: processType, // Fixo/estático da tabela de peças
-          quantity: pieceCount,
-          unitPrice: isRelavado ? 0 : unitPrice,
-          totalPrice: totalServiceValue,
-          corteOs: corteOs.trim() || undefined
-        }
-      ],
+      items: allItems,
       chemicalRecipe,
       paymentStatus: isRelavado ? 'pago' : 'aberto',
       notes: finalNotes
@@ -187,6 +233,9 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
     setCorteOs('');
     setProcessType('');
     setUnitPrice(0);
+    setExtraServices([]);
+    setNewServiceName('');
+    setNewServicePrice('');
     setPieceCount(0);
     setWeightPerPieceKg(0);
     setNotes('');
@@ -237,6 +286,32 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
                 {createdOrderSuccess.estimatedPieceCount} pçs • {createdOrderSuccess.totalWeightKg} kg
               </strong>
             </div>
+
+            {/* Detalhamento dos Valores por Serviço */}
+            {createdOrderSuccess.items && createdOrderSuccess.items.length > 0 && (
+              <div className="border-b border-slate-200 dark:border-slate-700 pb-2 space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                  Valores Discriminados por Serviço:
+                </span>
+                {createdOrderSuccess.items.map((it, idx) => (
+                  <div key={idx} className="flex justify-between text-[11px]">
+                    <span className="text-slate-600 dark:text-slate-400">
+                      • {it.process} {it.serviceType === 'diferenciado' ? '(Diferenciado)' : '(Lavado)'}:
+                    </span>
+                    <strong className="text-slate-900 dark:text-slate-100 font-mono">
+                      R$ {(it.unitPrice || 0).toFixed(2)} / pç
+                    </strong>
+                  </div>
+                ))}
+                <div className="flex justify-between text-xs font-bold pt-1 text-sky-800 dark:text-sky-300">
+                  <span>Total da Nota:</span>
+                  <span className="font-mono">
+                    R$ {(createdOrderSuccess.totalServiceValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+            )}
+
             <div className="flex justify-between pt-0.5">
               <span className="text-slate-500">Tipo de Lote:</span>
               <strong className={createdOrderSuccess.isRelavado ? "text-purple-600 dark:text-purple-400 font-bold uppercase" : "text-slate-900 dark:text-slate-100 font-bold"}>
@@ -486,8 +561,153 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
                 )}
               </select>
             </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">
+                Valor do Lavado (R$ / pç) *
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">R$</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={unitPrice || ''}
+                  onChange={e => setUnitPrice(Number(e.target.value))}
+                  placeholder="0.00"
+                  className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                />
+              </div>
+            </div>
           </div>
 
+          {/* Sub-painel: Serviços Diferenciados (Opcionais combinados na mesma O.S. / Nota) */}
+          <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                  Serviços Diferenciados (Opcional — Combinados na mesma O.S.)
+                </h3>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Adicione acabamentos como <strong>Destroyed, Pistolado, Bigode Laser</strong>, etc., que somarão ao valor do lavado na nota.
+                </p>
+              </div>
+
+              {/* Botões Rápidos de Adição */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                {[
+                  { name: 'Pistolado', price: 2.0 },
+                  { name: 'Bigode Laser', price: 1.0 },
+                  { name: 'Puído Laser', price: 1.5 },
+                  { name: 'Destroyed', price: 2.5 },
+                  { name: 'Resinagem', price: 3.0 }
+                ].map(item => (
+                  <button
+                    key={item.name}
+                    type="button"
+                    onClick={() => handleAddExtraService(item.name, item.price)}
+                    className="px-2 py-1 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 rounded-lg text-[10px] font-bold transition-colors flex items-center gap-1"
+                  >
+                    <Plus className="w-2.5 h-2.5" />
+                    {item.name} (+R$ {item.price.toFixed(2)})
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Input para digitação livre de novo serviço diferenciado */}
+            <div className="flex flex-col sm:flex-row items-center gap-2 bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+              <input
+                type="text"
+                value={newServiceName}
+                onChange={e => setNewServiceName(e.target.value)}
+                placeholder="Outro serviço (ex: Bigode 3D, Puído Manual...)"
+                className="flex-1 w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              />
+              <div className="relative w-full sm:w-36">
+                <span className="absolute left-2.5 top-2 text-xs font-bold text-slate-400">R$</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={newServicePrice === '' ? '' : newServicePrice}
+                  onChange={e => setNewServicePrice(e.target.value === '' ? '' : Number(e.target.value))}
+                  placeholder="0.00"
+                  className="w-full pl-8 pr-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (newServiceName.trim()) {
+                    handleAddExtraService(newServiceName, Number(newServicePrice) || 0);
+                  }
+                }}
+                className="w-full sm:w-auto px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Adicionar
+              </button>
+            </div>
+
+            {/* Lista dos Serviços Diferenciados adicionados */}
+            {extraServices.length > 0 && (
+              <div className="space-y-1.5">
+                {extraServices.map(s => (
+                  <div key={s.id} className="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                      <strong className="text-slate-800 dark:text-slate-200 font-semibold">{s.name}</strong>
+                      <span className="text-[10px] text-slate-400 uppercase font-mono">(Serviço Diferenciado)</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono font-bold text-slate-900 dark:text-slate-100 text-sm">
+                        R$ {s.unitPrice.toFixed(2)} / pç
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveExtraService(s.id)}
+                        className="text-slate-400 hover:text-rose-500 p-1 rounded transition-colors"
+                        title="Remover serviço"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Quadro de Demonstração / Detalhamento da Nota */}
+            <div className="p-3.5 bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 rounded-xl text-xs space-y-1.5 font-mono">
+              <span className="font-bold text-[10px] uppercase tracking-wider text-sky-800 dark:text-sky-300 block font-sans">
+                Detalhamento dos Valores ao Cliente (Composição da Nota):
+              </span>
+              <div className="flex justify-between text-slate-700 dark:text-slate-300">
+                <span>{processType || 'Lavado Principal'}:</span>
+                <strong>R$ {unitPrice.toFixed(2)}</strong>
+              </div>
+              {extraServices.map(s => (
+                <div key={s.id} className="flex justify-between text-slate-700 dark:text-slate-300">
+                  <span>{s.name}:</span>
+                  <strong>R$ {s.unitPrice.toFixed(2)}</strong>
+                </div>
+              ))}
+              <div className="pt-1.5 border-t border-sky-200 dark:border-sky-800 flex justify-between font-bold text-sky-950 dark:text-sky-200 text-sm">
+                <span>Total da Nota (por peça):</span>
+                <span>R$ {combinedUnitPrice.toFixed(2)}</span>
+              </div>
+              {pieceCount > 0 && (
+                <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 pt-0.5">
+                  <span>Total Faturado ({pieceCount} peças):</span>
+                  <span className="font-bold text-slate-900 dark:text-slate-100">
+                    {totalServiceValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Section 3: Quantidade de Peças & Pesagem */}

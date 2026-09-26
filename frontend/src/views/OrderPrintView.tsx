@@ -1,14 +1,15 @@
 import React, { useState, useMemo } from 'react';
 import { useOrders } from '../context/OrderContext';
 import { QRCodeSVG } from 'qrcode.react';
-import { Printer, ArrowLeft, FileText, FlaskConical, Layers } from 'lucide-react';
+import { Printer, ArrowLeft, FileText, FlaskConical, Layers, Receipt } from 'lucide-react';
 
 interface OrderPrintViewProps {
   orderId: string;
   onBack: () => void;
+  initialMode?: 'ambos' | 'nota' | 'receita' | 'saida';
 }
 
-export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack }) => {
+export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack, initialMode }) => {
   const { getOrderById, getOrderByOS, calculateChemicals, orders } = useOrders();
   
   // Localiza o pedido com segurança por ID ou por OS
@@ -17,8 +18,8 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack 
     return getOrderById(orderId) || getOrderByOS(orderId) || orders.find(o => o.id === orderId || o.osNumber === orderId);
   }, [orderId, getOrderById, getOrderByOS, orders]);
 
-  // Modo de visualização/impressão: 'ambos' | 'nota' | 'receita'
-  const [printMode, setPrintMode] = useState<'ambos' | 'nota' | 'receita'>('ambos');
+  // Modo de visualização/impressão: 'ambos' | 'nota' | 'receita' | 'saida'
+  const [printMode, setPrintMode] = useState<'ambos' | 'nota' | 'receita' | 'saida'>(initialMode || 'ambos');
 
   // Fases e produtos da receita técnica calculados por porcentagem sobre o peso total
   // O hook useMemo DEVE SEMPRE rodar no topo, antes de qualquer retorno condicional!
@@ -148,6 +149,18 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack 
           >
             <FlaskConical className="w-3.5 h-3.5" />
             Receita do Lavado
+          </button>
+
+          <button
+            onClick={() => setPrintMode('saida')}
+            className={`px-3 py-1.5 rounded-md flex items-center gap-1.5 transition-colors ${
+              printMode === 'saida'
+                ? 'bg-white dark:bg-slate-700 text-sky-700 dark:text-sky-300 font-bold shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+            }`}
+          >
+            <Receipt className="w-3.5 h-3.5" />
+            Comprovante de Saída
           </button>
         </div>
 
@@ -448,6 +461,159 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack 
             <span className="font-mono uppercase font-bold">
               SYSMAUAD INDUSTRIAL
             </span>
+          </div>
+        </div>
+      )}
+
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* 3. COMPROVANTE DE SAÍDA / FATURAMENTO                         */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {printMode === 'saida' && (
+        <div className="bg-white text-slate-900 p-8 rounded-xl border border-slate-300 shadow-md space-y-3 font-mono text-[11px] leading-tight print-sheet">
+          {/* Cabeçalho */}
+          <div className="flex justify-between items-start font-bold text-xs uppercase">
+            <span>LAVANDERIA MAUAD</span>
+            <span>COMPROVANTE DE SAÍDA / FATURAMENTO</span>
+            <span>Página: 001</span>
+          </div>
+
+          {/* Número em Grande Destaque Central */}
+          <div className="text-center font-black text-xl tracking-wider py-1 font-mono">
+            O.S. {pureOsNumber}
+          </div>
+
+          {order.isRelavado && (
+            <div className="bg-purple-100 text-purple-900 border border-purple-300 font-bold text-center py-1 text-xs uppercase tracking-wider">
+              *** SAÍDA EM RELAVADO - SEM COBRANÇA (R$ 0,00) ***
+            </div>
+          )}
+
+          {/* Linha de Saída, Funcionário e Data/Hora */}
+          <div className="flex justify-between text-[11px] pt-0.5">
+            <span>
+              SAÍDA: {dateShort} FUNCNR: {order.operatorName?.toUpperCase() || 'OPERADOR'}
+            </span>
+            <span>
+              {weekdayFormatted}, {dateShort} {timeFormatted}
+            </span>
+          </div>
+
+          {/* Separador tracejado com título Dados do Cliente */}
+          <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px]">
+            ------------------------------- DADOS DO CLIENTE -------------------------------
+          </div>
+
+          {/* Dados do Cliente */}
+          <div className="space-y-1 pl-1 text-[11px]">
+            <div>
+              <span className="font-bold">CLIENTE:</span> {clientNameSafe}
+            </div>
+            {order.clientAddress && (
+              <div>
+                <span className="font-bold">ENDEREÇO:</span> {order.clientAddress.toUpperCase()}
+              </div>
+            )}
+            <div>
+              <span className="font-bold">TELEFONE:</span> {order.clientPhone || 'Não informado'}
+            </div>
+            {(order.corteOs || primaryCorteOs) && (
+              <div>
+                <span className="font-bold">CORTE / REF:</span> {order.corteOs || primaryCorteOs}
+              </div>
+            )}
+            {order.notes && (
+              <div>
+                <span className="font-bold">OBSERVAÇÕES:</span> {order.notes}
+              </div>
+            )}
+          </div>
+
+          {/* Separador */}
+          <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px]">
+            ---------------------- DETALHAMENTO DE VALORES POR SERVIÇO ---------------------
+          </div>
+
+          {/* Seção Exata do Layout Esperado pelo Usuário */}
+          <div className="p-4 bg-slate-50 border border-slate-300 rounded space-y-2 text-xs">
+            <div className="font-bold text-[11px] uppercase tracking-wider text-slate-700 pb-1 border-b border-slate-200">
+              DISCRIMINAÇÃO DOS SERVIÇOS (UNITÁRIO POR PEÇA):
+            </div>
+
+            <div className="space-y-2 pt-1 font-mono">
+              {order.items.map((item, idx) => (
+                <div key={idx} className="flex justify-between items-center py-0.5 border-b border-dashed border-slate-200">
+                  <span className="font-bold text-slate-900 uppercase">
+                    {item.process || 'Serviço'}:
+                  </span>
+                  <span className="font-bold text-slate-900 text-sm">
+                    {order.isRelavado 
+                      ? 'R$ 0,00' 
+                      : (item.unitPrice || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* Somatório Total da Nota (Unitário Combinado) */}
+            <div className="border-t-2 border-slate-900 pt-2 flex justify-between items-center text-sm font-black">
+              <span className="uppercase text-slate-900">Total da Nota:</span>
+              <span className="font-mono text-base text-slate-900">
+                {order.isRelavado
+                  ? 'R$ 0,00'
+                  : (order.items.reduce((acc, it) => acc + (it.unitPrice || 0), 0)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </span>
+            </div>
+          </div>
+
+          {/* Separador */}
+          <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px]">
+            ----------------------------- RESUMO DO FATURAMENTO ----------------------------
+          </div>
+
+          {/* Resumo com Quantitativo e Total Faturado */}
+          <div className="space-y-1.5 pt-1 text-xs">
+            <div className="flex justify-between">
+              <span>QUANTIDADE TOTAL DE PEÇAS:</span>
+              <span className="font-bold font-mono">{totalPiecesSafe} pçs</span>
+            </div>
+            <div className="flex justify-between">
+              <span>PESO TOTAL DO LOTE:</span>
+              <span className="font-bold font-mono">
+                {totalWeightSafe.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} Kg
+              </span>
+            </div>
+            <div className="flex justify-between border-t border-slate-300 pt-1 text-sm font-bold">
+              <span>VALOR TOTAL DO LOTE FATURADO:</span>
+              <span className="font-mono text-base text-slate-900">
+                {order.isRelavado ? 'R$ 0,00' : (order.totalServiceValue || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </span>
+            </div>
+            <div className="flex justify-between text-[11px] pt-0.5">
+              <span>SITUAÇÃO DO PAGAMENTO:</span>
+              <span className="font-bold uppercase">
+                {order.paymentStatus === 'pago' ? 'PAGO / QUITADO' : 'EM ABERTO / A FATURAR'}
+              </span>
+            </div>
+          </div>
+
+          {/* Rodapé com Assinaturas */}
+          <div className="pt-10 flex justify-around text-center text-[10px] uppercase font-mono">
+            <div>
+              <div className="text-slate-400 select-none">------------------------------------</div>
+              <div className="font-bold pt-1">MAUAD LAVANDERIA (ENTREGADOR)</div>
+            </div>
+            <div>
+              <div className="text-slate-400 select-none">------------------------------------</div>
+              <div className="font-bold pt-1">RECEBIDO POR (CLIENTE / RESPONSÁVEL)</div>
+            </div>
+          </div>
+
+          {/* QR Code */}
+          <div className="pt-4 flex items-center justify-end gap-2 text-[9px] text-slate-500">
+            <span>QR Bipagem O.S:</span>
+            <div className="p-0.5 border border-slate-700 bg-white inline-block">
+              <QRCodeSVG value={order.osNumber || pureOsNumber} size={36} />
+            </div>
           </div>
         </div>
       )}

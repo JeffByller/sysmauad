@@ -559,9 +559,27 @@ export const FinanceCaixaView: React.FC = () => {
                         {ord.corteOs || ord.items.find(i => i.corteOs)?.corteOs || '—'}
                       </td>
                       <td className="p-3 font-mono text-slate-700 dark:text-slate-300">
-                        <span className="font-bold text-slate-900 dark:text-slate-100">
-                          {ord.estimatedPieceCount} — {ord.items.map(i => i.process).join(', ') || 'Sem processo'}
+                        <span className="font-bold text-slate-900 dark:text-slate-100 block">
+                          {ord.estimatedPieceCount} pçs
                         </span>
+                        {ord.items.length > 1 ? (
+                          <div className="text-[11px] text-slate-600 dark:text-slate-400 space-y-0.5 mt-0.5 font-mono">
+                            {ord.items.map((it, idx) => (
+                              <div key={idx} className="flex items-center gap-1">
+                                <span className="font-semibold text-slate-800 dark:text-slate-200">{it.process}:</span>
+                                <span>{ord.isRelavado ? 'R$ 0,00' : (it.unitPrice || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                              </div>
+                            ))}
+                            <div className="font-bold text-sky-700 dark:text-sky-400 text-[10px] pt-0.5 border-t border-slate-200 dark:border-slate-700">
+                              Total Nota: {ord.isRelavado ? 'R$ 0,00' : (ord.items.reduce((s, it) => s + (it.unitPrice || 0), 0)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-600 dark:text-slate-400">
+                            {ord.items[0]?.process || 'Lavado'}
+                            {ord.items[0]?.unitPrice ? ` (${(ord.items[0].unitPrice || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})` : ''}
+                          </span>
+                        )}
                       </td>
                       <td className="p-3 text-right font-mono text-slate-600 dark:text-slate-400">
                         {(ord.totalWeightKg || 0).toFixed(1)} kg
@@ -698,9 +716,26 @@ export const FinanceCaixaView: React.FC = () => {
                 <td className="border border-black p-1.5 font-mono">{new Date(ord.createdAt).toLocaleDateString('pt-BR')}</td>
                 <td className="border border-black p-1.5 font-mono font-bold">{ord.osNumber}</td>
                 {!filteredClient && <td className="border border-black p-1.5">{ord.clientName}</td>}
-                <td className="border border-black p-1.5 font-mono">{ord.corteOs || ord.items.find(i => i.corteOs)?.corteOs || '—'}</td>
-                <td className="border border-black p-1.5 font-mono">{ord.estimatedPieceCount} — {ord.items.map(i => i.process).join(', ') || 'Sem processo'}</td>
-                <td className="border border-black p-1.5 text-right font-mono">{ord.estimatedPieceCount}</td>
+                <td className="border border-black p-1.5 font-mono">
+                  <div>{ord.estimatedPieceCount} pçs</div>
+                  {ord.items.length > 1 ? (
+                    <div className="text-[10px] text-slate-800 space-y-0.5 mt-0.5">
+                      {ord.items.map((it, idx) => (
+                        <div key={idx}>
+                          • {it.process}: {ord.isRelavado ? 'R$ 0,00' : (it.unitPrice || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </div>
+                      ))}
+                      <div className="font-bold border-t border-slate-400 pt-0.5">
+                        Total Nota: {ord.isRelavado ? 'R$ 0,00' : (ord.items.reduce((s, it) => s + (it.unitPrice || 0), 0)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-[10px] text-slate-700">
+                      {ord.items[0]?.process || 'Lavado'}
+                      {ord.items[0]?.unitPrice ? ` (${(ord.items[0].unitPrice || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})` : ''}
+                    </div>
+                  )}
+                </td>
                 <td className="border border-black p-1.5 text-right font-mono">{(ord.totalWeightKg || 0).toFixed(1)}</td>
                 <td className="border border-black p-1.5 text-right font-mono font-bold">
                   {(ord.totalServiceValue || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
@@ -1287,8 +1322,9 @@ export const FinanceCaixaView: React.FC = () => {
                   <div className="p-1.5 col-span-4 bg-slate-50/50">
                     <span className="text-slate-500 block uppercase text-[9px]">Instruções de Responsabilidade do Beneficiário</span>
                     <p className="text-[10px] text-slate-800 font-sans">
-                      • Cobrança referente a serviços de lavanderia industrial da Ordem de Serviço Nº {selectedOrderForBoleto.osNumber}.<br />
+                      • Cobrança referente a serviços da Ordem de Serviço Nº {selectedOrderForBoleto.osNumber}.<br />
                       • Quantidade faturada: {selectedOrderForBoleto.estimatedPieceCount} peças (Peso: {(selectedOrderForBoleto.totalWeightKg || 0).toFixed(1)} kg).<br />
+                      • Discriminação dos Serviços: {selectedOrderForBoleto.items.map(i => `${i.process}: ${(i.unitPrice || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`).join(' | ')} (Total Unitário: {selectedOrderForBoleto.items.reduce((s, i) => s + (i.unitPrice || 0), 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}).<br />
                       • Não receber após 30 dias do vencimento sem autorização prévia da Mauad Lavanderia.
                     </p>
                   </div>

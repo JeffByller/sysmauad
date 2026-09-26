@@ -16,20 +16,36 @@ import {
   Edit3,
   RotateCcw,
   AlertTriangle,
-  Check
+  Check,
+  Receipt,
+  Sparkles,
+  Plus,
+  Trash2,
+  X
 } from 'lucide-react';
-import { OrderStatus } from '../types';
+import { OrderStatus, OrderItem } from '../types';
 
 interface OrderDetailViewProps {
   orderId: string;
   onBack: () => void;
-  onNavigatePrint: (orderId: string) => void;
+  onNavigatePrint: (orderId: string, printMode?: 'ambos' | 'nota' | 'receita' | 'saida') => void;
 }
 
 export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBack, onNavigatePrint }) => {
-  const { getOrderById, getOrderByOS, updateOrderStatus, updateOrderWeight, createOrder, calculateChemicals } = useOrders();
+  const { getOrderById, getOrderByOS, updateOrderStatus, updateOrderWeight, updateOrderServices, createOrder, calculateChemicals } = useOrders();
   const { user } = useAuth();
   const order = getOrderById(orderId) || getOrderByOS(orderId);
+
+  // Estados para Modal de Saída & Fechamento da Nota
+  const [isSaidaModalOpen, setIsSaidaModalOpen] = useState(false);
+  const [isCompletingDelivery, setIsCompletingDelivery] = useState(false);
+
+  // Estados para Edição de Serviços
+  const [isEditServicesModalOpen, setIsEditServicesModalOpen] = useState(false);
+  const [editItems, setEditItems] = useState<OrderItem[]>([]);
+  const [newExtraServiceName, setNewExtraServiceName] = useState('');
+  const [newExtraServicePrice, setNewExtraServicePrice] = useState<number>(0);
+  const [isSavingServices, setIsSavingServices] = useState(false);
 
   // Estados para Edição de Peso
   const [isEditWeightModalOpen, setIsEditWeightModalOpen] = useState(false);
@@ -84,6 +100,74 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
     } else {
       alert(res.message);
     }
+  };
+
+  const handleOpenEditServices = () => {
+    if (!order) return;
+    setEditItems(JSON.parse(JSON.stringify(order.items || [])));
+    setNewExtraServiceName('');
+    setNewExtraServicePrice(0);
+    setIsEditServicesModalOpen(true);
+  };
+
+  const handleAddEditService = (name: string, price: number) => {
+    if (!name.trim()) return;
+    const newItem: OrderItem = {
+      id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      clothingType: order?.items[0]?.clothingType || 'Peça Têxtil',
+      process: name.trim(),
+      serviceType: 'diferenciado',
+      quantity: order?.estimatedPieceCount || 0,
+      unitPrice: price,
+      totalPrice: Number(((order?.estimatedPieceCount || 0) * price).toFixed(2)),
+      corteOs: order?.corteOs || ''
+    };
+    setEditItems(prev => [...prev, newItem]);
+    setNewExtraServiceName('');
+    setNewExtraServicePrice(0);
+  };
+
+  const handleRemoveEditService = (idx: number) => {
+    setEditItems(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleUpdateItemPrice = (idx: number, price: number) => {
+    setEditItems(prev => prev.map((it, i) => {
+      if (i === idx) {
+        const qty = order?.estimatedPieceCount || it.quantity || 0;
+        return {
+          ...it,
+          unitPrice: price,
+          totalPrice: Number((qty * price).toFixed(2))
+        };
+      }
+      return it;
+    }));
+  };
+
+  const handleSaveServices = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!order) return;
+    setIsSavingServices(true);
+    const res = await updateOrderServices(order.id, editItems, user?.name);
+    setIsSavingServices(false);
+    if (res.success) {
+      setIsEditServicesModalOpen(false);
+      setToastMessage(res.message);
+      setTimeout(() => setToastMessage(null), 4000);
+    } else {
+      alert(res.message);
+    }
+  };
+
+  const handleConfirmSaida = async () => {
+    if (!order) return;
+    setIsCompletingDelivery(true);
+    await updateOrderStatus(order.id, 'entregue', user?.name || 'Operador', 'Saída realizada e pedido entregue ao cliente.');
+    setIsCompletingDelivery(false);
+    setIsSaidaModalOpen(false);
+    setToastMessage(`Saída da O.S. ${order.osNumber} confirmada com sucesso!`);
+    setTimeout(() => setToastMessage(null), 4000);
   };
 
   const handleOpenRelavado = () => {
@@ -206,7 +290,16 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
             className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5"
           >
             <Printer className="w-4 h-4" />
-            Imprimir Nota / Receita do Lavado
+            Imprimir Nota / Receita
+          </button>
+
+          <button
+            onClick={() => onNavigatePrint(order.id, 'saida')}
+            className="px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-sm"
+            title="Imprimir Comprovante de Saída / Faturamento"
+          >
+            <Receipt className="w-4 h-4" />
+            Comprovante de Saída
           </button>
 
           {order.status !== 'pronto' && order.status !== 'entregue' && (
@@ -352,25 +445,34 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
 
             {order.status === 'pronto' && (
               <button
-                onClick={() => updateOrderStatus(order.id, 'entregue', user?.name || 'Operador', 'Lote entregue ao cliente.')}
+                onClick={() => setIsSaidaModalOpen(true)}
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm"
               >
                 <PackageCheck className="w-3.5 h-3.5" />
-                Registrar Entrega (Marcar como Entregue)
+                Registrar Entrega / Fechar Saída
               </button>
             )}
 
             {order.status === 'entregue' && (
-              <span className="text-emerald-700 dark:text-emerald-400 text-xs font-bold flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4" />
-                Pedido Entregue e Concluído
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-emerald-700 dark:text-emerald-400 text-xs font-bold flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4" />
+                  Pedido Entregue e Concluído
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsSaidaModalOpen(true)}
+                  className="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-lg text-xs font-semibold transition-colors"
+                >
+                  Ver Resumo de Saída
+                </button>
+              </div>
             )}
           </div>
         </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Left Column: Client & Weights */}
+        {/* Left Column: Client, Weights & Services */}
         <div className="space-y-6">
           {/* Client Card */}
           <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3 transition-colors">
@@ -411,6 +513,85 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
                 <span className="text-slate-500 dark:text-slate-400">Peças Estimadas:</span>
                 <strong className="text-sky-700 dark:text-sky-400 text-sm font-bold">{order.estimatedPieceCount} pçs</strong>
               </div>
+            </div>
+          </div>
+
+          {/* Card: Serviços & Faturamento (Exibição Discriminada Conforme Solicitado) */}
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 transition-colors font-sans">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider font-mono flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-sky-500" />
+                SERVIÇOS & FATURAMENTO
+              </h3>
+              <button
+                type="button"
+                onClick={handleOpenEditServices}
+                className="text-xs font-bold text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 flex items-center gap-1 transition-colors px-2 py-1 rounded-lg hover:bg-sky-50 dark:hover:bg-sky-950/30 border border-transparent hover:border-sky-200 dark:hover:border-sky-800"
+                title="Editar serviços e valores da nota"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                Editar Serviços
+              </button>
+            </div>
+
+            {/* Quadro de Valores Individuais por Tipo de Serviço */}
+            <div className="space-y-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800 font-mono text-xs">
+              <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider pb-1 border-b border-slate-200 dark:border-slate-700">
+                Valores por Tipo de Serviço:
+              </div>
+
+              {order.items.map((item, idx) => (
+                <div key={idx} className="flex justify-between items-center py-0.5">
+                  <span className="text-slate-700 dark:text-slate-300 font-semibold uppercase">
+                    {item.process || 'Serviço'}:
+                  </span>
+                  <strong className="text-slate-900 dark:text-slate-100">
+                    {order.isRelavado
+                      ? 'R$ 0,00'
+                      : (item.unitPrice || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </strong>
+                </div>
+              ))}
+
+              <div className="border-t-2 border-slate-300 dark:border-slate-700 pt-1.5 flex justify-between items-center text-xs font-bold">
+                <span className="text-slate-900 dark:text-slate-100 uppercase">Total da Nota:</span>
+                <strong className="text-sky-700 dark:text-sky-400 text-sm">
+                  {order.isRelavado
+                    ? 'R$ 0,00'
+                    : (order.items.reduce((acc, it) => acc + (it.unitPrice || 0), 0)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </strong>
+              </div>
+            </div>
+
+            {/* Resumo Financeiro */}
+            <div className="space-y-2 text-xs font-mono">
+              <div className="flex justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                <span className="text-slate-500 dark:text-slate-400">Total Faturado (Lote):</span>
+                <strong className="text-slate-900 dark:text-slate-100 text-sm">
+                  {order.isRelavado ? 'R$ 0,00 (Isento)' : (order.totalServiceValue || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </strong>
+              </div>
+              <div className="flex justify-between items-center pt-0.5">
+                <span className="text-slate-500 dark:text-slate-400">Situação:</span>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase font-sans ${
+                  order.paymentStatus === 'pago'
+                    ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                    : 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
+                }`}>
+                  {order.paymentStatus === 'pago' ? 'Pago / Quitado' : 'Em Aberto'}
+                </span>
+              </div>
+            </div>
+
+            <div className="pt-1 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => onNavigatePrint(order.id, 'saida')}
+                className="w-full px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 border border-slate-200 dark:border-slate-700"
+              >
+                <Receipt className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                Imprimir Comprovante de Saída
+              </button>
             </div>
           </div>
 
@@ -775,6 +956,295 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
                 >
                   <RotateCcw className="w-4 h-4" />
                   {isCreatingRelavado ? 'Criando...' : 'Gerar O.S. Relavado'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL: CONFERÊNCIA DE SAÍDA & FECHAMENTO DA NOTA ───────────────── */}
+      {isSaidaModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 font-sans">
+            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 rounded-xl">
+                  <PackageCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 dark:text-slate-100 text-base">Conferência de Saída & Fechamento</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">O.S. {order.osNumber} • {order.clientName}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSaidaModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Informações Básicas do Lote */}
+              <div className="grid grid-cols-2 gap-3 bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/60 text-xs font-mono">
+                <div>
+                  <span className="text-slate-500 block text-[10px] uppercase font-bold">Total de Peças</span>
+                  <strong className="text-slate-900 dark:text-slate-100 text-sm">{order.estimatedPieceCount} pçs</strong>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[10px] uppercase font-bold">Peso Total do Lote</span>
+                  <strong className="text-slate-900 dark:text-slate-100 text-sm">{(order.totalWeightKg || 0).toFixed(1)} kg</strong>
+                </div>
+              </div>
+
+              {/* Detalhamento de Valores por Tipo de Serviço */}
+              <div className="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2.5 font-mono">
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-1.5">
+                  <span className="font-bold text-[11px] text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                    Discriminação dos Serviços:
+                  </span>
+                  <span className="text-[10px] text-slate-400 uppercase font-sans">Valor Unitário</span>
+                </div>
+
+                <div className="space-y-1.5 text-xs">
+                  {order.items.map((item, idx) => (
+                    <div key={idx} className="flex justify-between items-center py-0.5">
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 uppercase">
+                        {item.process || 'Serviço'}:
+                      </span>
+                      <strong className="text-slate-900 dark:text-slate-100 text-sm">
+                        {order.isRelavado
+                          ? 'R$ 0,00'
+                          : (item.unitPrice || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </strong>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Total da Nota (Unitário) */}
+                <div className="border-t-2 border-slate-900 dark:border-slate-200 pt-2 flex justify-between items-center text-sm font-black">
+                  <span className="uppercase text-slate-900 dark:text-slate-100">Total da Nota:</span>
+                  <strong className="text-sky-700 dark:text-sky-400 text-base">
+                    {order.isRelavado
+                      ? 'R$ 0,00'
+                      : (order.items.reduce((acc, it) => acc + (it.unitPrice || 0), 0)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </strong>
+                </div>
+
+                {/* Total Geral do Lote Faturado */}
+                <div className="border-t border-dashed border-slate-300 dark:border-slate-700 pt-2 flex justify-between items-center text-xs">
+                  <span className="text-slate-600 dark:text-slate-400">Total a Pagar ({order.estimatedPieceCount} pçs):</span>
+                  <strong className="text-base font-black text-emerald-700 dark:text-emerald-400">
+                    {order.isRelavado ? 'R$ 0,00 (Isento)' : (order.totalServiceValue || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </strong>
+                </div>
+              </div>
+
+              {/* Botões de Ação */}
+              <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSaidaModalOpen(false);
+                    onNavigatePrint(order.id, 'saida');
+                  }}
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <Receipt className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                  Imprimir Comprovante
+                </button>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => setIsSaidaModalOpen(false)}
+                    className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    Fechar
+                  </button>
+
+                  {order.status !== 'entregue' && (
+                    <button
+                      type="button"
+                      disabled={isCompletingDelivery}
+                      onClick={handleConfirmSaida}
+                      className="flex-1 sm:flex-initial px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+                    >
+                      <PackageCheck className="w-4 h-4" />
+                      {isCompletingDelivery ? 'Concluindo...' : 'Confirmar Saída'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL: EDIÇÃO DE SERVIÇOS & VALORES DA NOTA ─────────────────────── */}
+      {isEditServicesModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 font-sans max-h-[90vh] flex flex-col">
+            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-sky-100 dark:bg-sky-950 text-sky-600 dark:text-sky-400 rounded-xl">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 dark:text-slate-100 text-base">Editar Serviços da O.S.</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">Ajuste de Lavado e Serviços Diferenciados</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEditServicesModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveServices} className="p-6 overflow-y-auto space-y-4 flex-1">
+              {/* Tabela de Serviços Atuais */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Serviços Combinados Nesta Nota:
+                </label>
+
+                <div className="space-y-2 border border-slate-200 dark:border-slate-700 rounded-xl p-3 bg-slate-50 dark:bg-slate-800/40">
+                  {editItems.map((it, idx) => (
+                    <div key={idx} className="flex items-center justify-between gap-3 bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700/80 shadow-xs">
+                      <div className="flex-1">
+                        <span className="font-bold text-xs text-slate-900 dark:text-slate-100 block">
+                          {it.process}
+                        </span>
+                        <span className="text-[10px] text-slate-400">
+                          {it.serviceType === 'diferenciado' ? 'Serviço Diferenciado' : 'Lavado Padrão'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <div className="relative w-28">
+                          <span className="absolute left-2 top-2 text-[10px] font-bold text-slate-400">R$</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={it.unitPrice ?? ''}
+                            onChange={(e) => handleUpdateItemPrice(idx, Number(e.target.value))}
+                            className="w-full pl-6 pr-2 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-xs font-mono font-bold text-right text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                            placeholder="0.00"
+                          />
+                        </div>
+
+                        {editItems.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveEditService(idx)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors"
+                            title="Remover serviço"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Adicionar Novo Serviço Diferenciado */}
+              <div className="p-3.5 bg-sky-50/60 dark:bg-sky-950/20 border border-sky-200 dark:border-sky-800/50 rounded-xl space-y-3">
+                <span className="block text-xs font-bold uppercase tracking-wider text-sky-900 dark:text-sky-300">
+                  + Adicionar Serviço Diferenciado
+                </span>
+
+                {/* Atalhos Rápidos */}
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { name: 'Pistolado', price: 2.00 },
+                    { name: 'Bigode Laser', price: 1.00 },
+                    { name: 'Puído Laser', price: 1.50 },
+                    { name: 'Destroyed', price: 2.50 },
+                    { name: 'Resinagem', price: 3.00 }
+                  ].map(s => (
+                    <button
+                      key={s.name}
+                      type="button"
+                      onClick={() => handleAddEditService(s.name, s.price)}
+                      className="px-2.5 py-1 bg-white dark:bg-slate-800 hover:bg-sky-100 dark:hover:bg-sky-900/40 border border-slate-200 dark:border-slate-700 text-sky-800 dark:text-sky-300 text-xs font-semibold rounded-lg transition-colors shadow-2xs"
+                    >
+                      + {s.name} (R$ {s.price.toFixed(2).replace('.', ',')})
+                    </button>
+                  ))}
+                </div>
+
+                {/* Digitação Livre */}
+                <div className="flex items-center gap-2 pt-1">
+                  <input
+                    type="text"
+                    placeholder="Outro serviço..."
+                    value={newExtraServiceName}
+                    onChange={e => setNewExtraServiceName(e.target.value)}
+                    className="flex-1 px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  />
+                  <div className="relative w-24">
+                    <span className="absolute left-2 top-2 text-[10px] font-bold text-slate-400">R$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00"
+                      value={newExtraServicePrice || ''}
+                      onChange={e => setNewExtraServicePrice(Number(e.target.value))}
+                      className="w-full pl-6 pr-2 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono font-bold text-right text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleAddEditService(newExtraServiceName, newExtraServicePrice)}
+                    disabled={!newExtraServiceName.trim()}
+                    className="px-3 py-1.5 bg-sky-700 hover:bg-sky-800 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-colors"
+                  >
+                    Adicionar
+                  </button>
+                </div>
+              </div>
+
+              {/* Quadro de Simulação do Total da Nota */}
+              <div className="p-3 bg-slate-100 dark:bg-slate-800/80 rounded-xl text-xs font-mono space-y-1">
+                <div className="flex justify-between items-center text-slate-700 dark:text-slate-300">
+                  <span>Total da Nota (Unitário Combinado):</span>
+                  <strong className="text-sm font-black text-slate-900 dark:text-slate-100">
+                    {editItems.reduce((acc, it) => acc + (it.unitPrice || 0), 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </strong>
+                </div>
+                <div className="flex justify-between items-center text-slate-500 text-[11px]">
+                  <span>Total Geral Faturado ({order.estimatedPieceCount} pçs):</span>
+                  <strong className="text-emerald-700 dark:text-emerald-400">
+                    {(order.estimatedPieceCount * editItems.reduce((acc, it) => acc + (it.unitPrice || 0), 0)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </strong>
+                </div>
+              </div>
+
+              {/* Ações do Modal */}
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsEditServicesModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingServices}
+                  className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm"
+                >
+                  <Check className="w-4 h-4" />
+                  {isSavingServices ? 'Salvando...' : 'Salvar Alterações'}
                 </button>
               </div>
             </form>

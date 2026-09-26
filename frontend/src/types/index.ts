@@ -49,7 +49,8 @@ export interface GarmentProcessCatalogItem {
 export interface OrderItem {
   id: string;
   clothingType: string;   // e.g. "Calça Wide Leg", "Bermuda Jeans"
-  process: string;        // e.g. "Amaciado", "Hiper Destroi", "Tingimento Preto"
+  process: string;        // e.g. "Amaciado", "Hiper Destroi", "Pistolado"
+  serviceType?: 'lavado' | 'diferenciado'; // Distingue Lavado Padrão de Serviços Diferenciados
   quantity: number;
   unitPrice?: number;     // Valor unitário da peça (R$)
   totalPrice?: number;    // Valor total do item (R$)

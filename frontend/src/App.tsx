@@ -86,9 +86,16 @@ export const AppContent: React.FC = () => {
     }
   }, [user, currentTab]);
 
-  const handleNavigate = (tab: string, param?: string) => {
+  const [printInitialMode, setPrintInitialMode] = useState<'ambos' | 'nota' | 'receita' | 'saida'>('ambos');
+
+  const handleNavigate = (tab: string, param?: string, printMode?: 'ambos' | 'nota' | 'receita' | 'saida') => {
     if (param) {
       setSelectedOrderId(param);
+    }
+    if (printMode) {
+      setPrintInitialMode(printMode);
+    } else if (tab === 'order-print' && !printMode) {
+      setPrintInitialMode('ambos');
     }
     // Protege acesso direto a client-portal
     if (tab === 'client-portal' && !client) {
@@ -213,13 +220,14 @@ export const AppContent: React.FC = () => {
         {currentTab === 'order-print' && (
           <OrderPrintView
             orderId={selectedOrderId}
+            initialMode={printInitialMode}
             onBack={() => handleNavigate('orders')}
           />
         )}
 
         {currentTab === 'orders' && (
           <OrderListView
-            onNavigate={(tab, param) => handleNavigate(tab, param)}
+            onNavigate={(tab, param, printMode) => handleNavigate(tab, param, printMode)}
           />
         )}
 
@@ -227,7 +235,7 @@ export const AppContent: React.FC = () => {
           <OrderDetailView
             orderId={selectedOrderId}
             onBack={() => handleNavigate('orders')}
-            onNavigatePrint={orderId => handleNavigate('order-print', orderId)}
+            onNavigatePrint={(orderId, printMode) => handleNavigate('order-print', orderId, printMode)}
           />
         )}
 

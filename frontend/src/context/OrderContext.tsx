@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { 
   Order, 
   OrderStatus, 
+  OrderItem,
   Passador, 
   PassadorLog, 
   WhatsAppNotification, 
@@ -36,6 +37,7 @@ interface OrderContextType {
   createOrder: (newOrderData: Omit<Order, 'id' | 'osNumber' | 'createdAt' | 'status' | 'totalIronedPieces' | 'ironingLogs' | 'history'>) => Order;
   updateOrderStatus: (orderId: string, status: OrderStatus, operatorName: string, note?: string) => void;
   updateOrderWeight: (orderId: string, newTotalWeightKg: number, newPieceCount?: number, reason?: string, operatorName?: string) => Promise<{ success: boolean; message: string }>;
+  updateOrderServices: (orderId: string, newItems: OrderItem[], operatorName?: string) => Promise<{ success: boolean; message: string }>;
   registerIroning: (orderId: string, passadorId: string, passadorName: string, piecesIroned: number) => { success: boolean; message: string };
   registerNewPassador: (name: string, phone?: string) => Passador;
   updatePassador: (id: string, data: Partial<Passador>) => Promise<{ success: boolean; message: string }>;
@@ -678,6 +680,59 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
+  const updateOrderServices = async (
+    orderId: string,
+    newItems: OrderItem[],
+    operatorName: string = 'Operador'
+  ): Promise<{ success: boolean; message: string }> => {
+    const target = orders.find(o => o.id === orderId || o.osNumber === orderId);
+    if (!target) return { success: false, message: 'Pedido não encontrado.' };
+
+    const totalVal = target.isRelavado
+      ? 0
+      : Math.round(newItems.reduce((acc, it) => acc + (it.totalPrice || ((it.unitPrice || 0) * (it.quantity || target.estimatedPieceCount))), 0) * 100) / 100;
+
+    const summaryText = newItems.map(i => `${i.process}: R$ ${(i.unitPrice || 0).toFixed(2)}`).join(' | ');
+    const noteText = `Composição de serviços atualizada: ${summaryText}. Total da Nota: R$ ${totalVal.toFixed(2)}`;
+
+    const newHistoryEvent = {
+      timestamp: new Date().toISOString(),
+      status: target.status,
+      operator: operatorName,
+      note: noteText
+    };
+
+    setOrders(prev => prev.map(ord => {
+      if (ord.id !== target.id) return ord;
+      return {
+        ...ord,
+        items: newItems,
+        totalServiceValue: totalVal,
+        history: [...ord.history, newHistoryEvent],
+        updatedAt: new Date().toISOString()
+      };
+    }));
+
+    try {
+      const res = await fetch(`/api/orders/${target.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: newItems,
+          totalServiceValue: totalVal
+        })
+      });
+      if (res.ok) {
+        return { success: true, message: `Serviços da OS ${target.osNumber} atualizados com sucesso!` };
+      }
+      const err = await res.json().catch(() => ({}));
+      return { success: false, message: err.error || 'Erro ao persistir serviços no servidor.' };
+    } catch (err: any) {
+      console.error('[OrderContext] Erro ao atualizar serviços do pedido:', err);
+      return { success: false, message: err.message || 'Erro de conexão ao atualizar serviços.' };
+    }
+  };
+
   const registerIroning = (orderId: string, passadorId: string, passadorName: string, piecesIroned: number) => {
     const targetOrder = orders.find(o => o.id === orderId || o.osNumber === orderId);
     if (!targetOrder) {
@@ -1138,6 +1193,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       createOrder,
       updateOrderStatus,
       updateOrderWeight,
+      updateOrderServices,
       registerIroning,
       registerNewPassador,
       updatePassador,
