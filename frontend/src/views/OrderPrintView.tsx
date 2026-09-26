@@ -100,7 +100,7 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
   const totalPiecesSafe = Number(order.estimatedPieceCount || 0);
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+    <div className="max-w-5xl mx-auto px-4 py-6 print:max-w-none print:w-full print:p-0 print:m-0 space-y-6 font-sans">
       {/* ───────────────────────────────────────────────────────────── */}
       {/* BARRA DE AÇÕES SUPERIOR (Oculta na Impressão)                 */}
       {/* ───────────────────────────────────────────────────────────── */}
@@ -174,293 +174,400 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
       </div>
 
       {/* ───────────────────────────────────────────────────────────── */}
-      {/* 1. NOTA DE ENTRADA — ESTILO IDÊNTICO AO DESSE PEDIDO.PDF       */}
+      {/* 1. NOTA DE ENTRADA — FORMATO INDUSTRIAL DE LARGURA TOTAL      */}
       {/* ───────────────────────────────────────────────────────────── */}
       {(printMode === 'ambos' || printMode === 'nota') && (
-        <div className={`bg-white text-slate-900 p-8 rounded-xl border border-slate-300 shadow-md space-y-2 font-mono text-[11px] leading-tight print-sheet ${printMode === 'ambos' ? 'page-break mb-12' : ''}`}>
-          {/* Cabeçalho */}
-          <div className="flex justify-between items-start font-bold text-xs uppercase">
-            <span>LAVANDERIA MAUAD</span>
-            <span>NOTA DE ENTRADA</span>
-            <span>Pagina: 001</span>
+        <div className={`bg-white text-slate-900 p-6 sm:p-8 rounded-xl border border-slate-300 shadow-md space-y-3 font-mono text-[11px] leading-tight print-sheet print:border-0 print:shadow-none print:rounded-none w-full ${printMode === 'ambos' ? 'page-break mb-8' : ''}`}>
+          
+          {/* Cabeçalho de Ponta a Ponta */}
+          <div className="flex justify-between items-baseline font-bold text-xs uppercase pb-1.5 border-b-2 border-slate-900">
+            <span className="text-sm font-black tracking-wider">MAUAD LAVANDERIA</span>
+            <span className="text-sm font-bold tracking-wide">NOTA DE ENTRADA</span>
+            <span className="text-[10px]">PÁGINA: 001</span>
           </div>
 
-          {/* Número em Grande Destaque Central */}
-          <div className="text-center font-black text-xl tracking-wider py-1 font-mono">
-            {pureOsNumber}
+          {/* Destaque Central da O.S. e Metadados Laterais */}
+          <div className="flex justify-between items-center py-1">
+            <div className="text-[10px] text-left space-y-0.5">
+              <div><span className="font-bold">ENTRADA:</span> {dateShort}</div>
+              <div><span className="font-bold">OPERADOR:</span> {order.operatorName?.toUpperCase() || 'GILMÁRIO'}</div>
+            </div>
+
+            <div className="text-center">
+              <div className="text-2xl font-black tracking-widest font-mono text-slate-900">
+                {pureOsNumber}
+              </div>
+              <div className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">
+                ORDEM DE SERVIÇO
+              </div>
+            </div>
+
+            <div className="text-[10px] text-right space-y-0.5">
+              <div>{weekdayFormatted}</div>
+              <div>{dateShort} {timeFormatted}</div>
+            </div>
           </div>
 
           {order.isRelavado && (
-            <div className="bg-purple-100 text-purple-900 border border-purple-300 font-bold text-center py-1 text-xs uppercase tracking-wider">
+            <div className="bg-purple-100 text-purple-900 border border-purple-400 font-bold text-center py-1.5 text-xs uppercase tracking-wider">
               *** ENTRADA EM RELAVADO - SEM COBRANÇA (R$ 0,00) ***
             </div>
           )}
 
-          {/* Linha de Entrada, Funcionário e Data/Hora */}
-          <div className="flex justify-between text-[11px] pt-0.5">
-            <span>
-              ENTRADA: {dateShort} FUNCNR: {order.operatorName?.toUpperCase() || 'GILMÁRIO'}
-            </span>
-            <span>
-              {weekdayFormatted}, {dateShort} {timeFormatted}
-            </span>
+          {/* Divisor com Título Central de 100% de Largura */}
+          <div className="flex items-center gap-2 w-full my-1">
+            <div className="flex-1 border-b border-dashed border-slate-400"></div>
+            <span className="font-bold text-[10px] uppercase text-slate-700 px-1 whitespace-nowrap">DADOS DO CLIENTE & PEDIDO</span>
+            <div className="flex-1 border-b border-dashed border-slate-400"></div>
           </div>
 
-          {/* Separador tracejado com título Dados do Cliente */}
-          <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px]">
-            ------------------------------- DADOS DO CLIENTE -------------------------------
-          </div>
-
-          {/* Dados do Cliente */}
-          <div className="space-y-1 pl-1 text-[11px]">
-            <div>
-              <span className="font-bold">CLIENTE:</span> {clientNameSafe}
+          {/* Dados do Cliente Distribuídos em 2 Colunas (Aproveitamento Total das Laterais) */}
+          <div className="grid grid-cols-12 gap-4 text-[11px] py-0.5">
+            <div className="col-span-7 space-y-1">
+              <div className="flex">
+                <span className="font-bold w-24 shrink-0">CLIENTE:</span>
+                <span className="font-bold uppercase text-slate-900">{clientNameSafe}</span>
+              </div>
+              <div className="flex">
+                <span className="font-bold w-24 shrink-0">ENDEREÇO:</span>
+                <span className="uppercase">{order.clientAddress || 'NÃO INFORMADO'}</span>
+              </div>
+              <div className="flex">
+                <span className="font-bold w-24 shrink-0">TELEFONE:</span>
+                <span>{order.clientPhone || 'NÃO INFORMADO'}</span>
+              </div>
             </div>
-            {order.clientAddress && (
+
+            <div className="col-span-5 space-y-1 pl-3 border-l border-slate-200">
+              <div className="flex justify-between">
+                <span className="font-bold">CORTE / REF:</span>
+                <span className="font-mono font-bold uppercase">{order.corteOs || primaryCorteOs || '-'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-bold">STATUS ATUAL:</span>
+                <span className="uppercase font-semibold">{order.status.toUpperCase()}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-bold">TIPO ENTRADA:</span>
+                <span className="uppercase font-semibold">{order.isRelavado ? 'RELAVADO (R$ 0,00)' : 'PRODUÇÃO NORMAL'}</span>
+              </div>
+            </div>
+          </div>
+
+          {order.notes && (
+            <div className="p-1.5 bg-slate-50 border border-slate-200 rounded text-[10px]">
+              <span className="font-bold">OBSERVAÇÕES:</span> {order.notes}
+            </div>
+          )}
+
+          {/* Divisor com Título Central de 100% de Largura */}
+          <div className="flex items-center gap-2 w-full my-1">
+            <div className="flex-1 border-b border-dashed border-slate-400"></div>
+            <span className="font-bold text-[10px] uppercase text-slate-700 px-1 whitespace-nowrap">DISCRIMINAÇÃO DOS ITENS & PROCESSOS</span>
+            <div className="flex-1 border-b border-dashed border-slate-400"></div>
+          </div>
+
+          {/* Tabela de Itens Aproveitando 100% da Largura da Folha */}
+          <div className="w-full">
+            <table className="w-full text-left border-collapse text-[11px]">
+              <thead>
+                <tr className="border-b-2 border-slate-900 text-[10px] uppercase font-bold text-slate-800">
+                  <th className="py-1 px-1 text-left w-[36%]">LAVADO / PROCESSO</th>
+                  <th className="py-1 px-1 text-left w-[24%]">ROUPA / PEÇA</th>
+                  <th className="py-1 px-1 text-center w-[16%]">CORTE / O.S.</th>
+                  <th className="py-1 px-1 text-center w-[12%]">TIPO</th>
+                  <th className="py-1 px-1 text-right w-[12%]">QUANTIDADE</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {(order.items || []).map((item, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50/50">
+                    <td className="py-1.5 px-1 font-bold uppercase text-slate-900">
+                      {item.process}
+                    </td>
+                    <td className="py-1.5 px-1 uppercase text-slate-800">
+                      {item.clothingType}
+                    </td>
+                    <td className="py-1.5 px-1 text-center font-mono uppercase text-slate-700">
+                      {item.corteOs || order.corteOs || '-'}
+                    </td>
+                    <td className="py-1.5 px-1 text-center uppercase text-[10px] text-slate-600">
+                      {item.serviceType === 'diferenciado' ? 'DIFERENCIADO' : 'LAVADO'}
+                    </td>
+                    <td className="py-1.5 px-1 text-right font-mono font-bold text-slate-900 text-xs">
+                      {item.quantity || totalPiecesSafe} pçs
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Divisor de 100% de Largura */}
+          <div className="w-full border-b-2 border-slate-900 my-1"></div>
+
+          {/* Totais: Ocupando as Duas Laterais com Equilíbrio Perfeito */}
+          <div className="flex justify-between items-center py-2 px-3 bg-slate-50 border border-slate-300 rounded font-bold text-xs">
+            <div className="flex items-center gap-6">
               <div>
-                <span className="font-bold">ENDERECO:</span> {order.clientAddress.toUpperCase()}
+                <span className="text-slate-600 text-[11px] uppercase mr-2">QTD TOTAL PEÇAS:</span>
+                <span className="font-mono text-base text-slate-900">{totalPiecesSafe}</span>
+                <span className="text-[10px] text-slate-500 ml-1">peças</span>
               </div>
-            )}
-            <div className="pl-10">
-              / {order.clientPhone || 'Não informado'}
-            </div>
-            <div>
-              <span className="font-bold">OBS:</span> {order.notes || ''}
-            </div>
-          </div>
-
-          {/* Linha divisória simples */}
-          <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px]">
-            --------------------------------------------------------------------------------
-          </div>
-
-          {/* Cabeçalho de Itens */}
-          <div className="grid grid-cols-12 font-bold text-[11px] uppercase">
-            <div className="col-span-5">LAVADO</div>
-            <div className="col-span-3">CORTE/O.S.</div>
-            <div className="col-span-4">ROUPA</div>
-          </div>
-          <div className="grid grid-cols-12 font-bold text-[11px] uppercase pb-1">
-            <div className="col-span-5 pl-2 text-slate-700">SERVICO</div>
-            <div className="col-span-3">QTD</div>
-            <div className="col-span-4"></div>
-          </div>
-
-          {/* Linha divisória */}
-          <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px]">
-            --------------------------------------------------------------------------------
-          </div>
-
-          {/* Linhas de Itens do Pedido */}
-          <div className="space-y-2 text-[11px]">
-            {(order.items || []).map((item, idx) => (
-              <div key={idx} className="space-y-1">
-                <div className="grid grid-cols-12 items-baseline">
-                  <div className="col-span-5 font-bold uppercase">{item.process}</div>
-                  <div className="col-span-3 font-semibold uppercase">{item.corteOs || order.corteOs || '-'}</div>
-                  <div className="col-span-4 font-semibold uppercase">
-                    {item.clothingType} {item.corteOs ? `(${item.corteOs})` : ''}
-                  </div>
-                </div>
-                <div className="grid grid-cols-12">
-                  <div className="col-span-5"></div>
-                  <div className="col-span-3 font-bold font-mono text-xs">
-                    {item.quantity || totalPiecesSafe}
-                  </div>
-                  <div className="col-span-4"></div>
-                </div>
+              <div className="text-[11px] text-slate-500 font-normal">
+                Ref. Unitária: <span className="font-mono font-bold text-slate-800">{order.refPieceWeightGrams || (totalPiecesSafe > 0 ? Math.round((totalWeightSafe * 1000) / totalPiecesSafe) : 0)}g / pç</span>
               </div>
-            ))}
-          </div>
-
-          {/* Linha divisória */}
-          <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px] pt-1">
-            --------------------------------------------------------------------------------
-          </div>
-
-          {/* Totais: QtdTotPecas e PesTotal */}
-          <div className="space-y-1 pt-1 font-bold text-xs">
-            <div className="flex gap-4">
-              <span>QtdTotPecas:</span>
-              <span className="font-mono">{totalPiecesSafe}</span>
             </div>
-            <div className="flex gap-4">
-              <span>PesTotal:</span>
-              <span className="font-mono">
-                {totalWeightSafe.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} Kg
+
+            <div className="text-right">
+              <span className="text-slate-600 text-[11px] uppercase mr-2">PESO TOTAL BALANÇA:</span>
+              <span className="font-mono text-base text-slate-900">
+                {totalWeightSafe.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
               </span>
+              <span className="text-xs text-slate-900 ml-1">Kg</span>
             </div>
           </div>
 
-          {/* Rodapé com Assinaturas idênticas ao Desse Pedido.PDF */}
-          <div className="pt-10 flex justify-around text-center text-[10px] uppercase font-mono">
-            <div>
-              <div className="text-slate-400 select-none">------------------------------</div>
-              <div className="font-bold pt-1">ENTREGUE POR</div>
+          {/* Rodapé: Assinaturas e QR Code Integrados em 3 Colunas de Ponta a Ponta */}
+          <div className="pt-8 grid grid-cols-12 items-end gap-4 text-center font-mono text-[10px] uppercase">
+            <div className="col-span-5">
+              <div className="border-b border-black w-4/5 mx-auto mb-1"></div>
+              <div className="font-bold">ENTREGUE POR (CLIENTE / MOTORISTA)</div>
             </div>
-            <div>
-              <div className="text-slate-400 select-none">------------------------------</div>
-              <div className="font-bold pt-1">RECEBIDO POR</div>
-            </div>
-          </div>
 
-          {/* QR Code para rastreamento industrial (discreto no canto inferior direito) */}
-          <div className="pt-4 flex items-center justify-end gap-2 text-[9px] text-slate-500">
-            <span>QR Bipagem O.S:</span>
-            <div className="p-0.5 border border-slate-700 bg-white inline-block">
-              <QRCodeSVG value={order.osNumber || pureOsNumber} size={36} />
+            <div className="col-span-5">
+              <div className="border-b border-black w-4/5 mx-auto mb-1"></div>
+              <div className="font-bold">RECEBIDO POR (LAVANDERIA MAUAD)</div>
+            </div>
+
+            <div className="col-span-2 flex flex-col items-end justify-center text-[9px] text-slate-600">
+              <div className="p-0.5 border border-black bg-white inline-block mb-0.5">
+                <QRCodeSVG value={order.osNumber || pureOsNumber} size={42} />
+              </div>
+              <span className="font-mono font-bold tracking-tight">O.S. {pureOsNumber}</span>
             </div>
           </div>
         </div>
       )}
 
       {/* ───────────────────────────────────────────────────────────── */}
-      {/* 2. RECEITA / FICHA DO LAVADO — ESTILO LAVADO COM PROCESSOS.PDF */}
+      {/* 2. RECEITA / FICHA DO LAVADO — FORMATO INDUSTRIAL DE LARGURA  */}
       {/* ───────────────────────────────────────────────────────────── */}
       {(printMode === 'ambos' || printMode === 'receita') && (
-        <div className="bg-white text-slate-900 p-8 rounded-xl border border-slate-300 shadow-md space-y-2 font-mono text-[11px] leading-tight print-sheet">
-          {/* Cabeçalho */}
-          <div className="flex justify-between items-start font-bold text-xs uppercase">
-            <span>LAVANDERIA MAUAD</span>
-            <span>RECEITA</span>
-            <span>Pagina: 001</span>
+        <div className="bg-white text-slate-900 p-6 sm:p-8 rounded-xl border border-slate-300 shadow-md space-y-3 font-mono text-[11px] leading-tight print-sheet print:border-0 print:shadow-none print:rounded-none w-full">
+          
+          {/* Cabeçalho de Ponta a Ponta */}
+          <div className="flex justify-between items-baseline font-bold text-xs uppercase pb-1.5 border-b-2 border-slate-900">
+            <span className="text-sm font-black tracking-wider">MAUAD LAVANDERIA</span>
+            <span className="text-sm font-bold tracking-wide">FICHA TÉCNICA DE LAVAGEM • RECEITA QUÍMICA</span>
+            <span className="text-[10px]">PÁGINA: 001</span>
           </div>
 
           {/* Linha do Funcionário e Data/Hora de Impressão */}
-          <div className="flex justify-between text-[11px] pt-0.5">
-            <span>FUNCNR: {order.operatorName?.toUpperCase() || 'GILMÁRIO'}</span>
-            <span>{weekdayFormatted}, {dateShort} {timeFormatted}</span>
-          </div>
-
-          {/* Linha divisória simples */}
-          <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px]">
-            ----------------------------------------------------------------------------------------------------------------------------------------------------------------
+          <div className="flex justify-between text-[11px] py-0.5">
+            <span><strong>OPERADOR:</strong> {order.operatorName?.toUpperCase() || 'GILMÁRIO'}</span>
+            <span><strong>EMISSÃO:</strong> {weekdayFormatted}, {dateShort} {timeFormatted}</span>
           </div>
 
           {order.isRelavado && (
-            <div className="bg-purple-100 text-purple-900 border border-purple-300 font-bold text-center py-1 text-xs uppercase tracking-wider">
+            <div className="bg-purple-100 text-purple-900 border border-purple-400 font-bold text-center py-1.5 text-xs uppercase tracking-wider">
               *** LOTE EM PROCESSO DE RELAVADO - SEM COBRANÇA (R$ 0,00) ***
             </div>
           )}
 
-          {/* Bloco de Dados do Pedido */}
-          <div className="space-y-1 text-[11px]">
-            <div className="flex justify-between">
+          {/* Divisor com Título Central de 100% de Largura */}
+          <div className="flex items-center gap-2 w-full my-1">
+            <div className="flex-1 border-b border-dashed border-slate-400"></div>
+            <span className="font-bold text-[10px] uppercase text-slate-700 px-1 whitespace-nowrap">DADOS DA ORDEM DE PRODUÇÃO</span>
+            <div className="flex-1 border-b border-dashed border-slate-400"></div>
+          </div>
+
+          {/* Bloco de Dados em 3 Colunas Perfeitamente Distribuídas de Ponta a Ponta */}
+          <div className="grid grid-cols-12 gap-3 text-[11px] py-1 bg-slate-50 border border-slate-200 rounded p-2.5">
+            {/* Coluna 1: Identificação do Pedido e Cliente */}
+            <div className="col-span-4 space-y-1">
               <div>
-                <span className="font-bold">PEDIDO......:</span> {pureOsNumber}
+                <span className="font-bold text-slate-600 block text-[9px] uppercase">NÚMERO DA O.S.</span>
+                <span className="font-black text-sm font-mono text-slate-900">O.S. {pureOsNumber}</span>
               </div>
               <div>
-                <span className="font-bold">ENTRADA:</span> {weekdayFormatted} {dateShort} {timeFormatted.slice(0, 5)}
+                <span className="font-bold text-slate-600 block text-[9px] uppercase">CLIENTE</span>
+                <span className="font-bold uppercase text-slate-900 truncate block" title={clientNameSafe}>
+                  {clientNameSafe}
+                </span>
+              </div>
+              <div>
+                <span className="font-bold text-slate-600 block text-[9px] uppercase">ROUPA / TIPO DE PEÇA</span>
+                <span className="font-semibold uppercase text-slate-800">
+                  {primaryRoupa}
+                </span>
               </div>
             </div>
-            <div>
-              <span className="font-bold">CLIENTE.....:</span> {clientNameSafe}
-            </div>
-            <div>
-              <span className="font-bold">ROUPA.......:</span> {primaryRoupa} {primaryCorteOs ? `(REF.${primaryCorteOs})` : ''}
-            </div>
-            <div>
-              <span className="font-bold">LAVADO......:</span> {primaryLavado}
-            </div>
-            <div>
-              <span className="font-bold">OBS.........:</span> {order.notes || ''}
-            </div>
-          </div>
 
-          {/* Linha divisória simples */}
-          <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px]">
-            ----------------------------------------------------------------------------------------------------------------------------------------------------------------
-          </div>
-
-          {/* Linha de Totais (Peças e Peso Total em Kg) */}
-          <div className="flex justify-between font-bold text-xs py-0.5">
-            <div>
-              <span>TOTAL.......:</span> <span className="font-mono text-sm ml-2">{totalPiecesSafe}</span>
-            </div>
-            <div className="font-mono text-sm">
-              {totalWeightSafe.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 3 })} Kg
-            </div>
-          </div>
-
-          {/* Linha divisória simples */}
-          <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px]">
-            ----------------------------------------------------------------------------------------------------------------------------------------------------------------
-          </div>
-
-          {/* Cabeçalho das Colunas Técnicas de Produção */}
-          <div className="grid grid-cols-12 font-bold text-[10px] uppercase pb-1 text-slate-800">
-            <div className="col-span-3">Produto</div>
-            <div className="col-span-2 text-right pr-4">Quantidade(Kg)</div>
-            <div className="col-span-1 text-center">Conver.(Lt)</div>
-            <div className="col-span-1 text-center">Temperat.</div>
-            <div className="col-span-1 text-center">Tempo</div>
-            <div className="col-span-1 text-center">PH</div>
-            <div className="col-span-1 text-center">Maquina</div>
-            <div className="col-span-1 text-center">Operador</div>
-            <div className="col-span-1 text-center">Data/Hora</div>
-          </div>
-
-          {/* Linha divisória */}
-          <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px]">
-            ----------------------------------------------------------------------------------------------------------------------------------------------------------------
-          </div>
-
-          {/* Fases / Processos e seus respectivos produtos químicos */}
-          <div className="space-y-3 pt-1">
-            {recipeFases.map((fase, fIdx) => (
-              <div key={fIdx} className="space-y-1.5">
-                {/* Nome da Fase em destaque com asteriscos */}
-                <div className="font-black text-xs uppercase tracking-wide text-slate-900 pt-1">
-                  *** {fase.name} ***
-                </div>
-
-                {/* Lista de Produtos da Fase */}
-                {fase.items.map((prod, pIdx) => {
-                  const qtyKg = ((Number(prod.totalGrams) || 0) / 1000).toLocaleString('pt-BR', {
-                    minimumFractionDigits: 3,
-                    maximumFractionDigits: 3
-                  });
-
-                  return (
-                    <div key={pIdx} className="grid grid-cols-12 items-center text-[10px]">
-                      {/* Nome do Produto */}
-                      <div className="col-span-3 font-semibold uppercase truncate pr-1" title={prod.productName}>
-                        {prod.productName}
-                      </div>
-
-                      {/* Quantidade calculada em Kg com 3 decimais */}
-                      <div className="col-span-2 text-right pr-4 font-mono font-bold text-[11px]">
-                        {qtyKg}
-                      </div>
-
-                      {/* Campos para preenchimento manual na fábrica pelo operador da máquina */}
-                      <div className="col-span-1 text-center text-slate-400 select-none">_______</div>
-                      <div className="col-span-1 text-center text-slate-400 select-none">___</div>
-                      <div className="col-span-1 text-center text-slate-400 select-none">___</div>
-                      <div className="col-span-1 text-center text-slate-400 select-none">___</div>
-                      <div className="col-span-1 text-center text-slate-400 select-none">_______</div>
-                      <div className="col-span-1 text-center text-slate-400 select-none">_______</div>
-                      <div className="col-span-1 text-center text-slate-400 select-none">___/___</div>
-                    </div>
-                  );
-                })}
-
-                {/* Linha dupla divisória de encerramento da fase (exatamente como no PDF!) */}
-                <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px] pt-1">
-                  ================================================================================================================================================================
-                </div>
+            {/* Coluna 2: Lavado e Referência */}
+            <div className="col-span-4 space-y-1 border-l border-slate-200 pl-3">
+              <div>
+                <span className="font-bold text-slate-600 block text-[9px] uppercase">RECEITA / LAVADO PRINCIPAL</span>
+                <span className="font-black text-sm font-mono text-slate-900 block truncate" title={primaryLavado}>
+                  {primaryLavado}
+                </span>
               </div>
-            ))}
+              <div>
+                <span className="font-bold text-slate-600 block text-[9px] uppercase">CORTE / REF. CONFECÇÃO</span>
+                <span className="font-mono font-bold uppercase text-slate-800">
+                  {primaryCorteOs || order.corteOs || 'NÃO INFORMADO'}
+                </span>
+              </div>
+              <div>
+                <span className="font-bold text-slate-600 block text-[9px] uppercase">ENTRADA REGISTRADA</span>
+                <span className="font-mono text-slate-700">
+                  {dateShort} às {timeFormatted.slice(0, 5)}
+                </span>
+              </div>
+            </div>
+
+            {/* Coluna 3: Métricas de Peso e Peças */}
+            <div className="col-span-4 space-y-1 border-l border-slate-200 pl-3">
+              <div className="flex justify-between items-baseline">
+                <span className="font-bold text-slate-600 text-[10px] uppercase">TOTAL DE PEÇAS:</span>
+                <span className="font-mono font-black text-sm text-slate-900">{totalPiecesSafe} pçs</span>
+              </div>
+              <div className="flex justify-between items-baseline">
+                <span className="font-bold text-slate-600 text-[10px] uppercase">PESO TOTAL LOTE:</span>
+                <span className="font-mono font-black text-sm text-slate-900">
+                  {totalWeightSafe.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} Kg
+                </span>
+              </div>
+              <div className="flex justify-between items-baseline">
+                <span className="font-bold text-slate-600 text-[10px] uppercase">PESO REF./PEÇA:</span>
+                <span className="font-mono font-bold text-slate-800">
+                  {order.refPieceWeightGrams || (totalPiecesSafe > 0 ? Math.round((totalWeightSafe * 1000) / totalPiecesSafe) : 0)} g
+                </span>
+              </div>
+            </div>
           </div>
 
-          {/* Rodapé explicativo do cálculo da receita */}
-          <div className="pt-4 flex justify-between items-center text-[9px] text-slate-500 border-t border-slate-200">
+          {order.notes && (
+            <div className="p-1.5 bg-slate-50 border border-slate-200 rounded text-[10px]">
+              <span className="font-bold">OBSERVAÇÕES DO LOTE:</span> {order.notes}
+            </div>
+          )}
+
+          {/* Divisor com Título Central de 100% de Largura */}
+          <div className="flex items-center gap-2 w-full my-1">
+            <div className="flex-1 border-b border-dashed border-slate-400"></div>
+            <span className="font-bold text-[10px] uppercase text-slate-700 px-1 whitespace-nowrap">SEQUÊNCIA DE FASES & DOSAGEM QUÍMICA INDUSTRIAL</span>
+            <div className="flex-1 border-b border-dashed border-slate-400"></div>
+          </div>
+
+          {/* Tabela Técnica de Fases e Insumos Químicos Aproveitando 100% da Largura da Folha */}
+          <div className="w-full">
+            <table className="w-full border-collapse text-[10px]">
+              <thead>
+                <tr className="border-b-2 border-slate-900 uppercase font-black text-slate-800 text-[9px] bg-slate-100">
+                  <th className="py-1 px-1.5 text-left w-[26%]">PRODUTO / INSUMO QUÍMICO</th>
+                  <th className="py-1 px-1 text-center w-[9%]">DOSAGEM</th>
+                  <th className="py-1 px-1 text-right w-[12%]">QUANTIDADE</th>
+                  <th className="py-1 px-1 text-center w-[8%]">BANHO</th>
+                  <th className="py-1 px-1 text-center w-[7%]">TEMP.</th>
+                  <th className="py-1 px-1 text-center w-[7%]">TEMPO</th>
+                  <th className="py-1 px-1 text-center w-[6%]">pH</th>
+                  <th className="py-1 px-1 text-center w-[8%]">MÁQUINA</th>
+                  <th className="py-1 px-1 text-center w-[9%]">OPERADOR</th>
+                  <th className="py-1 px-1 text-center w-[8%]">HORÁRIO</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recipeFases.map((fase, fIdx) => (
+                  <React.Fragment key={fIdx}>
+                    {/* Linha de Cabeçalho da Fase */}
+                    <tr className="bg-slate-200/90 text-slate-900 border-t-2 border-b border-slate-700">
+                      <td colSpan={10} className="py-1 px-2 font-black text-[11px] uppercase tracking-wide">
+                        FASE {String(fase.order).padStart(2, '0')} — {fase.name}
+                      </td>
+                    </tr>
+
+                    {/* Linhas de Produtos da Fase */}
+                    {fase.items.map((prod, pIdx) => {
+                      const totalGramsNum = Number(prod.totalGrams) || 0;
+                      const qtyKg = (totalGramsNum / 1000).toLocaleString('pt-BR', {
+                        minimumFractionDigits: 3,
+                        maximumFractionDigits: 3
+                      });
+
+                      // Calcula a dosagem percentual de forma segura
+                      const dosagePctVal = prod.dosagePct ?? (
+                        totalWeightSafe > 0 ? (totalGramsNum / (totalWeightSafe * 1000)) * 100 : 0
+                      );
+                      const dosagePctFormatted = dosagePctVal > 0 
+                        ? `${dosagePctVal.toFixed(2).replace(/\.?0+$/, '')}%`
+                        : `${prod.dosagePerKg || 0}g/kg`;
+
+                      return (
+                        <tr key={pIdx} className="border-b border-slate-200 hover:bg-slate-50/50">
+                          {/* Nome do Produto */}
+                          <td className="py-1 px-1.5 font-bold uppercase text-slate-900 truncate" title={prod.productName}>
+                            {prod.productName}
+                          </td>
+
+                          {/* Dosagem Percentual */}
+                          <td className="py-1 px-1 text-center font-mono font-bold text-slate-700">
+                            {dosagePctFormatted}
+                          </td>
+
+                          {/* Quantidade Calculada */}
+                          <td className="py-1 px-1 text-right font-mono font-black text-slate-900 text-[11px]">
+                            {qtyKg} <span className="text-[9px] font-normal text-slate-600">Kg</span>
+                          </td>
+
+                          {/* Campos Manuais para Chão de Fábrica */}
+                          <td className="py-1 px-1 text-center text-slate-400 select-none font-mono">______ Lt</td>
+                          <td className="py-1 px-1 text-center text-slate-400 select-none font-mono">___ °C</td>
+                          <td className="py-1 px-1 text-center text-slate-400 select-none font-mono">___ min</td>
+                          <td className="py-1 px-1 text-center text-slate-400 select-none font-mono">___</td>
+                          <td className="py-1 px-1 text-center text-slate-400 select-none font-mono">______</td>
+                          <td className="py-1 px-1 text-center text-slate-400 select-none font-mono">______</td>
+                          <td className="py-1 px-1 text-center text-slate-400 select-none font-mono">__:__</td>
+                        </tr>
+                      );
+                    })}
+                  </React.Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Divisor de 100% de Largura */}
+          <div className="w-full border-b-2 border-slate-900 my-1"></div>
+
+          {/* Rodapé Explicativo e Assinaturas da Receita Técnica */}
+          <div className="pt-2 flex justify-between items-center text-[9px] text-slate-600 border-b border-slate-200 pb-2">
             <span>
-              * Quantidades calculadas por porcentagem (%) sobre o peso do lote ({totalWeightSafe} Kg). Dosagens ajustáveis por tipo de lavado.
+              * Quantidades de insumos calculadas proporcionalmente sobre o peso total ({totalWeightSafe.toFixed(3)} Kg). Tolerância de balança: ±0,5%.
             </span>
-            <span className="font-mono uppercase font-bold">
-              SYSMAUAD INDUSTRIAL
+            <span className="font-mono uppercase font-bold text-slate-800">
+              SYSMAUAD CONTROLE QUÍMICO
             </span>
+          </div>
+
+          {/* Rodapé de Assinaturas da Produção */}
+          <div className="pt-6 grid grid-cols-12 items-end gap-4 text-center font-mono text-[10px] uppercase">
+            <div className="col-span-5">
+              <div className="border-b border-black w-4/5 mx-auto mb-1"></div>
+              <div className="font-bold">OPERADOR DO LAVADOR</div>
+            </div>
+
+            <div className="col-span-5">
+              <div className="border-b border-black w-4/5 mx-auto mb-1"></div>
+              <div className="font-bold">SUPERVISOR / QUÍMICO RESPONSÁVEL</div>
+            </div>
+
+            <div className="col-span-2 flex flex-col items-end justify-center text-[9px] text-slate-600">
+              <div className="p-0.5 border border-black bg-white inline-block mb-0.5">
+                <QRCodeSVG value={order.osNumber || pureOsNumber} size={42} />
+              </div>
+              <span className="font-mono font-bold tracking-tight">O.S. {pureOsNumber}</span>
+            </div>
           </div>
         </div>
       )}
@@ -469,83 +576,116 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
       {/* 3. COMPROVANTE DE SAÍDA / FATURAMENTO                         */}
       {/* ───────────────────────────────────────────────────────────── */}
       {printMode === 'saida' && (
-        <div className="bg-white text-slate-900 p-8 rounded-xl border border-slate-300 shadow-md space-y-3 font-mono text-[11px] leading-tight print-sheet">
+        <div className="bg-white text-slate-900 p-6 sm:p-8 rounded-xl border border-slate-300 shadow-md space-y-3 font-mono text-[11px] leading-tight print-sheet print:border-0 print:shadow-none print:rounded-none w-full">
           {/* Cabeçalho */}
-          <div className="flex justify-between items-start font-bold text-xs uppercase">
-            <span>LAVANDERIA MAUAD</span>
-            <span>COMPROVANTE DE SAÍDA / FATURAMENTO</span>
-            <span>Página: 001</span>
+          <div className="flex justify-between items-baseline font-bold text-xs uppercase pb-1.5 border-b-2 border-slate-900">
+            <span className="text-sm font-black tracking-wider">MAUAD LAVANDERIA</span>
+            <span className="text-sm font-bold tracking-wide">COMPROVANTE DE SAÍDA / FATURAMENTO</span>
+            <span className="text-[10px]">PÁGINA: 001</span>
           </div>
 
-          {/* Número em Grande Destaque Central */}
-          <div className="text-center font-black text-xl tracking-wider py-1 font-mono">
-            O.S. {pureOsNumber}
+          {/* Destaque Central da O.S. e Metadados Laterais */}
+          <div className="flex justify-between items-center py-1">
+            <div className="text-[10px] text-left space-y-0.5">
+              <div><span className="font-bold">SAÍDA:</span> {dateShort}</div>
+              <div><span className="font-bold">OPERADOR:</span> {order.operatorName?.toUpperCase() || 'OPERADOR'}</div>
+            </div>
+
+            <div className="text-center">
+              <div className="text-2xl font-black tracking-widest font-mono text-slate-900">
+                O.S. {pureOsNumber}
+              </div>
+              <div className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">
+                FECHAMENTO DE NOTA
+              </div>
+            </div>
+
+            <div className="text-[10px] text-right space-y-0.5">
+              <div>{weekdayFormatted}</div>
+              <div>{dateShort} {timeFormatted}</div>
+            </div>
           </div>
 
           {order.isRelavado && (
-            <div className="bg-purple-100 text-purple-900 border border-purple-300 font-bold text-center py-1 text-xs uppercase tracking-wider">
+            <div className="bg-purple-100 text-purple-900 border border-purple-400 font-bold text-center py-1.5 text-xs uppercase tracking-wider">
               *** SAÍDA EM RELAVADO - SEM COBRANÇA (R$ 0,00) ***
             </div>
           )}
 
-          {/* Linha de Saída, Funcionário e Data/Hora */}
-          <div className="flex justify-between text-[11px] pt-0.5">
-            <span>
-              SAÍDA: {dateShort} FUNCNR: {order.operatorName?.toUpperCase() || 'OPERADOR'}
-            </span>
-            <span>
-              {weekdayFormatted}, {dateShort} {timeFormatted}
-            </span>
+          {/* Divisor com Título Central de 100% de Largura */}
+          <div className="flex items-center gap-2 w-full my-1">
+            <div className="flex-1 border-b border-dashed border-slate-400"></div>
+            <span className="font-bold text-[10px] uppercase text-slate-700 px-1 whitespace-nowrap">DADOS DO CLIENTE & FATURAMENTO</span>
+            <div className="flex-1 border-b border-dashed border-slate-400"></div>
           </div>
 
-          {/* Separador tracejado com título Dados do Cliente */}
-          <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px]">
-            ------------------------------- DADOS DO CLIENTE -------------------------------
-          </div>
-
-          {/* Dados do Cliente */}
-          <div className="space-y-1 pl-1 text-[11px]">
-            <div>
-              <span className="font-bold">CLIENTE:</span> {clientNameSafe}
-            </div>
-            {order.clientAddress && (
-              <div>
-                <span className="font-bold">ENDEREÇO:</span> {order.clientAddress.toUpperCase()}
+          {/* Dados do Cliente em 2 Colunas */}
+          <div className="grid grid-cols-12 gap-4 text-[11px] py-0.5">
+            <div className="col-span-7 space-y-1">
+              <div className="flex">
+                <span className="font-bold w-24 shrink-0">CLIENTE:</span>
+                <span className="font-bold uppercase text-slate-900">{clientNameSafe}</span>
               </div>
-            )}
-            <div>
-              <span className="font-bold">TELEFONE:</span> {order.clientPhone || 'Não informado'}
-            </div>
-            {(order.corteOs || primaryCorteOs) && (
-              <div>
-                <span className="font-bold">CORTE / REF:</span> {order.corteOs || primaryCorteOs}
+              <div className="flex">
+                <span className="font-bold w-24 shrink-0">ENDEREÇO:</span>
+                <span className="uppercase">{order.clientAddress || 'NÃO INFORMADO'}</span>
               </div>
-            )}
-            {order.notes && (
-              <div>
-                <span className="font-bold">OBSERVAÇÕES:</span> {order.notes}
+              <div className="flex">
+                <span className="font-bold w-24 shrink-0">TELEFONE:</span>
+                <span>{order.clientPhone || 'NÃO INFORMADO'}</span>
               </div>
-            )}
-          </div>
-
-          {/* Separador */}
-          <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px]">
-            ---------------------- DETALHAMENTO DE VALORES POR SERVIÇO ---------------------
-          </div>
-
-          {/* Seção Exata do Layout Esperado pelo Usuário */}
-          <div className="p-4 bg-slate-50 border border-slate-300 rounded space-y-2 text-xs">
-            <div className="font-bold text-[11px] uppercase tracking-wider text-slate-700 pb-1 border-b border-slate-200">
-              DISCRIMINAÇÃO DOS SERVIÇOS (UNITÁRIO POR PEÇA):
             </div>
 
-            <div className="space-y-2 pt-1 font-mono">
+            <div className="col-span-5 space-y-1 pl-3 border-l border-slate-200">
+              {(order.corteOs || primaryCorteOs) && (
+                <div className="flex justify-between">
+                  <span className="font-bold">CORTE / REF:</span>
+                  <span className="font-mono font-bold uppercase">{order.corteOs || primaryCorteOs}</span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span className="font-bold">DATA DE EMISSÃO:</span>
+                <span className="font-mono">{dateShort}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-bold">SITUAÇÃO DO PAGAMENTO:</span>
+                <span className="font-bold uppercase">{order.paymentStatus === 'pago' ? 'PAGO / QUITADO' : 'EM ABERTO'}</span>
+              </div>
+            </div>
+          </div>
+
+          {order.notes && (
+            <div className="p-1.5 bg-slate-50 border border-slate-200 rounded text-[10px]">
+              <span className="font-bold">OBSERVAÇÕES:</span> {order.notes}
+            </div>
+          )}
+
+          {/* Divisor com Título Central de 100% de Largura */}
+          <div className="flex items-center gap-2 w-full my-1">
+            <div className="flex-1 border-b border-dashed border-slate-400"></div>
+            <span className="font-bold text-[10px] uppercase text-slate-700 px-1 whitespace-nowrap">DETALHAMENTO DE VALORES POR TIPO DE SERVIÇO</span>
+            <div className="flex-1 border-b border-dashed border-slate-400"></div>
+          </div>
+
+          {/* Seção Exata do Layout Esperado pelo Usuário com Largura Total */}
+          <div className="p-4 bg-slate-50 border border-slate-300 rounded space-y-2 text-xs w-full">
+            <div className="font-bold text-[11px] uppercase tracking-wider text-slate-800 pb-1.5 border-b border-slate-300 flex justify-between">
+              <span>DISCRIMINAÇÃO DOS SERVIÇOS:</span>
+              <span>VALOR UNITÁRIO (POR PEÇA)</span>
+            </div>
+
+            <div className="space-y-1.5 pt-1 font-mono">
               {order.items.map((item, idx) => (
-                <div key={idx} className="flex justify-between items-center py-0.5 border-b border-dashed border-slate-200">
-                  <span className="font-bold text-slate-900 uppercase">
-                    {item.process || 'Serviço'}:
-                  </span>
-                  <span className="font-bold text-slate-900 text-sm">
+                <div key={idx} className="flex justify-between items-center py-1 border-b border-dashed border-slate-200">
+                  <div className="flex items-center gap-2">
+                    <span className="font-black text-slate-900 uppercase">
+                      {item.process || 'Serviço'}:
+                    </span>
+                    <span className="text-[10px] text-slate-500 uppercase">
+                      ({item.clothingType || 'Peça'})
+                    </span>
+                  </div>
+                  <span className="font-bold font-mono text-slate-900 text-sm">
                     {order.isRelavado 
                       ? 'R$ 0,00' 
                       : (item.unitPrice || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
@@ -556,7 +696,7 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
 
             {/* Somatório Total da Nota (Unitário Combinado) */}
             <div className="border-t-2 border-slate-900 pt-2 flex justify-between items-center text-sm font-black">
-              <span className="uppercase text-slate-900">Total da Nota:</span>
+              <span className="uppercase text-slate-900 text-sm tracking-wide">Total da Nota (Unitário Combinado):</span>
               <span className="font-mono text-base text-slate-900">
                 {order.isRelavado
                   ? 'R$ 0,00'
@@ -565,54 +705,59 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
             </div>
           </div>
 
-          {/* Separador */}
-          <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px]">
-            ----------------------------- RESUMO DO FATURAMENTO ----------------------------
+          {/* Divisor com Título Central de 100% de Largura */}
+          <div className="flex items-center gap-2 w-full my-1">
+            <div className="flex-1 border-b border-dashed border-slate-400"></div>
+            <span className="font-bold text-[10px] uppercase text-slate-700 px-1 whitespace-nowrap">RESUMO CONSOLIDADO DO FATURAMENTO</span>
+            <div className="flex-1 border-b border-dashed border-slate-400"></div>
           </div>
 
           {/* Resumo com Quantitativo e Total Faturado */}
-          <div className="space-y-1.5 pt-1 text-xs">
-            <div className="flex justify-between">
-              <span>QUANTIDADE TOTAL DE PEÇAS:</span>
-              <span className="font-bold font-mono">{totalPiecesSafe} pçs</span>
+          <div className="grid grid-cols-12 gap-4 text-xs py-1 px-3 bg-slate-50 border border-slate-300 rounded font-bold">
+            <div className="col-span-6 space-y-1">
+              <div className="flex justify-between">
+                <span className="text-slate-600 font-normal">QUANTIDADE TOTAL:</span>
+                <span className="font-mono text-slate-900">{totalPiecesSafe} peças</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-600 font-normal">PESO TOTAL DO LOTE:</span>
+                <span className="font-mono text-slate-900">
+                  {totalWeightSafe.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} Kg
+                </span>
+              </div>
             </div>
-            <div className="flex justify-between">
-              <span>PESO TOTAL DO LOTE:</span>
-              <span className="font-bold font-mono">
-                {totalWeightSafe.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} Kg
-              </span>
-            </div>
-            <div className="flex justify-between border-t border-slate-300 pt-1 text-sm font-bold">
-              <span>VALOR TOTAL DO LOTE FATURADO:</span>
-              <span className="font-mono text-base text-slate-900">
-                {order.isRelavado ? 'R$ 0,00' : (order.totalServiceValue || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-              </span>
-            </div>
-            <div className="flex justify-between text-[11px] pt-0.5">
-              <span>SITUAÇÃO DO PAGAMENTO:</span>
-              <span className="font-bold uppercase">
-                {order.paymentStatus === 'pago' ? 'PAGO / QUITADO' : 'EM ABERTO / A FATURAR'}
-              </span>
+
+            <div className="col-span-6 space-y-1 pl-3 border-l border-slate-300">
+              <div className="flex justify-between items-baseline">
+                <span className="text-slate-600 font-normal">VALOR TOTAL DO LOTE:</span>
+                <span className="font-mono text-base text-slate-900 font-black">
+                  {order.isRelavado ? 'R$ 0,00' : (order.totalServiceValue || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-600 font-normal">PAGAMENTO:</span>
+                <span className="uppercase text-slate-900">{order.paymentStatus === 'pago' ? 'PAGO / QUITADO' : 'EM ABERTO'}</span>
+              </div>
             </div>
           </div>
 
           {/* Rodapé com Assinaturas */}
-          <div className="pt-10 flex justify-around text-center text-[10px] uppercase font-mono">
-            <div>
-              <div className="text-slate-400 select-none">------------------------------------</div>
-              <div className="font-bold pt-1">MAUAD LAVANDERIA (ENTREGADOR)</div>
+          <div className="pt-8 grid grid-cols-12 items-end gap-4 text-center font-mono text-[10px] uppercase">
+            <div className="col-span-5">
+              <div className="border-b border-black w-4/5 mx-auto mb-1"></div>
+              <div className="font-bold">MAUAD LAVANDERIA (ENTREGADOR)</div>
             </div>
-            <div>
-              <div className="text-slate-400 select-none">------------------------------------</div>
-              <div className="font-bold pt-1">RECEBIDO POR (CLIENTE / RESPONSÁVEL)</div>
-            </div>
-          </div>
 
-          {/* QR Code */}
-          <div className="pt-4 flex items-center justify-end gap-2 text-[9px] text-slate-500">
-            <span>QR Bipagem O.S:</span>
-            <div className="p-0.5 border border-slate-700 bg-white inline-block">
-              <QRCodeSVG value={order.osNumber || pureOsNumber} size={36} />
+            <div className="col-span-5">
+              <div className="border-b border-black w-4/5 mx-auto mb-1"></div>
+              <div className="font-bold">RECEBIDO POR (CLIENTE / RESPONSÁVEL)</div>
+            </div>
+
+            <div className="col-span-2 flex flex-col items-end justify-center text-[9px] text-slate-600">
+              <div className="p-0.5 border border-black bg-white inline-block mb-0.5">
+                <QRCodeSVG value={order.osNumber || pureOsNumber} size={42} />
+              </div>
+              <span className="font-mono font-bold tracking-tight">O.S. {pureOsNumber}</span>
             </div>
           </div>
         </div>
