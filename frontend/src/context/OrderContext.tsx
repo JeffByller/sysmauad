@@ -519,9 +519,20 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Criação de nova OS
   const createOrder = (orderData: Omit<Order, 'id' | 'osNumber' | 'createdAt' | 'status' | 'totalIronedPieces' | 'ironingLogs' | 'history'>): Order => {
-    const nextOSNum = 9287 + orders.length + 1;
-    const osNumber = `OS-${nextOSNum}`;
-    const id = `ord-${nextOSNum}`;
+    // Calcula o próximo número sequencial da OS (4 dígitos com zero à esquerda a partir de 0001)
+    const maxNumber = orders.reduce((max, o) => {
+      if (!o.osNumber) return max;
+      const match = o.osNumber.match(/\d+/);
+      if (match) {
+        const num = parseInt(match[0], 10);
+        return num > max ? num : max;
+      }
+      return max;
+    }, 0);
+    const nextSeq = Math.max(orders.length, maxNumber) + 1;
+    const formattedNum = String(nextSeq).padStart(4, '0');
+    const osNumber = `OS-${formattedNum}`;
+    const id = `ord-${Date.now()}`;
 
     const isRelavado = Boolean(orderData.isRelavado);
     const newOrder: Order = {
@@ -1211,7 +1222,19 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const getOrderById = (orderId: string) => orders.find(o => o.id === orderId);
-  const getOrderByOS = (osNumber: string) => orders.find(o => o.osNumber.toLowerCase() === osNumber.toLowerCase() || o.id === osNumber);
+  const getOrderByOS = (osNumber: string) => {
+    if (!osNumber) return undefined;
+    const cleanSearch = osNumber.trim().toLowerCase();
+    const cleanNum = cleanSearch.replace(/^os-?/i, '');
+    return orders.find(o => {
+      if (o.osNumber.toLowerCase() === cleanSearch || o.id === osNumber) return true;
+      const orderNum = o.osNumber.toLowerCase().replace(/^os-?/i, '');
+      if (cleanNum && (orderNum === cleanNum || parseInt(orderNum, 10) === parseInt(cleanNum, 10))) {
+        return true;
+      }
+      return false;
+    });
+  };
 
   // ─── Entradas de Insumos ────────────────────────────────────────────────────
   const addInsumoEntry = (entry: Omit<InsumoEntry, 'id'>): InsumoEntry => {

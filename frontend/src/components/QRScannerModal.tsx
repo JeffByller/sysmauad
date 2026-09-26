@@ -209,7 +209,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({ isOpen, onClose,
           <form onSubmit={handleManualSubmit} className="flex gap-2">
             <input
               type="text"
-              placeholder="Ex: OS-9287"
+              placeholder="Ex: OS-0001"
               value={manualInput}
               onChange={e => setManualInput(e.target.value)}
               autoFocus={cameraStatus === 'denied' || cameraStatus === 'unsupported'}

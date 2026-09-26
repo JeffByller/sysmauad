@@ -1688,8 +1688,17 @@ app.post('/orders', async (req: Request, res: Response) => {
     
     let osNumber = orderData.osNumber;
     if (!osNumber) {
-      const countResult = await query('SELECT count(*) FROM sysmauad.orders');
-      const seq = parseInt(countResult.rows[0].count, 10) + 1;
+      const maxRes = await query(`
+        SELECT COALESCE(
+          MAX(
+            CASE 
+              WHEN os_number ~ '^OS-[0-9]+$' THEN CAST(SUBSTRING(os_number FROM 4) AS INTEGER)
+              ELSE 0
+            END
+          ), 0
+        ) AS max_seq FROM sysmauad.orders
+      `);
+      const seq = (parseInt(maxRes.rows[0]?.max_seq, 10) || 0) + 1;
       osNumber = `OS-${String(seq).padStart(4, '0')}`;
     }
 
