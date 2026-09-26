@@ -177,6 +177,12 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack 
             {pureOsNumber}
           </div>
 
+          {order.isRelavado && (
+            <div className="bg-purple-100 text-purple-900 border border-purple-300 font-bold text-center py-1 text-xs uppercase tracking-wider">
+              *** ENTRADA EM RELAVADO - SEM COBRANÇA (R$ 0,00) ***
+            </div>
+          )}
+
           {/* Linha de Entrada, Funcionário e Data/Hora */}
           <div className="flex justify-between text-[11px] pt-0.5">
             <span>
@@ -317,6 +323,12 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack 
           <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px]">
             ----------------------------------------------------------------------------------------------------------------------------------------------------------------
           </div>
+
+          {order.isRelavado && (
+            <div className="bg-purple-100 text-purple-900 border border-purple-300 font-bold text-center py-1 text-xs uppercase tracking-wider">
+              *** LOTE EM PROCESSO DE RELAVADO - SEM COBRANÇA (R$ 0,00) ***
+            </div>
+          )}
 
           {/* Bloco de Dados do Pedido */}
           <div className="space-y-1 text-[11px]">

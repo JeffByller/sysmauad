@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useOrders } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
-import { Scale, Calculator, Printer, FlaskConical, User, UserPlus, AlertTriangle, Tag, CheckCircle2, ArrowRight } from 'lucide-react';
+import { Scale, Calculator, Printer, FlaskConical, User, UserPlus, AlertTriangle, Tag, CheckCircle2, ArrowRight, RotateCcw } from 'lucide-react';
 import { Order } from '../types';
 
 interface NewOrderViewProps {
@@ -15,6 +15,10 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
   const { user } = useAuth();
 
   const [createdOrderSuccess, setCreatedOrderSuccess] = useState<Order | null>(null);
+
+  // Modo Relavado (sem cobrança)
+  const [isRelavado, setIsRelavado] = useState<boolean>(false);
+  const [relavadoReason, setRelavadoReason] = useState<string>('');
 
   // Todos os campos iniciam completamente vazios ao abrir o Novo Pedido
   const [selectedClientId, setSelectedClientId] = useState<string>('');
@@ -57,8 +61,8 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
     ? Math.round(pieceCount * weightPerPieceKg * 1000) / 1000
     : 0;
 
-  // Valor calculado para persistência no pedido (exibido apenas no financeiro/relatórios)
-  const totalServiceValue = Math.round(pieceCount * unitPrice * 100) / 100;
+  // Valor calculado para persistência no pedido (se relavado, forçado a R$ 0,00 - Isento)
+  const totalServiceValue = isRelavado ? 0 : Math.round(pieceCount * unitPrice * 100) / 100;
 
   const chemicalRecipe = (totalWeightKg > 0 && processType)
     ? calculateChemicals(totalWeightKg, [processType])
@@ -141,6 +145,10 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
       return;
     }
 
+    const finalNotes = isRelavado
+      ? `[RELAVADO] ${relavadoReason ? `Motivo: ${relavadoReason}. ` : ''}${notes.trim()}`.trim()
+      : (notes.trim() || undefined);
+
     const newOrder = createOrder({
       clientId: selectedClient.id,
       clientName: `${selectedClient.name} (${selectedClient.companyName})`,
@@ -151,6 +159,7 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
       totalWeightKg,
       estimatedPieceCount: pieceCount, // quantidade real informada pelo usuário
       totalServiceValue,
+      isRelavado,
       corteOs: corteOs.trim() || undefined,
       items: [
         {
@@ -158,13 +167,14 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
           clothingType,
           process: processType, // Fixo/estático da tabela de peças
           quantity: pieceCount,
-          unitPrice,
+          unitPrice: isRelavado ? 0 : unitPrice,
           totalPrice: totalServiceValue,
           corteOs: corteOs.trim() || undefined
         }
       ],
       chemicalRecipe,
-      notes
+      paymentStatus: isRelavado ? 'pago' : 'aberto',
+      notes: finalNotes
     });
 
     setCreatedOrderSuccess(newOrder);
@@ -180,6 +190,8 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
     setPieceCount(0);
     setWeightPerPieceKg(0);
     setNotes('');
+    setIsRelavado(false);
+    setRelavadoReason('');
     setCreatedOrderSuccess(null);
   };
 
@@ -219,10 +231,16 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
               <span className="text-slate-500">Lavado / Receita:</span>
               <strong className="text-sky-700 dark:text-sky-400 uppercase">{createdOrderSuccess.items?.[0]?.process}</strong>
             </div>
-            <div className="flex justify-between pt-0.5">
+            <div className="flex justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
               <span className="text-slate-500">Peças / Peso Total:</span>
               <strong className="text-slate-900 dark:text-slate-100">
                 {createdOrderSuccess.estimatedPieceCount} pçs • {createdOrderSuccess.totalWeightKg} kg
+              </strong>
+            </div>
+            <div className="flex justify-between pt-0.5">
+              <span className="text-slate-500">Tipo de Lote:</span>
+              <strong className={createdOrderSuccess.isRelavado ? "text-purple-600 dark:text-purple-400 font-bold uppercase" : "text-slate-900 dark:text-slate-100 font-bold"}>
+                {createdOrderSuccess.isRelavado ? "RELAVADO (ISENTO - R$ 0,00)" : "ENTRADA COMERCIAL"}
               </strong>
             </div>
           </div>
@@ -277,6 +295,82 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Seletor de Tipo de Entrada: Normal vs Relavado */}
+        <div className="bg-white dark:bg-slate-900 p-5 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors space-y-3 font-sans">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 font-mono">
+              Finalidade da Entrada / Lote
+            </span>
+            {isRelavado ? (
+              <span className="px-2.5 py-0.5 bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 rounded-full text-xs font-bold uppercase flex items-center gap-1">
+                <RotateCcw className="w-3.5 h-3.5" />
+                Relavado • Sem Cobrança (R$ 0,00)
+              </span>
+            ) : (
+              <span className="px-2.5 py-0.5 bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 rounded-full text-xs font-bold uppercase">
+                Entrada Comercial Normal
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setIsRelavado(false)}
+              className={`p-3.5 rounded-xl border-2 text-left transition-all flex items-start gap-3 cursor-pointer ${
+                !isRelavado
+                  ? 'border-sky-600 bg-sky-50/50 dark:bg-sky-950/40 text-slate-900 dark:text-slate-100 shadow-sm'
+                  : 'border-slate-200 dark:border-slate-700 bg-slate-50/40 dark:bg-slate-800/40 text-slate-500 hover:border-slate-300'
+              }`}
+            >
+              <div className={`p-2 rounded-lg shrink-0 ${!isRelavado ? 'bg-sky-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-500'}`}>
+                <Scale className="w-4 h-4" />
+              </div>
+              <div>
+                <strong className="text-xs font-bold block">1. Entrada Padrão (Normal)</strong>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Lote novo com cobrança e faturamento pelo valor unitário da tabela de peças.
+                </span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsRelavado(true)}
+              className={`p-3.5 rounded-xl border-2 text-left transition-all flex items-start gap-3 cursor-pointer ${
+                isRelavado
+                  ? 'border-purple-600 bg-purple-50/50 dark:bg-purple-950/40 text-slate-900 dark:text-slate-100 shadow-sm ring-1 ring-purple-500'
+                  : 'border-slate-200 dark:border-slate-700 bg-slate-50/40 dark:bg-slate-800/40 text-slate-500 hover:border-slate-300'
+              }`}
+            >
+              <div className={`p-2 rounded-lg shrink-0 ${isRelavado ? 'bg-purple-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-500'}`}>
+                <RotateCcw className="w-4 h-4" />
+              </div>
+              <div>
+                <strong className="text-xs font-bold text-purple-700 dark:text-purple-300 block">2. Relavado (Reprocesso de Peças)</strong>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Retorno de peças. <strong>Valor R$ 0,00 (sem cobrança)</strong> e baixa de insumos normal.
+                </span>
+              </div>
+            </button>
+          </div>
+
+          {isRelavado && (
+            <div className="pt-2 animate-in fade-in duration-200 border-t border-purple-100 dark:border-purple-900/40">
+              <label className="text-[11px] font-semibold text-purple-800 dark:text-purple-300 uppercase tracking-wider block mb-1">
+                Motivo do Relavado / Referência da OS Anterior (Opcional):
+              </label>
+              <input
+                type="text"
+                value={relavadoReason}
+                onChange={e => setRelavadoReason(e.target.value)}
+                placeholder="Ex: Retorno da OS-0042 por mancha residual / tonalidade..."
+                className="w-full px-3.5 py-2 bg-purple-50/30 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 rounded-xl text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </div>
+          )}
+        </div>
+
         {/* Section 1: Client Selection */}
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 transition-colors">
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">

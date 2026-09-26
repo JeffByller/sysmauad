@@ -35,6 +35,7 @@ interface OrderContextType {
   
   createOrder: (newOrderData: Omit<Order, 'id' | 'osNumber' | 'createdAt' | 'status' | 'totalIronedPieces' | 'ironingLogs' | 'history'>) => Order;
   updateOrderStatus: (orderId: string, status: OrderStatus, operatorName: string, note?: string) => void;
+  updateOrderWeight: (orderId: string, newTotalWeightKg: number, newPieceCount?: number, reason?: string, operatorName?: string) => Promise<{ success: boolean; message: string }>;
   registerIroning: (orderId: string, passadorId: string, passadorName: string, piecesIroned: number) => { success: boolean; message: string };
   registerNewPassador: (name: string, phone?: string) => Passador;
   updatePassador: (id: string, data: Partial<Passador>) => Promise<{ success: boolean; message: string }>;
@@ -486,6 +487,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const osNumber = `OS-${nextOSNum}`;
     const id = `ord-${nextOSNum}`;
 
+    const isRelavado = Boolean(orderData.isRelavado);
     const newOrder: Order = {
       ...orderData,
       id,
@@ -494,12 +496,17 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       status: 'recebido',
       totalIronedPieces: 0,
       ironingLogs: [],
+      isRelavado,
+      totalServiceValue: isRelavado ? 0 : orderData.totalServiceValue,
+      paymentStatus: isRelavado ? 'pago' : (orderData.paymentStatus || 'aberto'),
       history: [
         {
           timestamp: new Date().toISOString(),
           status: 'recebido',
           operator: orderData.operatorName,
-          note: 'Entrada efetuada com pesagem de referência e cálculo de dosagem por processo.'
+          note: isRelavado 
+            ? 'Entrada de RELAVADO (reprocesso sem cobrança ao cliente).'
+            : 'Entrada efetuada com pesagem de referência e cálculo de dosagem por processo.'
         }
       ]
     };
@@ -576,6 +583,99 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status, operatorName, note })
     }).catch(err => console.error('[OrderContext] Erro ao atualizar status no PostgreSQL:', err));
+  };
+
+  const updateOrderWeight = async (
+    orderId: string,
+    newTotalWeightKg: number,
+    newPieceCount?: number,
+    reason?: string,
+    operatorName: string = 'Operador'
+  ): Promise<{ success: boolean; message: string }> => {
+    try {
+      const target = orders.find(o => o.id === orderId || o.osNumber === orderId);
+      if (!target) return { success: false, message: 'Pedido não encontrado.' };
+
+      const oldWeight = target.totalWeightKg;
+      const refPieceWeightGrams = target.refPieceWeightGrams > 0 
+        ? target.refPieceWeightGrams 
+        : (target.estimatedPieceCount > 0 ? (oldWeight * 1000) / target.estimatedPieceCount : 300);
+
+      const estimatedPieces = newPieceCount !== undefined && newPieceCount > 0
+        ? newPieceCount
+        : (refPieceWeightGrams > 0 ? Math.round((newTotalWeightKg * 1000) / refPieceWeightGrams) : target.estimatedPieceCount);
+
+      const processName = target.items[0]?.process || '';
+      const newChemicalRecipe = calculateChemicals(newTotalWeightKg, [processName]);
+
+      const unitPrice = target.items[0]?.unitPrice || 0;
+      const isRelavado = Boolean(target.isRelavado);
+      const newTotalServiceValue = isRelavado ? 0 : (unitPrice > 0 ? estimatedPieces * unitPrice : target.totalServiceValue);
+
+      const newItems = target.items.map((it, idx) => {
+        if (idx === 0) {
+          return {
+            ...it,
+            quantity: estimatedPieces,
+            totalPrice: newTotalServiceValue
+          };
+        }
+        return it;
+      });
+
+      const noteText = `Correção de pesagem: de ${oldWeight.toFixed(2)} kg para ${newTotalWeightKg.toFixed(2)} kg.${reason ? ` Motivo: ${reason}` : ''}`;
+      const newHistoryEvent = {
+        timestamp: new Date().toISOString(),
+        status: target.status,
+        operator: operatorName,
+        note: noteText
+      };
+
+      // 1. Atualização no estado local
+      setOrders(prev => prev.map(ord => {
+        if (ord.id !== target.id) return ord;
+        return {
+          ...ord,
+          totalWeightKg: newTotalWeightKg,
+          estimatedPieceCount: estimatedPieces,
+          refPieceWeightGrams,
+          chemicalRecipe: newChemicalRecipe,
+          items: newItems,
+          totalServiceValue: newTotalServiceValue,
+          history: [...ord.history, newHistoryEvent],
+          updatedAt: new Date().toISOString()
+        };
+      }));
+
+      // 2. Persistência na API
+      const res = await fetch(`/api/orders/${target.id}/weight`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          totalWeightKg: newTotalWeightKg,
+          estimatedPieceCount: estimatedPieces,
+          refPieceWeightGrams,
+          chemicalRecipe: newChemicalRecipe,
+          items: newItems,
+          totalServiceValue: newTotalServiceValue,
+          reason,
+          operatorName
+        })
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        return { success: false, message: err.error || 'Erro ao salvar novo peso no servidor.' };
+      }
+
+      const updatedOrder = await res.json();
+      setOrders(prev => prev.map(o => o.id === target.id ? updatedOrder : o));
+
+      return { success: true, message: `Peso da OS ${target.osNumber} atualizado com sucesso para ${newTotalWeightKg.toFixed(2)} kg!` };
+    } catch (err: any) {
+      console.error('[OrderContext] Erro ao editar peso do pedido:', err);
+      return { success: false, message: err.message || 'Erro inesperado ao atualizar peso.' };
+    }
   };
 
   const registerIroning = (orderId: string, passadorId: string, passadorName: string, piecesIroned: number) => {
@@ -1037,6 +1137,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       confirmOrderReady,
       createOrder,
       updateOrderStatus,
+      updateOrderWeight,
       registerIroning,
       registerNewPassador,
       updatePassador,

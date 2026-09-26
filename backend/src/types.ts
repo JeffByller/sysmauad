@@ -166,6 +166,8 @@ export interface Order {
   ironingLogs: PassadorLog[];
   history: OrderHistoryEvent[];
   notes?: string;
+  isRelavado?: boolean;
+  updatedAt?: string;
 }
 
 export interface InsumoEntry {
@@ -233,6 +235,7 @@ export interface SystemSettings {
   backupRetentionDays: number;
   backupTime: string;
   defaultPassadorRate?: number;
+  stalledOrderAlertDays?: number;
   updatedAt?: string;
 }
 

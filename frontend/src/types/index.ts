@@ -104,6 +104,7 @@ export interface Order {
   
   history: OrderHistoryEvent[];
   notes?: string;
+  isRelavado?: boolean;
 }
 
 export interface PaymentHistoryEntry {
@@ -259,6 +260,7 @@ export interface SystemSettings {
   backupRetentionDays: number;
   backupTime: string;
   defaultPassadorRate?: number;
+  stalledOrderAlertDays?: number;
   updatedAt?: string;
 }
 

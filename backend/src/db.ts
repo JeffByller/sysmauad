@@ -551,6 +551,7 @@ export async function initDb() {
       ironing_logs JSONB NOT NULL DEFAULT '[]'::jsonb,
       history JSONB NOT NULL DEFAULT '[]'::jsonb,
       notes TEXT,
+      is_relavado BOOLEAN DEFAULT FALSE,
       updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
     );
   `);
@@ -686,6 +687,10 @@ export async function initDb() {
     ALTER TABLE sysmauad.orders ADD COLUMN IF NOT EXISTS doc_ref VARCHAR(100);
     ALTER TABLE sysmauad.orders ADD COLUMN IF NOT EXISTS final_paid_amount NUMERIC(10,2);
     ALTER TABLE sysmauad.orders ADD COLUMN IF NOT EXISTS payment_history JSONB NOT NULL DEFAULT '[]'::jsonb;
+    ALTER TABLE sysmauad.orders ADD COLUMN IF NOT EXISTS is_relavado BOOLEAN DEFAULT FALSE;
+
+    -- Campo para configuração de dias para alerta de OS parada
+    ALTER TABLE sysmauad.system_settings ADD COLUMN IF NOT EXISTS stalled_order_alert_days INT DEFAULT 3;
   `);
 
   // SEED INICIAL CASO TABELAS ESTEJAM VAZIAS

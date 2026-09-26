@@ -46,7 +46,8 @@ export const SettingsView: React.FC = () => {
     autoBackupEnabled: true,
     backupRetentionDays: 3,
     backupTime: '02:00',
-    defaultPassadorRate: 0.15
+    defaultPassadorRate: 0.15,
+    stalledOrderAlertDays: 3
   });
 
   const [loadingSettings, setLoadingSettings] = useState(true);
@@ -888,6 +889,27 @@ export const SettingsView: React.FC = () => {
                     </div>
                     <span className="text-[11px] text-slate-400 block mt-1">
                       Valor monetário unitário utilizado para apurar o total a pagar da produção de passadoria em relatórios.
+                    </span>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                      Alerta de O.S. Parada (Dias sem movimentação):
+                    </label>
+                    <div className="relative max-w-xs">
+                      <input
+                        type="number"
+                        min="1"
+                        max="90"
+                        value={settings.stalledOrderAlertDays ?? 3}
+                        onChange={e => setSettings({ ...settings, stalledOrderAlertDays: parseInt(e.target.value) || 3 })}
+                        className="w-full pl-3 pr-12 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-sky-500"
+                        placeholder="3"
+                      />
+                      <span className="absolute right-3 top-2 text-xs text-slate-400 font-bold">DIAS</span>
+                    </div>
+                    <span className="text-[11px] text-slate-400 block mt-1">
+                      Ordens de serviço não entregues que ficarem sem atualização por este número de dias receberão destaque e alerta visual de OS Parada no painel e na listagem.
                     </span>
                   </div>
                 </div>

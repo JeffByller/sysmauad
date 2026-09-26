@@ -179,7 +179,9 @@ function mapOrder(row: any): Order {
     totalIronedPieces: Number(row.total_ironed_pieces || 0),
     ironingLogs: Array.isArray(row.ironing_logs) ? row.ironing_logs : [],
     history: Array.isArray(row.history) ? row.history : [],
-    notes: row.notes || undefined
+    notes: row.notes || undefined,
+    isRelavado: Boolean(row.is_relavado),
+    updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : undefined
   };
 }
 
@@ -243,6 +245,7 @@ function mapSettings(row: any): SystemSettings {
     backupRetentionDays: Number(row.backup_retention_days ?? 3),
     backupTime: row.backup_time || '02:00',
     defaultPassadorRate: Number(row.default_passador_rate !== null && row.default_passador_rate !== undefined ? row.default_passador_rate : 0.15),
+    stalledOrderAlertDays: Number(row.stalled_order_alert_days !== null && row.stalled_order_alert_days !== undefined ? row.stalled_order_alert_days : 3),
     updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : undefined
   };
 }
@@ -1570,14 +1573,15 @@ app.post('/orders', async (req: Request, res: Response) => {
         ];
 
     const corteOs = orderData.corteOs || (Array.isArray(orderData.items) && orderData.items[0]?.corteOs) || null;
+    const isRelavado = Boolean(orderData.isRelavado);
 
     const result = await query(
       `INSERT INTO sysmauad.orders (
          id, os_number, corte_os, client_id, client_name, client_phone, client_address,
          created_at, operator_name, ref_piece_weight_grams, total_weight_kg,
          estimated_piece_count, total_service_value, payment_status, payment_method, discount_amount,
-         items, chemical_recipe, status, total_ironed_pieces, ironing_logs, history, notes
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+         items, chemical_recipe, status, total_ironed_pieces, ironing_logs, history, notes, is_relavado
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
        RETURNING *`,
       [
         id,
@@ -1592,8 +1596,8 @@ app.post('/orders', async (req: Request, res: Response) => {
         Number(orderData.refPieceWeightGrams || 0),
         Number(orderData.totalWeightKg || 0),
         Number(orderData.estimatedPieceCount || 0),
-        Number(orderData.totalServiceValue || 0),
-        orderData.paymentStatus || 'aberto',
+        isRelavado ? 0 : Number(orderData.totalServiceValue || 0),
+        isRelavado ? 'pago' : (orderData.paymentStatus || 'aberto'),
         orderData.paymentMethod || null,
         Number(orderData.discountAmount || 0),
         JSON.stringify(orderData.items || []),
@@ -1602,7 +1606,8 @@ app.post('/orders', async (req: Request, res: Response) => {
         0,
         JSON.stringify([]),
         JSON.stringify(history),
-        orderData.notes || null
+        orderData.notes || null,
+        isRelavado
       ]
     );
 
@@ -1615,7 +1620,7 @@ app.post('/orders', async (req: Request, res: Response) => {
     recordAuditLog({
       level: 'info',
       category: 'orders',
-      action: 'order_created',
+      action: isRelavado ? 'order_relavado_created' : 'order_created',
       userName: orderData.operatorName || 'Operador',
       ipAddress: ip,
       userAgent: req.headers['user-agent'] as string,
@@ -1625,7 +1630,8 @@ app.post('/orders', async (req: Request, res: Response) => {
         clientName: orderData.clientName,
         totalWeightKg: orderData.totalWeightKg,
         estimatedPieceCount: orderData.estimatedPieceCount,
-        totalServiceValue: orderData.totalServiceValue
+        totalServiceValue: isRelavado ? 0 : orderData.totalServiceValue,
+        isRelavado
       }
     }).catch(() => {});
 
@@ -1644,6 +1650,7 @@ app.put('/orders/:id', async (req: Request, res: Response) => {
     const row = current.rows[0];
 
     const corteOs = body.corteOs !== undefined ? body.corteOs : row.corte_os;
+    const isRelavado = body.isRelavado !== undefined ? Boolean(body.isRelavado) : Boolean(row.is_relavado);
 
     const result = await query(
       `UPDATE sysmauad.orders SET
@@ -1661,8 +1668,9 @@ app.put('/orders/:id', async (req: Request, res: Response) => {
          chemical_recipe = COALESCE($12, chemical_recipe),
          notes = COALESCE($13, notes),
          corte_os = $14,
+         is_relavado = $15,
          updated_at = NOW()
-       WHERE id = $15
+       WHERE id = $16
        RETURNING *`,
       [
         body.clientId,
@@ -1679,9 +1687,94 @@ app.put('/orders/:id', async (req: Request, res: Response) => {
         body.chemicalRecipe ? JSON.stringify(body.chemicalRecipe) : null,
         body.notes,
         corteOs,
+        isRelavado,
         id
       ]
     );
+
+    res.json(mapOrder(result.rows[0]));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Endpoint exclusivo para correção e edição de peso após o lançamento
+app.put('/orders/:id/weight', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { 
+      totalWeightKg, 
+      estimatedPieceCount, 
+      refPieceWeightGrams, 
+      chemicalRecipe, 
+      items, 
+      totalServiceValue, 
+      reason, 
+      operatorName 
+    } = req.body;
+
+    const current = await query('SELECT * FROM sysmauad.orders WHERE id = $1', [id]);
+    if (current.rows.length === 0) return res.status(404).json({ error: 'Pedido não encontrado.' });
+    const row = current.rows[0];
+
+    const oldWeight = Number(row.total_weight_kg || 0);
+    const newWeight = Number(totalWeightKg);
+    const operator = operatorName || 'Operador';
+    const noteText = `Correção de pesagem: de ${oldWeight.toFixed(2)} kg para ${newWeight.toFixed(2)} kg.${reason ? ` Motivo: ${reason}` : ''}`;
+
+    const history = Array.isArray(row.history) ? row.history : [];
+    history.push({
+      timestamp: new Date().toISOString(),
+      status: row.status,
+      operator,
+      note: noteText
+    });
+
+    const isRelavado = Boolean(row.is_relavado);
+    const finalVal = isRelavado ? 0 : (totalServiceValue !== undefined ? Number(totalServiceValue) : Number(row.total_service_value || 0));
+
+    const result = await query(
+      `UPDATE sysmauad.orders SET
+         total_weight_kg = $1,
+         estimated_piece_count = COALESCE($2, estimated_piece_count),
+         ref_piece_weight_grams = COALESCE($3, ref_piece_weight_grams),
+         chemical_recipe = COALESCE($4, chemical_recipe),
+         items = COALESCE($5, items),
+         total_service_value = $6,
+         history = $7,
+         updated_at = NOW()
+       WHERE id = $8
+       RETURNING *`,
+      [
+        newWeight,
+        estimatedPieceCount !== undefined ? Number(estimatedPieceCount) : null,
+        refPieceWeightGrams !== undefined ? Number(refPieceWeightGrams) : null,
+        chemicalRecipe ? JSON.stringify(chemicalRecipe) : null,
+        items ? JSON.stringify(items) : null,
+        finalVal,
+        JSON.stringify(history),
+        id
+      ]
+    );
+
+    const ip = getClientIp(req);
+    recordAuditLog({
+      level: 'info',
+      category: 'orders',
+      action: 'order_weight_edited',
+      userName: operator,
+      ipAddress: ip,
+      userAgent: req.headers['user-agent'] as string,
+      details: {
+        orderId: id,
+        osNumber: row.os_number,
+        clientName: row.client_name,
+        oldWeightKg: oldWeight,
+        newWeightKg: newWeight,
+        newPieceCount: estimatedPieceCount,
+        reason
+      }
+    }).catch(() => {});
 
     res.json(mapOrder(result.rows[0]));
   } catch (err: any) {
@@ -2203,6 +2296,7 @@ app.put('/settings', async (req: Request, res: Response) => {
     const backupRetentionDays = body.backupRetentionDays !== undefined ? Number(body.backupRetentionDays) : (row.backup_retention_days ?? 3);
     const backupTime = body.backupTime !== undefined ? body.backupTime : (row.backup_time || '02:00');
     const defaultPassadorRate = body.defaultPassadorRate !== undefined ? Number(body.defaultPassadorRate) : Number(row.default_passador_rate ?? 0.15);
+    const stalledOrderAlertDays = body.stalledOrderAlertDays !== undefined ? Number(body.stalledOrderAlertDays) : Number(row.stalled_order_alert_days ?? 3);
 
     const result = await query(`
       INSERT INTO sysmauad.system_settings (
@@ -2212,7 +2306,7 @@ app.put('/settings', async (req: Request, res: Response) => {
         report_header_text, report_footer_text,
         include_financial_values, include_low_stock_alerts, include_operator_breakdown,
         auto_backup_enabled, backup_retention_days, backup_time,
-        default_passador_rate,
+        default_passador_rate, stalled_order_alert_days,
         updated_at
       ) VALUES (
         'default', 'sysmauad', $1,
@@ -2221,7 +2315,7 @@ app.put('/settings', async (req: Request, res: Response) => {
         $8, $9,
         $10, $11, $12,
         $13, $14, $15,
-        $16,
+        $16, $17,
         NOW()
       ) ON CONFLICT (id) DO UPDATE SET
         whatsapp_target_phone = EXCLUDED.whatsapp_target_phone,
@@ -2240,6 +2334,7 @@ app.put('/settings', async (req: Request, res: Response) => {
         backup_retention_days = EXCLUDED.backup_retention_days,
         backup_time = EXCLUDED.backup_time,
         default_passador_rate = EXCLUDED.default_passador_rate,
+        stalled_order_alert_days = EXCLUDED.stalled_order_alert_days,
         updated_at = NOW()
       RETURNING *
     `, [
@@ -2258,7 +2353,8 @@ app.put('/settings', async (req: Request, res: Response) => {
       autoBackupEnabled,
       backupRetentionDays,
       backupTime,
-      defaultPassadorRate
+      defaultPassadorRate,
+      stalledOrderAlertDays
     ]);
 
     res.json(mapSettings(result.rows[0]));

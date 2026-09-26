@@ -13,7 +13,8 @@ import {
   CalendarDays,
   Package,
   Play,
-  PackageCheck
+  PackageCheck,
+  RotateCcw
 } from 'lucide-react';
 import { OrderStatus } from '../types';
 
@@ -25,6 +26,18 @@ interface DashboardViewProps {
 export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpenScanner }) => {
   const { orders, stockItems, updateOrderStatus } = useOrders();
   const { user } = useAuth();
+
+  // Helper para verificar se a OS está parada (sem movimentação >= 3 dias e não entregue)
+  const getOrderStalledInfo = (ord: any) => {
+    if (ord.status === 'entregue') return { isStalled: false, days: 0 };
+    const lastActivity = (ord.history && ord.history.length > 0)
+      ? ord.history[ord.history.length - 1].timestamp
+      : (ord.updatedAt || ord.createdAt || new Date().toISOString());
+    const diffDays = Math.floor((Date.now() - new Date(lastActivity).getTime()) / (1000 * 60 * 60 * 24));
+    return { isStalled: diffDays >= 3, days: diffDays };
+  };
+
+  const stalledOrdersCount = orders.filter(o => getOrderStalledInfo(o).isStalled).length;
 
   // Time Period Filter: 'dia' | 'semana' | 'mes'
   const [timePeriod, setTimePeriod] = useState<'dia' | 'semana' | 'mes'>('dia');
@@ -123,6 +136,39 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
         </div>
       </div>
 
+      {/* Banner de Alerta para OS Paradas */}
+      {stalledOrdersCount > 0 && (
+        <div 
+          onClick={() => onNavigate('orders')}
+          className="bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-400 dark:border-amber-600 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-amber-950 dark:text-amber-200 shadow-sm cursor-pointer hover:bg-amber-100/80 dark:hover:bg-amber-900/60 transition-colors animate-in fade-in duration-200"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-xl shrink-0">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="font-bold text-xs uppercase tracking-wide">
+                  Alerta Operacional: {stalledOrdersCount} Ordem(ns) de Serviço paradas há mais de 3 dias!
+                </h4>
+                <span className="px-2 py-0.5 bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-100 text-[10px] font-bold rounded-md">
+                  Sem movimentação
+                </span>
+              </div>
+              <p className="text-[11px] text-amber-800 dark:text-amber-300 mt-0.5">
+                Existem pedidos ativos no galpão que não tiveram atualização recente. Clique para abrir a lista filtrada.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-colors whitespace-nowrap self-start sm:self-auto shadow-sm"
+          >
+            Ver Pedidos Parados ({stalledOrdersCount})
+          </button>
+        </div>
+      )}
+
       {/* Time Period Filter Bar */}
       <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
         <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
@@ -159,14 +205,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
       </div>
 
       {/* Operational Metrics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider">Pedidos ({timePeriod})</span>
             <Clock className="w-4 h-4 text-sky-600 dark:text-sky-400" />
           </div>
           <span className="text-3xl font-bold text-slate-900 dark:text-slate-100 font-mono">{totalOrdersCount}</span>
-          <span className="text-[11px] text-slate-400 block mt-1">Lotes no período selecionado</span>
+          <span className="text-[11px] text-slate-400 block mt-1">Lotes no período</span>
         </div>
 
         <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
@@ -175,7 +221,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
             <Scale className="w-4 h-4 text-sky-600 dark:text-sky-400" />
           </div>
           <span className="text-3xl font-bold text-slate-900 dark:text-slate-100 font-mono">{totalKgCount.toFixed(1)} <span className="text-lg">kg</span></span>
-          <span className="text-[11px] text-slate-400 block mt-1">Volume de roupa lavada</span>
+          <span className="text-[11px] text-slate-400 block mt-1">Volume lavado</span>
         </div>
 
         <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
@@ -184,7 +230,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
             <Shirt className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
           </div>
           <span className="text-3xl font-bold text-slate-900 dark:text-slate-100 font-mono">{totalIronedCount}</span>
-          <span className="text-[11px] text-slate-400 block mt-1">Contagem dos colaboradores</span>
+          <span className="text-[11px] text-slate-400 block mt-1">Total passado</span>
+        </div>
+
+        {/* Stalled Orders Card */}
+        <div
+          onClick={() => onNavigate('orders')}
+          className={`p-5 rounded-xl border shadow-sm cursor-pointer transition-colors ${
+            stalledOrdersCount > 0 
+              ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 hover:bg-amber-100/80 dark:hover:bg-amber-900/60' 
+              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
+          }`}
+        >
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-amber-900 dark:text-amber-400">OS Paradas (≥3d)</span>
+            <AlertTriangle className={`w-4 h-4 ${stalledOrdersCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400'}`} />
+          </div>
+          <span className="text-3xl font-bold font-mono text-slate-900 dark:text-slate-100">{stalledOrdersCount}</span>
+          <span className="text-[11px] text-amber-800 dark:text-amber-300 font-medium block mt-1">
+            {stalledOrdersCount > 0 ? 'Atenção necessária' : 'Tudo em dia'}
+          </span>
         </div>
 
         {/* Low Stock Alert Metric */}
@@ -192,17 +257,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
           onClick={() => onNavigate('stock')}
           className={`p-5 rounded-xl border shadow-sm cursor-pointer transition-colors ${
             lowStockCount > 0 
-              ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 hover:bg-amber-100/80 dark:hover:bg-amber-900/60' 
+              ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 hover:bg-rose-100/80 dark:hover:bg-rose-900/60' 
               : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
           }`}
         >
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-amber-900 dark:text-amber-400">Estoque em Alerta</span>
-            <AlertTriangle className={`w-4 h-4 ${lowStockCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400'}`} />
+            <span className="text-xs font-semibold uppercase tracking-wider text-rose-900 dark:text-rose-400">Estoque Insumos</span>
+            <AlertTriangle className={`w-4 h-4 ${lowStockCount > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400'}`} />
           </div>
           <span className="text-3xl font-bold font-mono text-slate-900 dark:text-slate-100">{lowStockCount}</span>
-          <span className="text-[11px] text-amber-800 dark:text-amber-300 font-medium block mt-1">
-            {lowStockCount > 0 ? 'Insumos acabando! Ver estoque' : 'Estoque regular'}
+          <span className="text-[11px] text-rose-800 dark:text-rose-300 font-medium block mt-1">
+            {lowStockCount > 0 ? 'Insumos acabando!' : 'Estoque regular'}
           </span>
         </div>
       </div>
@@ -278,8 +343,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   {/* Left Column: OS & Client */}
                   <div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="font-mono font-bold text-base text-slate-900 dark:text-slate-100">{ord.osNumber}</span>
+                      {ord.isRelavado && (
+                        <span className="px-1.5 py-0.5 bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 rounded text-[10px] font-bold uppercase border border-purple-200 dark:border-purple-800 flex items-center gap-1">
+                          <RotateCcw className="w-2.5 h-2.5" />
+                          Relavado
+                        </span>
+                      )}
+                      {(() => {
+                        const s = getOrderStalledInfo(ord);
+                        return s.isStalled ? (
+                          <span className="px-1.5 py-0.5 bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 rounded text-[10px] font-bold border border-amber-200 dark:border-amber-800 flex items-center gap-1">
+                            <AlertTriangle className="w-2.5 h-2.5" />
+                            Parada {s.days}d
+                          </span>
+                        ) : null;
+                      })()}
                       {getStatusBadge(ord.status)}
                       <span className="text-xs text-slate-400 font-mono">
                         {new Date(ord.createdAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}

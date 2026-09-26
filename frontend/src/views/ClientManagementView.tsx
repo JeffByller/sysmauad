@@ -234,14 +234,21 @@ export const ClientManagementView: React.FC = () => {
     setTimeout(() => setFeedbackMsg(null), 4000);
   };
 
-  const handleEditSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingClient || !name.trim()) return;
+  const handleEditSubmit = (e?: React.FormEvent | React.MouseEvent) => {
+    if (e) e.preventDefault();
+    if (!editingClient || !name.trim()) {
+      if (!name.trim()) {
+        setActiveModalTab('dados');
+        alert('Por favor, informe o Nome Completo / Razão Social do cliente.');
+      }
+      return;
+    }
 
     const phoneValidation = validatePhone(phone);
     if (!phoneValidation.isValid) {
       setPhoneTouched(true);
       setPhoneError(phoneValidation.error || 'Número de WhatsApp / Celular inválido.');
+      setActiveModalTab('dados');
       return;
     }
 
@@ -607,7 +614,7 @@ export const ClientManagementView: React.FC = () => {
       {/* ─── MODAL PRINCIPAL DO CLIENTE COM 5 ABAS (Tarefas 3, 4, 5 e 6) ──────── */}
       {editingClient && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-5 animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden text-slate-900 dark:text-slate-100 transition-colors">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-4xl w-full h-[88vh] min-h-[560px] max-h-[92vh] flex flex-col overflow-hidden text-slate-900 dark:text-slate-100 transition-colors">
             
             {/* Header do Cliente */}
             <div className="p-4 sm:p-5 bg-slate-900 text-white flex items-center justify-between shrink-0">
@@ -641,14 +648,25 @@ export const ClientManagementView: React.FC = () => {
 
               <div className="flex items-center gap-2">
                 <button
+                  type="button"
+                  onClick={handleEditSubmit}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition-colors shadow-sm"
+                  title="Salvar alterações do cliente"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Salvar</span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => handleOpenInvite(editingClient)}
-                  className="hidden sm:flex items-center gap-1 px-3 py-1.5 bg-sky-700 hover:bg-sky-600 text-white rounded-lg text-xs font-semibold transition-colors"
+                  className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-sky-700 hover:bg-sky-600 text-white rounded-lg text-xs font-semibold transition-colors"
                   title="Enviar Link de Acesso"
                 >
                   <Send className="w-3.5 h-3.5" />
                   <span>Enviar Acesso</span>
                 </button>
                 <button
+                  type="button"
                   onClick={() => setEditingClient(null)}
                   className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors text-base"
                 >
@@ -877,10 +895,10 @@ export const ClientManagementView: React.FC = () => {
                     </span>
                     <button
                       type="submit"
-                      className="px-6 py-2.5 bg-sky-700 hover:bg-sky-800 text-white rounded-xl text-xs font-semibold shadow-sm transition-colors flex items-center gap-2"
+                      className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-colors flex items-center gap-2"
                     >
                       <Check className="w-4 h-4" />
-                      Salvar Alterações do Cliente
+                      Salvar
                     </button>
                   </div>
                 </form>
@@ -1318,17 +1336,13 @@ export const ClientManagementView: React.FC = () => {
             </div>
 
             {/* Footer do Modal do Cliente */}
-            <div className="p-4 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
-              <span className="text-xs text-slate-500 dark:text-slate-400">
+            <div className="px-5 py-3 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0 text-xs text-slate-500 dark:text-slate-400">
+              <span>
                 Cadastro ID: <code className="font-mono text-[11px]">{editingClient.id}</code>
               </span>
-              <button
-                type="button"
-                onClick={() => setEditingClient(null)}
-                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold transition-colors"
-              >
-                Fechar Ficha do Cliente
-              </button>
+              <span className="text-[11px] text-slate-400">
+                {editingClient.name} • {editingClient.companyName || 'Cliente'}
+              </span>
             </div>
           </div>
         </div>
