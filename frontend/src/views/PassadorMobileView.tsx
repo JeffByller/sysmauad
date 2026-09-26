@@ -148,19 +148,16 @@ export const PassadorMobileView: React.FC<PassadorMobileViewProps> = ({ onOpenSc
 
   return (
     <div className="max-w-md mx-auto px-4 py-6 space-y-5">
-      {/* Cabeçalho Limpo: Apenas o Nome do Usuário e Total de Peças Hoje */}
+      {/* Cabeçalho Limpo: Apenas a Identificação do Passador */}
       {isSinglePlay && user ? (
-        <div className="bg-slate-900 rounded-2xl p-5 text-white shadow-xl flex items-center justify-between border border-slate-800">
+        <div className="bg-slate-900 rounded-2xl p-4 text-white shadow-xl flex items-center justify-between border border-slate-800">
           <div>
-            <span className="text-[11px] text-slate-400 font-medium block">Passador</span>
-            <h1 className="text-xl font-bold text-white tracking-tight">{user.name}</h1>
+            <span className="text-[11px] text-slate-400 font-medium block">Colaborador / Passador</span>
+            <h1 className="text-lg font-bold text-white tracking-tight">{user.name}</h1>
           </div>
-          <div className="text-right">
-            <span className="text-[11px] text-slate-400 uppercase font-mono block">Passadas Hoje</span>
-            <span className="text-2xl font-black text-emerald-400 font-mono">
-              {piecesToday} <span className="text-xs text-emerald-300 font-normal">pçs</span>
-            </span>
-          </div>
+          <span className="text-[11px] font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-800 px-2.5 py-1 rounded-lg">
+            Ativo
+          </span>
         </div>
       ) : (
         /* Modo Administrador / Gestão: seletor de passador */
