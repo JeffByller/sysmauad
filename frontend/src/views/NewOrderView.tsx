@@ -79,6 +79,7 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
       setProcessType('');
       setUnitPrice(0);
       setWeightPerPieceKg(0);
+      setCorteOs('');
       return;
     }
 
@@ -87,6 +88,7 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
       setClothingType(found.clothingType);
       setProcessType(found.processName);
       setUnitPrice(found.unitPrice);
+      setCorteOs(found.corteOs || '');
       // Pré-preenche peso/peça a partir do catálogo (convertendo g → kg) como sugestão; operador pode ajustar
       setWeightPerPieceKg(found.defaultRefWeightGrams > 0 ? Math.round(found.defaultRefWeightGrams) / 1000 : 0);
     }
@@ -596,7 +598,7 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
                 <option value="">-- Selecione a Peça Cadastrada na Tabela --</option>
                 {garmentCatalog.map(item => (
                   <option key={item.id} value={item.id}>
-                    {item.clothingType} — Processo: {item.processName} (Ref: {item.defaultRefWeightGrams}g)
+                    {item.clothingType}{item.corteOs ? ` [Corte: ${item.corteOs}]` : ''} — Processo: {item.processName} (Ref: {item.defaultRefWeightGrams}g)
                   </option>
                 ))}
               </select>

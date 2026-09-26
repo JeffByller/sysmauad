@@ -81,6 +81,7 @@ export interface GarmentProcessCatalogItem {
   processName: string;
   unitPrice: number;
   defaultRefWeightGrams: number;
+  corteOs?: string;
   category?: string;
   notes?: string;
 }

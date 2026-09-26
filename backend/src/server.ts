@@ -156,6 +156,7 @@ function mapGarment(row: any): GarmentProcessCatalogItem {
     processName: row.process_name,
     unitPrice: Number(row.unit_price || 0),
     defaultRefWeightGrams: Number(row.default_ref_weight_grams || 0),
+    corteOs: row.corte_os || undefined,
     category: row.category || undefined,
     notes: row.notes || undefined
   };
@@ -260,9 +261,9 @@ function mapSettings(row: any): SystemSettings {
     reportSendTime: row.report_send_time || '18:00',
     reportDayOfWeek: Number(row.report_day_of_week ?? 1),
     reportDayOfMonth: Number(row.report_day_of_month ?? 1),
-    selectedReports: Array.isArray(row.selected_reports) ? row.selected_reports : ['producao', 'passadoria', 'financeiro', 'estoque'],
-    reportHeaderText: row.report_header_text || '👔 *SYSMAUAD - Relatório Gerencial Automatizado*',
-    reportFooterText: row.report_footer_text || 'Mauad Lavanderia • Sistema de Gestão Industrial',
+    selectedReports: Array.isArray(row.selected_reports) ? row.selected_reports.filter((r: string) => r !== 'estoque') : ['producao', 'passadoria', 'financeiro'],
+    reportHeaderText: row.report_header_text || '*SYSMAUAD - RELATÓRIO DO DIA*',
+    reportFooterText: row.report_footer_text || 'Sistema • Mauad - Controle Operacional',
     includeFinancialValues: row.include_financial_values !== false,
     includeLowStockAlerts: row.include_low_stock_alerts !== false,
     includeOperatorBreakdown: row.include_operator_breakdown !== false,
@@ -528,8 +529,11 @@ function purgeOldBackups(retentionDays: number = 3) {
 
 async function generateSystemReportText(settings: SystemSettings): Promise<string> {
   const now = new Date();
-  const dateFormatted = now.toLocaleDateString('pt-BR', { timeZone: 'America/Recife' });
-  const timeFormatted = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Recife' });
+  const dateFormatted = now.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  const timeFormatted = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+
+  // Data de hoje no formato YYYY-MM-DD (fuso horário de Brasília)
+  const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(now);
 
   const freqLabel = settings.reportFrequency === 'semanal' 
     ? 'Semanal' 
@@ -537,17 +541,28 @@ async function generateSystemReportText(settings: SystemSettings): Promise<strin
       ? 'Mensal' 
       : 'Diário';
 
-  let msg = `${settings.reportHeaderText || '👔 *SYSMAUAD - Relatório Gerencial Automatizado*'}\n`;
-  msg += `📅 *Período:* ${freqLabel} • ${dateFormatted} às ${timeFormatted}\n`;
+  let header = settings.reportHeaderText;
+  if (!header || header.includes('👔')) {
+    header = '*SYSMAUAD - RELATÓRIO DO DIA*';
+  }
+
+  let msg = `${header}\n`;
+  msg += `Período: ${freqLabel} • ${dateFormatted} às ${timeFormatted}\n`;
 
   const selected = settings.selectedReports || [];
 
+  const ordersRes = await query('SELECT * FROM sysmauad.orders ORDER BY created_at ASC');
+  const allOrders = ordersRes.rows;
+
+  // Filtra ordens de serviço criadas hoje
+  const ordersToday = allOrders.filter((o: any) => {
+    const d = o.created_at ? o.created_at.slice(0, 10) : '';
+    return d === todayStr;
+  });
+
   // 1. Relatório de Produção e Lavados
   if (selected.includes('producao')) {
-    const ordersRes = await query('SELECT * FROM sysmauad.orders');
-    const allOrders = ordersRes.rows;
-    const totalOrders = allOrders.length;
-
+    const totalOrders = ordersToday.length;
     let recebidos = 0;
     let emAndamento = 0;
     let prontos = 0;
@@ -555,7 +570,7 @@ async function generateSystemReportText(settings: SystemSettings): Promise<strin
     let totalKg = 0;
     let totalPecas = 0;
 
-    for (const o of allOrders) {
+    for (const o of ordersToday) {
       if (o.status === 'recebido') recebidos++;
       else if (o.status === 'em_andamento') emAndamento++;
       else if (o.status === 'pronto') prontos++;
@@ -565,58 +580,88 @@ async function generateSystemReportText(settings: SystemSettings): Promise<strin
       totalPecas += Number(o.estimated_piece_count || 0);
     }
 
-    msg += `\n📦 *PRODUÇÃO E LAVADOS*\n`;
-    msg += `• Total de Pedidos Registrados: *${totalOrders}*\n`;
-    msg += `• Em Andamento: *${emAndamento}* | Recebidos: *${recebidos}*\n`;
-    msg += `• Prontos: *${prontos}* | Entregues: *${entregues}*\n`;
-    msg += `• Carga Total Processada: *${totalKg.toFixed(1)} Kg*\n`;
-    msg += `• Volume Total Estimado: *${totalPecas} peças*\n`;
+    msg += `\n*PRODUÇÃO E LAVADOS*\n`;
+    msg += `• Pedidos no dia: *${totalOrders}*\n`;
+    msg += `• Status: *${emAndamento}* em andamento | *${recebidos}* recebidos | *${prontos}* prontos | *${entregues}* entregues\n`;
+    msg += `• Carga processada: *${totalKg.toFixed(1)} Kg*\n`;
+    msg += `• Volume estimado: *${totalPecas} peças*\n`;
   }
 
-  // 2. Relatório de Passadoria
+  // 2. Relatório de Passadoria (apenas passadas efetuadas hoje)
   if (selected.includes('passadoria')) {
     const passadoresRes = await query('SELECT * FROM sysmauad.passadores WHERE active = TRUE');
     const passadores = passadoresRes.rows;
-    let totalIroned = 0;
-    let totalIronedValue = 0;
 
+    const passadorMap: Record<string, { name: string; pieces: number; rate: number }> = {};
     for (const p of passadores) {
-      const pcs = Number(p.total_pieces_ironed || 0);
-      const rate = Number(p.rate_per_piece ?? 0.15);
-      totalIroned += pcs;
-      totalIronedValue += pcs * rate;
+      passadorMap[p.id] = {
+        name: p.name,
+        pieces: 0,
+        rate: Number(p.rate_per_piece ?? settings.defaultPassadorRate ?? 0.15)
+      };
     }
 
-    msg += `\n✨ *PASSADORIA & ACABAMENTO*\n`;
-    msg += `• Total de Peças Passadas: *${totalIroned} peças*`;
+    let totalIronedToday = 0;
+
+    for (const o of allOrders) {
+      const logs = Array.isArray(o.ironing_logs) ? o.ironing_logs : [];
+      for (const log of logs) {
+        const logDate = log.timestamp ? log.timestamp.slice(0, 10) : '';
+        if (logDate === todayStr) {
+          const count = Number(log.piecesIroned || 0);
+          totalIronedToday += count;
+          const pId = log.passadorId;
+          if (pId && passadorMap[pId]) {
+            passadorMap[pId].pieces += count;
+          } else if (log.passadorName) {
+            if (!passadorMap[log.passadorName]) {
+              passadorMap[log.passadorName] = {
+                name: log.passadorName,
+                pieces: 0,
+                rate: Number(settings.defaultPassadorRate ?? 0.15)
+              };
+            }
+            passadorMap[log.passadorName].pieces += count;
+          }
+        }
+      }
+    }
+
+    let totalIronedValueToday = 0;
+    Object.values(passadorMap).forEach(p => {
+      totalIronedValueToday += p.pieces * p.rate;
+    });
+
+    msg += `\n*PASSADORIA E ACABAMENTO*\n`;
+    msg += `• Peças passadas hoje: *${totalIronedToday} peças*`;
     if (settings.includeFinancialValues) {
-      msg += ` (R$ ${totalIronedValue.toFixed(2)})`;
+      msg += ` (R$ ${totalIronedValueToday.toFixed(2)})`;
     }
     msg += `\n`;
 
     if (settings.includeOperatorBreakdown) {
-      msg += `• Detalhado por Passador:\n`;
-      for (const p of passadores) {
-        const pcs = Number(p.total_pieces_ironed || 0);
-        const rate = Number(p.rate_per_piece ?? 0.15);
-        const val = pcs * rate;
-        msg += `   └ ${p.name}: *${pcs}* peças`;
-        if (settings.includeFinancialValues) {
-          msg += ` (R$ ${val.toFixed(2)})`;
+      const activePassadoresToday = Object.values(passadorMap).filter(p => p.pieces > 0);
+      if (activePassadoresToday.length > 0) {
+        msg += `• Detalhado por passador:\n`;
+        for (const p of activePassadoresToday) {
+          const val = p.pieces * p.rate;
+          msg += `   - ${p.name}: *${p.pieces}* peças`;
+          if (settings.includeFinancialValues) {
+            msg += ` (R$ ${val.toFixed(2)})`;
+          }
+          msg += `\n`;
         }
-        msg += `\n`;
       }
     }
   }
 
-  // 3. Relatório Financeiro
+  // 3. Relatório Financeiro (pedidos do dia de hoje)
   if (selected.includes('financeiro') && settings.includeFinancialValues) {
-    const ordersRes = await query('SELECT total_service_value, payment_status FROM sysmauad.orders');
     let totalFaturado = 0;
     let totalPago = 0;
     let totalAberto = 0;
 
-    for (const row of ordersRes.rows) {
+    for (const row of ordersToday) {
       const val = Number(row.total_service_value || 0);
       totalFaturado += val;
       if (row.payment_status === 'pago') {
@@ -626,37 +671,22 @@ async function generateSystemReportText(settings: SystemSettings): Promise<strin
       }
     }
 
-    const ticketMedio = ordersRes.rows.length > 0 ? (totalFaturado / ordersRes.rows.length) : 0;
+    const ticketMedio = ordersToday.length > 0 ? (totalFaturado / ordersToday.length) : 0;
 
-    msg += `\n💰 *FINANCEIRO / CAIXA*\n`;
-    msg += `• Faturamento Total: *R$ ${totalFaturado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}*\n`;
-    msg += `• Recebido (Pago): *R$ ${totalPago.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}*\n`;
-    msg += `• A Receber (Em Aberto): *R$ ${totalAberto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}*\n`;
-    msg += `• Ticket Médio / Pedido: *R$ ${ticketMedio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}*\n`;
+    msg += `\n*FINANCEIRO / CAIXA*\n`;
+    msg += `• Faturamento hoje: *R$ ${totalFaturado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}*\n`;
+    msg += `• Recebido hoje: *R$ ${totalPago.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}*\n`;
+    msg += `• A receber hoje: *R$ ${totalAberto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}*\n`;
+    msg += `• Ticket médio hoje: *R$ ${ticketMedio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}*\n`;
   }
 
-  // 4. Relatório de Estoque e Insumos Químicos
-  if (selected.includes('estoque')) {
-    const stockRes = await query('SELECT * FROM sysmauad.stock_items ORDER BY name ASC');
-    const allStock = stockRes.rows;
-    const lowStock = allStock.filter((s: any) => Number(s.current_stock || 0) <= Number(s.min_stock_alert || 0));
-
-    msg += `\n🧪 *ESTOQUE DE INSUMOS QUÍMICOS*\n`;
-    msg += `• Itens Cadastrados: *${allStock.length} produtos*\n`;
-    if (settings.includeLowStockAlerts) {
-      if (lowStock.length === 0) {
-        msg += `• ✅ Todos os insumos estão acima da margem mínima.\n`;
-      } else {
-        msg += `• ⚠️ *${lowStock.length} produto(s) em nível crítico/alerta:*\n`;
-        for (const item of lowStock) {
-          msg += `   └ ${item.name}: *${Number(item.current_stock).toFixed(1)} ${item.unit}* (Alerta: ${Number(item.min_stock_alert).toFixed(1)} ${item.unit})\n`;
-        }
-      }
-    }
+  let footer = settings.reportFooterText;
+  if (!footer || footer.includes('Mauad Lavanderia')) {
+    footer = 'Sistema • Mauad - Controle Operacional';
   }
 
-  msg += `\n─────────────────────\n`;
-  msg += `${settings.reportFooterText || 'Mauad Lavanderia • Sistema de Gestão Industrial'}`;
+  msg += `\n----------------------------------------\n`;
+  msg += `${footer}`;
 
   return msg;
 }
@@ -1545,13 +1575,13 @@ app.get('/garment-catalog', async (_req: Request, res: Response) => {
 
 app.post('/garment-catalog', async (req: Request, res: Response) => {
   try {
-    const { clothingType, processName, unitPrice, defaultRefWeightGrams, category, notes } = req.body;
+    const { clothingType, processName, unitPrice, defaultRefWeightGrams, corteOs, category, notes } = req.body;
     const id = `gcat-${Date.now()}`;
     const result = await query(
-      `INSERT INTO sysmauad.garment_catalog (id, clothing_type, process_name, unit_price, default_ref_weight_grams, category, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO sysmauad.garment_catalog (id, clothing_type, process_name, unit_price, default_ref_weight_grams, corte_os, category, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [id, clothingType.trim(), processName.trim(), Number(unitPrice || 0), Number(defaultRefWeightGrams || 0), category || null, notes || null]
+      [id, clothingType.trim(), processName.trim(), Number(unitPrice || 0), Number(defaultRefWeightGrams || 0), corteOs ? corteOs.trim() : null, category || null, notes || null]
     );
     res.status(201).json(mapGarment(result.rows[0]));
   } catch (err: any) {
@@ -1562,7 +1592,7 @@ app.post('/garment-catalog', async (req: Request, res: Response) => {
 app.put('/garment-catalog/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { clothingType, processName, unitPrice, defaultRefWeightGrams, category, notes } = req.body;
+    const { clothingType, processName, unitPrice, defaultRefWeightGrams, corteOs, category, notes } = req.body;
 
     const current = await query('SELECT * FROM sysmauad.garment_catalog WHERE id = $1', [id]);
     if (current.rows.length === 0) return res.status(404).json({ error: 'Item não encontrado.' });
@@ -1570,14 +1600,15 @@ app.put('/garment-catalog/:id', async (req: Request, res: Response) => {
 
     const result = await query(
       `UPDATE sysmauad.garment_catalog
-       SET clothing_type = $1, process_name = $2, unit_price = $3, default_ref_weight_grams = $4, category = $5, notes = $6, updated_at = NOW()
-       WHERE id = $7
+       SET clothing_type = $1, process_name = $2, unit_price = $3, default_ref_weight_grams = $4, corte_os = $5, category = $6, notes = $7, updated_at = NOW()
+       WHERE id = $8
        RETURNING *`,
       [
         clothingType !== undefined ? clothingType.trim() : row.clothing_type,
         processName !== undefined ? processName.trim() : row.process_name,
         unitPrice !== undefined ? Number(unitPrice) : row.unit_price,
         defaultRefWeightGrams !== undefined ? Number(defaultRefWeightGrams) : row.default_ref_weight_grams,
+        corteOs !== undefined ? (corteOs ? corteOs.trim() : null) : row.corte_os,
         category !== undefined ? category : row.category,
         notes !== undefined ? notes : row.notes,
         id

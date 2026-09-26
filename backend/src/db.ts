@@ -505,6 +505,7 @@ export async function initDb() {
       process_name VARCHAR(255) NOT NULL,
       unit_price NUMERIC(10,2) NOT NULL DEFAULT 0,
       default_ref_weight_grams NUMERIC(10,2) NOT NULL DEFAULT 0,
+      corte_os VARCHAR(100),
       category VARCHAR(100),
       notes TEXT,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -720,6 +721,9 @@ export async function initDb() {
 
     -- Campo para configuração de retenção do backlog de relatórios (dias)
     ALTER TABLE sysmauad.system_settings ADD COLUMN IF NOT EXISTS report_retention_days INT DEFAULT 30;
+
+    -- Campo corte_os no catálogo de peças
+    ALTER TABLE sysmauad.garment_catalog ADD COLUMN IF NOT EXISTS corte_os VARCHAR(100);
   `);
 
   // SEED INICIAL CASO TABELAS ESTEJAM VAZIAS

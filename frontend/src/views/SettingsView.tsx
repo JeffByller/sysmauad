@@ -45,11 +45,11 @@ export const SettingsView: React.FC = () => {
     reportSendTime: '18:00',
     reportDayOfWeek: 1,
     reportDayOfMonth: 1,
-    selectedReports: ['producao', 'passadoria', 'financeiro', 'estoque'],
-    reportHeaderText: '👔 *SYSMAUAD - Relatório Gerencial Automatizado*',
-    reportFooterText: 'Mauad Lavanderia • Sistema de Gestão Industrial',
+    selectedReports: ['producao', 'passadoria', 'financeiro'],
+    reportHeaderText: '*SYSMAUAD - RELATÓRIO DO DIA*',
+    reportFooterText: 'Sistema • Mauad - Controle Operacional',
     includeFinancialValues: true,
-    includeLowStockAlerts: true,
+    includeLowStockAlerts: false,
     includeOperatorBreakdown: true,
     autoBackupEnabled: true,
     backupRetentionDays: 3,
@@ -919,88 +919,64 @@ export const SettingsView: React.FC = () => {
                   Marque os relatórios operacionais que a automação deve extrair e consolidar no envio do WhatsApp.
                 </p>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
                   {/* Produção */}
                   <label 
-                    onClick={() => toggleReportItem('producao')}
                     className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-start gap-3 select-none ${
                       settings.selectedReports?.includes('producao')
-                        ? 'bg-sky-500/10 border-sky-500/40 text-sky-950 dark:text-sky-200'
+                        ? 'bg-sky-500/10 border-sky-500/40 text-sky-950 dark:text-sky-200 shadow-xs'
                         : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
                     }`}
                   >
                     <input
                       type="checkbox"
                       checked={settings.selectedReports?.includes('producao')}
-                      onChange={() => {}}
-                      className="mt-0.5 w-4 h-4 text-sky-600 rounded focus:ring-sky-500"
+                      onChange={() => toggleReportItem('producao')}
+                      className="mt-0.5 w-4 h-4 text-sky-600 rounded focus:ring-sky-500 cursor-pointer"
                     />
-                    <div>
+                    <div className="flex-1">
                       <span className="font-bold text-xs block">Produção & Lavados</span>
-                      <span className="text-[11px] opacity-75 block">Total de pedidos, status (Em Andamento, Prontos), Kg e peças totais.</span>
+                      <span className="text-[11px] opacity-75 block">Total de pedidos, status (Em Andamento, Prontos), Kg e peças do dia.</span>
                     </div>
                   </label>
 
                   {/* Passadoria */}
                   <label 
-                    onClick={() => toggleReportItem('passadoria')}
                     className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-start gap-3 select-none ${
                       settings.selectedReports?.includes('passadoria')
-                        ? 'bg-sky-500/10 border-sky-500/40 text-sky-950 dark:text-sky-200'
+                        ? 'bg-sky-500/10 border-sky-500/40 text-sky-950 dark:text-sky-200 shadow-xs'
                         : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
                     }`}
                   >
                     <input
                       type="checkbox"
                       checked={settings.selectedReports?.includes('passadoria')}
-                      onChange={() => {}}
-                      className="mt-0.5 w-4 h-4 text-sky-600 rounded focus:ring-sky-500"
+                      onChange={() => toggleReportItem('passadoria')}
+                      className="mt-0.5 w-4 h-4 text-sky-600 rounded focus:ring-sky-500 cursor-pointer"
                     />
-                    <div>
+                    <div className="flex-1">
                       <span className="font-bold text-xs block">Passadoria & Acabamento</span>
-                      <span className="text-[11px] opacity-75 block">Total de peças passadas e discriminação por cada operador passador.</span>
+                      <span className="text-[11px] opacity-75 block">Peças passadas no dia e discriminação por cada operador passador.</span>
                     </div>
                   </label>
 
                   {/* Financeiro */}
                   <label 
-                    onClick={() => toggleReportItem('financeiro')}
                     className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-start gap-3 select-none ${
                       settings.selectedReports?.includes('financeiro')
-                        ? 'bg-sky-500/10 border-sky-500/40 text-sky-950 dark:text-sky-200'
+                        ? 'bg-sky-500/10 border-sky-500/40 text-sky-950 dark:text-sky-200 shadow-xs'
                         : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
                     }`}
                   >
                     <input
                       type="checkbox"
                       checked={settings.selectedReports?.includes('financeiro')}
-                      onChange={() => {}}
-                      className="mt-0.5 w-4 h-4 text-sky-600 rounded focus:ring-sky-500"
+                      onChange={() => toggleReportItem('financeiro')}
+                      className="mt-0.5 w-4 h-4 text-sky-600 rounded focus:ring-sky-500 cursor-pointer"
                     />
-                    <div>
+                    <div className="flex-1">
                       <span className="font-bold text-xs block">Financeiro & Caixa</span>
-                      <span className="text-[11px] opacity-75 block">Faturamento do período, total recebido, total em aberto e ticket médio.</span>
-                    </div>
-                  </label>
-
-                  {/* Estoque */}
-                  <label 
-                    onClick={() => toggleReportItem('estoque')}
-                    className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-start gap-3 select-none ${
-                      settings.selectedReports?.includes('estoque')
-                        ? 'bg-sky-500/10 border-sky-500/40 text-sky-950 dark:text-sky-200'
-                        : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={settings.selectedReports?.includes('estoque')}
-                      onChange={() => {}}
-                      className="mt-0.5 w-4 h-4 text-sky-600 rounded focus:ring-sky-500"
-                    />
-                    <div>
-                      <span className="font-bold text-xs block">Estoque de Insumos</span>
-                      <span className="text-[11px] opacity-75 block">Alerta prioritário de produtos químicos abaixo da margem mínima de segurança.</span>
+                      <span className="text-[11px] opacity-75 block">Faturamento do dia, total recebido, total em aberto e ticket médio.</span>
                     </div>
                   </label>
                 </div>
@@ -1038,7 +1014,7 @@ export const SettingsView: React.FC = () => {
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                     <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
                       <input
                         type="checkbox"
@@ -1047,16 +1023,6 @@ export const SettingsView: React.FC = () => {
                         className="rounded text-sky-600 focus:ring-sky-500"
                       />
                       <span>Exibir valores em R$</span>
-                    </label>
-
-                    <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={settings.includeLowStockAlerts}
-                        onChange={e => setSettings({ ...settings, includeLowStockAlerts: e.target.checked })}
-                        className="rounded text-sky-600 focus:ring-sky-500"
-                      />
-                      <span>Alertas de Estoque</span>
                     </label>
 
                     <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
@@ -1160,52 +1126,40 @@ export const SettingsView: React.FC = () => {
                     <div>{reportPreview}</div>
                   ) : (
                     <div>
-                      {settings.reportHeaderText || '👔 *SYSMAUAD - Relatório Gerencial Automatizado*'}
-                      {'\n'}📅 *Período:* {settings.reportFrequency === 'semanal' ? 'Semanal' : settings.reportFrequency === 'mensal' ? 'Mensal' : 'Diário'} • {new Date().toLocaleDateString('pt-BR')} às {settings.reportSendTime}
+                      {settings.reportHeaderText || '*SYSMAUAD - RELATÓRIO DO DIA*'}
+                      {'\n'}Período: {settings.reportFrequency === 'semanal' ? 'Semanal' : settings.reportFrequency === 'mensal' ? 'Mensal' : 'Diário'} • {new Date().toLocaleDateString('pt-BR')} às {settings.reportSendTime}
                       {settings.selectedReports?.includes('producao') && (
                         <>
-                          {'\n\n'}📦 *PRODUÇÃO E LAVADOS*
-                          {'\n'}• Total de Pedidos Registrados: *4*
-                          {'\n'}• Em Andamento: *2* | Recebidos: *1*
-                          {'\n'}• Prontos: *1* | Entregues: *0*
-                          {'\n'}• Carga Total Processada: *180.5 Kg*
-                          {'\n'}• Volume Total Estimado: *610 peças*
+                          {'\n\n'}*PRODUÇÃO E LAVADOS*
+                          {'\n'}• Pedidos no dia: *4*
+                          {'\n'}• Status: *2* em andamento | *1* recebido | *1* pronto | *0* entregue
+                          {'\n'}• Carga processada: *180.5 Kg*
+                          {'\n'}• Volume estimado: *610 peças*
                         </>
                       )}
                       {settings.selectedReports?.includes('passadoria') && (
                         <>
-                          {'\n\n'}✨ *PASSADORIA & ACABAMENTO*
-                          {'\n'}• Total de Peças Passadas: *150 peças*
+                          {'\n\n'}*PASSADORIA E ACABAMENTO*
+                          {'\n'}• Peças passadas hoje: *150 peças* (R$ 22,50)
                           {settings.includeOperatorBreakdown && (
                             <>
-                              {'\n'}• Detalhado por Passador:
-                              {'\n'}   └ Passador Teste: *150* peças
+                              {'\n'}• Detalhado por passador:
+                              {'\n'}   - Passador Teste: *150* peças (R$ 22,50)
                             </>
                           )}
                         </>
                       )}
                       {settings.selectedReports?.includes('financeiro') && settings.includeFinancialValues && (
                         <>
-                          {'\n\n'}💰 *FINANCEIRO / CAIXA*
-                          {'\n'}• Faturamento Total: *R$ 2.450,00*
-                          {'\n'}• Recebido (Pago): *R$ 1.800,00*
-                          {'\n'}• A Receber (Em Aberto): *R$ 650,00*
-                          {'\n'}• Ticket Médio: *R$ 612,50*
+                          {'\n\n'}*FINANCEIRO / CAIXA*
+                          {'\n'}• Faturamento hoje: *R$ 2.450,00*
+                          {'\n'}• Recebido hoje: *R$ 1.800,00*
+                          {'\n'}• A receber hoje: *R$ 650,00*
+                          {'\n'}• Ticket médio hoje: *R$ 612,50*
                         </>
                       )}
-                      {settings.selectedReports?.includes('estoque') && (
-                        <>
-                          {'\n\n'}🧪 *ESTOQUE DE INSUMOS QUÍMICOS*
-                          {'\n'}• Itens Cadastrados: *12 produtos*
-                          {settings.includeLowStockAlerts && (
-                            <>
-                              {'\n'}• ✅ Todos os insumos estão acima da margem mínima.
-                            </>
-                          )}
-                        </>
-                      )}
-                      {'\n\n'}─────────────────────
-                      {'\n'}{settings.reportFooterText || 'Mauad Lavanderia • Sistema de Gestão Industrial'}
+                      {'\n\n'}----------------------------------------
+                      {'\n'}{settings.reportFooterText || 'Sistema • Mauad - Controle Operacional'}
                     </div>
                   )}
                 </div>

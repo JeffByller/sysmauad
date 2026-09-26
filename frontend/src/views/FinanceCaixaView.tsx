@@ -18,6 +18,7 @@ import {
   FileText,
   ShieldCheck,
   Eye,
+  EyeOff,
   AlertCircle
 } from 'lucide-react';
 import { Order } from '../types';
@@ -27,6 +28,14 @@ import { Pagination } from '../components/common/Pagination';
 export const FinanceCaixaView: React.FC = () => {
   const { orders, clients, payMultipleInvoiceOrders } = useOrders();
   const { user } = useAuth();
+
+  // Controle de visibilidade de dados sensíveis (oculto por padrão)
+  const [showValues, setShowValues] = useState<boolean>(false);
+
+  const formatMoney = (val: number, fallback = 'R$ •••••'): string => {
+    if (!showValues) return fallback;
+    return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  };
 
   const [searchTerm, setSearchTerm] = useState('');
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
@@ -289,8 +298,33 @@ export const FinanceCaixaView: React.FC = () => {
           </p>
         </div>
 
-        <div className="p-3 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 rounded-xl shrink-0">
-          <Wallet className="w-8 h-8" />
+        <div className="flex items-center gap-3 shrink-0">
+          <button
+            type="button"
+            onClick={() => setShowValues(prev => !prev)}
+            className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border shadow-xs select-none active:scale-95 ${
+              showValues
+                ? 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700'
+                : 'bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+            }`}
+            title={showValues ? 'Ocultar valores financeiros da tela' : 'Exibir valores financeiros na tela'}
+          >
+            {showValues ? (
+              <>
+                <EyeOff className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+                <span>Ocultar Valores</span>
+              </>
+            ) : (
+              <>
+                <Eye className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                <span>Exibir Valores</span>
+              </>
+            )}
+          </button>
+
+          <div className="p-3 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 rounded-xl">
+            <Wallet className="w-8 h-8" />
+          </div>
         </div>
       </div>
 
@@ -344,7 +378,7 @@ export const FinanceCaixaView: React.FC = () => {
             <Clock className="w-4 h-4 text-amber-500" />
           </div>
           <span className="text-2xl font-bold text-amber-600 dark:text-amber-400 font-mono block">
-            {reportTotalOpen.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            {formatMoney(reportTotalOpen)}
           </span>
           <span className="text-[11px] text-slate-400 font-mono mt-1 block">
             {reportOpenOrders.length} fatura(s) pendente(s)
@@ -358,7 +392,7 @@ export const FinanceCaixaView: React.FC = () => {
             <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
           </div>
           <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 font-mono block">
-            {reportTotalPaid.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            {formatMoney(reportTotalPaid)}
           </span>
           <span className="text-[11px] text-slate-400 font-mono mt-1 block">
             {reportPaidOrders.length} fatura(s) quitada(s)
@@ -372,7 +406,7 @@ export const FinanceCaixaView: React.FC = () => {
             <Tag className="w-4 h-4 text-sky-600 dark:text-sky-400" />
           </div>
           <span className="text-2xl font-bold text-sky-700 dark:text-sky-400 font-mono block">
-            {reportTotalDiscount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            {formatMoney(reportTotalDiscount)}
           </span>
           <span className="text-[11px] text-slate-400 font-mono mt-1 block">
             Abatimentos registrados
@@ -386,7 +420,7 @@ export const FinanceCaixaView: React.FC = () => {
             <Receipt className="w-4 h-4 text-slate-500" />
           </div>
           <span className="text-2xl font-bold text-slate-900 dark:text-slate-100 font-mono block">
-            {reportTotalGross.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            {formatMoney(reportTotalGross)}
           </span>
           <span className="text-[11px] text-slate-400 font-mono mt-1 block">
             {reportTotalPieces.toLocaleString('pt-BR')} peças ({reportTotalWeight.toFixed(1)} kg)
@@ -626,17 +660,17 @@ export const FinanceCaixaView: React.FC = () => {
                             {ord.items.map((it, idx) => (
                               <div key={idx} className="flex items-center gap-1">
                                 <span className="font-semibold text-slate-800 dark:text-slate-200">{it.process}:</span>
-                                <span>{ord.isRelavado ? 'R$ 0,00' : (it.unitPrice || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                <span>{ord.isRelavado ? 'R$ 0,00' : (showValues ? (it.unitPrice || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'R$ ••')}</span>
                               </div>
                             ))}
                             <div className="font-bold text-sky-700 dark:text-sky-400 text-[10px] pt-0.5 border-t border-slate-200 dark:border-slate-700">
-                              Total Nota: {ord.isRelavado ? 'R$ 0,00' : (ord.items.reduce((s, it) => s + (it.unitPrice || 0), 0)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                              Total Nota: {ord.isRelavado ? 'R$ 0,00' : (showValues ? (ord.items.reduce((s, it) => s + (it.unitPrice || 0), 0)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'R$ ••')}
                             </div>
                           </div>
                         ) : (
                           <span className="text-xs text-slate-600 dark:text-slate-400">
                             {ord.items[0]?.process || 'Lavado'}
-                            {ord.items[0]?.unitPrice ? ` (${(ord.items[0].unitPrice || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})` : ''}
+                            {ord.items[0]?.unitPrice ? (showValues ? ` (${(ord.items[0].unitPrice || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})` : ' (R$ ••)') : ''}
                           </span>
                         )}
                       </td>
@@ -644,7 +678,7 @@ export const FinanceCaixaView: React.FC = () => {
                         {(ord.totalWeightKg || 0).toFixed(1)} kg
                       </td>
                       <td className="p-3 text-right font-bold text-slate-900 dark:text-slate-100">
-                        {serviceVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        {formatMoney(serviceVal)}
                       </td>
                       <td className="p-3 text-center font-sans">
                         {isPaid ? (

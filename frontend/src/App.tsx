@@ -288,11 +288,11 @@ export const AppContent: React.FC = () => {
       {/* Footer */}
       <footer className="bg-slate-900 dark:bg-slate-950 border-t border-slate-800 py-6 text-center text-xs text-slate-400 no-print transition-colors">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>Mauad • Sistema de Lavanderia</span>
+          <span>Sistema • Mauad</span>
           <span className="font-mono text-slate-400">
             {['client-portal', 'client-login', 'client-signup'].includes(currentTab)
               ? 'Central do Assinante • Acompanhamento em Tempo Real'
-              : 'Controle Operacional & Insumos Químicos'}
+              : 'Controle Operacional'}
           </span>
         </div>
       </footer>

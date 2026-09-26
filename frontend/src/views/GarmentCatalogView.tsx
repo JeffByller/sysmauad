@@ -21,6 +21,7 @@ export const GarmentCatalogView: React.FC = () => {
   const [processName, setProcessName] = useState('');
   const [unitPriceInput, setUnitPriceInput] = useState('');
   const [refWeightInput, setRefWeightInput] = useState('');
+  const [corteOs, setCorteOs] = useState('');
   const [category, setCategory] = useState('');
   const [notes, setNotes] = useState('');
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -79,6 +80,7 @@ export const GarmentCatalogView: React.FC = () => {
     setProcessName('');
     setUnitPriceInput('');
     setRefWeightInput('');
+    setCorteOs('');
     setCategory('');
     setNotes('');
     setErrorMsg(null);
@@ -91,6 +93,7 @@ export const GarmentCatalogView: React.FC = () => {
     setProcessName(item.processName);
     setUnitPriceInput(formatToBRLInput(item.unitPrice));
     setRefWeightInput(item.defaultRefWeightGrams > 0 ? String(item.defaultRefWeightGrams) : '');
+    setCorteOs(item.corteOs || '');
     setCategory(item.category || '');
     setNotes(item.notes || '');
     setErrorMsg(null);
@@ -137,6 +140,7 @@ export const GarmentCatalogView: React.FC = () => {
         processName: processName.trim(),
         unitPrice: priceNum,
         defaultRefWeightGrams: weightNum,
+        corteOs: corteOs.trim() || undefined,
         category: category.trim() || 'Geral',
         notes: notes.trim()
       });
@@ -147,6 +151,7 @@ export const GarmentCatalogView: React.FC = () => {
         processName: processName.trim(),
         unitPrice: priceNum,
         defaultRefWeightGrams: weightNum,
+        corteOs: corteOs.trim() || undefined,
         category: category.trim() || 'Geral',
         notes: notes.trim()
       });
@@ -169,6 +174,7 @@ export const GarmentCatalogView: React.FC = () => {
     return (
       item.clothingType.toLowerCase().includes(term) ||
       item.processName.toLowerCase().includes(term) ||
+      (item.corteOs && item.corteOs.toLowerCase().includes(term)) ||
       (item.category && item.category.toLowerCase().includes(term))
     );
   });
@@ -318,6 +324,23 @@ export const GarmentCatalogView: React.FC = () => {
                   </span>
                 </div>
 
+                {/* Corte / O.S. (Ref. Confecção) */}
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
+                    Corte / O.S. (Ref. Confecção)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ex: 014, CRT-2026, 4520..."
+                    value={corteOs}
+                    onChange={e => setCorteOs(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono"
+                  />
+                  <span className="text-[11px] text-slate-400 mt-1 block">
+                    Puxado automaticamente ao lançar pedidos com esta peça
+                  </span>
+                </div>
+
                 {/* Categoria */}
                 <div>
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
@@ -330,10 +353,13 @@ export const GarmentCatalogView: React.FC = () => {
                     onChange={e => setCategory(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
                   />
+                  <span className="text-[11px] text-slate-400 mt-1 block">
+                    Classificação interna do item
+                  </span>
                 </div>
 
                 {/* Observações */}
-                <div>
+                <div className="sm:col-span-2">
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
                     Observações / Notas
                   </label>
@@ -415,7 +441,12 @@ export const GarmentCatalogView: React.FC = () => {
                     title="Duplo clique para editar este item"
                   >
                     <td className="p-4 font-bold text-slate-900 dark:text-slate-100">
-                      {item.clothingType}
+                      <div>{item.clothingType}</div>
+                      {item.corteOs && (
+                        <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 font-mono text-[10px] font-medium border border-amber-200 dark:border-amber-800/50">
+                          Corte / Ref: {item.corteOs}
+                        </span>
+                      )}
                     </td>
                     <td className="p-4 font-medium text-slate-700 dark:text-slate-300">
                       {item.processName}

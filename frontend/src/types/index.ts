@@ -42,6 +42,7 @@ export interface GarmentProcessCatalogItem {
   processName: string;
   unitPrice: number;            // R$ por peça
   defaultRefWeightGrams: number;// Gramas por peça de referência
+  corteOs?: string;             // Referência ou Corte padrão da confecção (ex: "0418")
   category?: string;
   notes?: string;
 }
