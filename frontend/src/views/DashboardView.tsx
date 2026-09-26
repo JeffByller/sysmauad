@@ -110,14 +110,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="max-w-7xl 2xl:max-w-[1536px] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-5 space-y-3.5 sm:space-y-4">
       {/* Welcome & Action Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
         <div>
-          <span className="text-xs font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 block mb-1">
+          <span className="text-xs font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 block mb-0.5">
             Painel Operacional da Produção
           </span>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
             Olá, {user?.name || 'Gilmário'}
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -128,7 +128,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => onNavigate('new-order')}
-            className="px-4 py-2.5 bg-sky-700 hover:bg-sky-800 text-white font-semibold rounded-xl text-xs transition-colors shadow-sm flex items-center gap-2"
+            className="px-3.5 py-2 bg-sky-700 hover:bg-sky-800 text-white font-semibold rounded-xl text-xs transition-colors shadow-sm flex items-center gap-2"
           >
             <PlusCircle className="w-4 h-4" />
             Novo Pedido
@@ -136,7 +136,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
 
           <button
             onClick={onOpenScanner}
-            className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold rounded-xl text-xs transition-colors shadow-sm flex items-center gap-2"
+            className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold rounded-xl text-xs transition-colors shadow-sm flex items-center gap-2"
           >
             <QrCode className="w-4 h-4" />
             Bipar Passagem
@@ -144,7 +144,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
 
           <button
             onClick={() => onNavigate('stock')}
-            className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-semibold rounded-xl text-xs transition-colors shadow-sm flex items-center gap-2 border border-slate-700"
+            className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold rounded-xl text-xs transition-colors shadow-sm flex items-center gap-2 border border-slate-700"
           >
             <Package className="w-4 h-4" />
             Estoque Insumos
@@ -156,11 +156,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
       {stalledOrdersCount > 0 && (
         <div 
           onClick={() => onNavigate('orders')}
-          className="bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-400 dark:border-amber-600 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-amber-950 dark:text-amber-200 shadow-sm cursor-pointer hover:bg-amber-100/80 dark:hover:bg-amber-900/60 transition-colors animate-in fade-in duration-200"
+          className="bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-400 dark:border-amber-600 rounded-xl p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 text-amber-950 dark:text-amber-200 shadow-sm cursor-pointer hover:bg-amber-100/80 dark:hover:bg-amber-900/60 transition-colors animate-in fade-in duration-200"
         >
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-xl shrink-0">
-              <AlertTriangle className="w-5 h-5" />
+            <div className="p-2 bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-lg shrink-0">
+              <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -178,7 +178,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
           </div>
           <button
             type="button"
-            className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-colors whitespace-nowrap self-start sm:self-auto shadow-sm"
+            className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-colors whitespace-nowrap self-start sm:self-auto shadow-sm"
           >
             Ver Pedidos Parados ({stalledOrdersCount})
           </button>
@@ -186,7 +186,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
       )}
 
       {/* Time Period Filter Bar */}
-      <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
+      <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-2.5 sm:p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
         <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
           <CalendarDays className="w-4 h-4 text-sky-600 dark:text-sky-400" />
           <span>Filtrar Produção por Período:</span>
@@ -195,7 +195,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
         <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
           <button
             onClick={() => setTimePeriod('dia')}
-            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`px-3 sm:px-4 py-1 rounded-lg text-xs font-bold transition-all ${
               timePeriod === 'dia' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
             }`}
           >
@@ -203,7 +203,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
           </button>
           <button
             onClick={() => setTimePeriod('semana')}
-            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`px-3 sm:px-4 py-1 rounded-lg text-xs font-bold transition-all ${
               timePeriod === 'semana' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
             }`}
           >
@@ -211,7 +211,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
           </button>
           <button
             onClick={() => setTimePeriod('mes')}
-            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`px-3 sm:px-4 py-1 rounded-lg text-xs font-bold transition-all ${
               timePeriod === 'mes' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
             }`}
           >
@@ -221,49 +221,49 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
       </div>
 
       {/* Operational Metrics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-3.5">
+        <div className="bg-white dark:bg-slate-900 p-3.5 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1.5">
             <span className="text-xs font-semibold uppercase tracking-wider">Pedidos ({timePeriod})</span>
             <Clock className="w-4 h-4 text-sky-600 dark:text-sky-400" />
           </div>
-          <span className="text-3xl font-bold text-slate-900 dark:text-slate-100 font-mono">{totalOrdersCount}</span>
-          <span className="text-[11px] text-slate-400 block mt-1">Lotes no período</span>
+          <span className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 font-mono">{totalOrdersCount}</span>
+          <span className="text-[10px] sm:text-[11px] text-slate-400 block mt-0.5">Lotes no período</span>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
+        <div className="bg-white dark:bg-slate-900 p-3.5 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1.5">
             <span className="text-xs font-semibold uppercase tracking-wider">Peso Total</span>
             <Scale className="w-4 h-4 text-sky-600 dark:text-sky-400" />
           </div>
-          <span className="text-3xl font-bold text-slate-900 dark:text-slate-100 font-mono">{totalKgCount.toFixed(1)} <span className="text-lg">kg</span></span>
-          <span className="text-[11px] text-slate-400 block mt-1">Volume lavado</span>
+          <span className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 font-mono">{totalKgCount.toFixed(1)} <span className="text-base sm:text-lg">kg</span></span>
+          <span className="text-[10px] sm:text-[11px] text-slate-400 block mt-0.5">Volume lavado</span>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
+        <div className="bg-white dark:bg-slate-900 p-3.5 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1.5">
             <span className="text-xs font-semibold uppercase tracking-wider">Peças Passadas</span>
             <Shirt className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
           </div>
-          <span className="text-3xl font-bold text-slate-900 dark:text-slate-100 font-mono">{totalIronedCount}</span>
-          <span className="text-[11px] text-slate-400 block mt-1">Total passado</span>
+          <span className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 font-mono">{totalIronedCount}</span>
+          <span className="text-[10px] sm:text-[11px] text-slate-400 block mt-0.5">Total passado</span>
         </div>
 
         {/* Stalled Orders Card */}
         <div
           onClick={() => onNavigate('orders', 'paradas')}
-          className={`p-5 rounded-xl border shadow-sm cursor-pointer transition-colors ${
+          className={`p-3.5 sm:p-4 rounded-xl border shadow-sm cursor-pointer transition-colors ${
             stalledOrdersCount > 0 
               ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 hover:bg-amber-100/80 dark:hover:bg-amber-900/60' 
               : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
           }`}
         >
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1.5">
             <span className="text-xs font-semibold uppercase tracking-wider text-amber-900 dark:text-amber-400">OS Paradas (≥{stalledOrderAlertDays || 3}d)</span>
             <AlertTriangle className={`w-4 h-4 ${stalledOrdersCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400'}`} />
           </div>
-          <span className="text-3xl font-bold font-mono text-slate-900 dark:text-slate-100">{stalledOrdersCount}</span>
-          <span className="text-[11px] text-amber-800 dark:text-amber-300 font-medium block mt-1">
+          <span className="text-2xl sm:text-3xl font-bold font-mono text-slate-900 dark:text-slate-100">{stalledOrdersCount}</span>
+          <span className="text-[10px] sm:text-[11px] text-amber-800 dark:text-amber-300 font-medium block mt-0.5">
             {stalledOrdersCount > 0 ? 'Atenção necessária' : 'Tudo em dia'}
           </span>
         </div>
@@ -271,29 +271,29 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
         {/* Low Stock Alert Metric */}
         <div
           onClick={() => onNavigate('stock')}
-          className={`p-5 rounded-xl border shadow-sm cursor-pointer transition-colors ${
+          className={`p-3.5 sm:p-4 rounded-xl border shadow-sm cursor-pointer transition-colors ${
             lowStockCount > 0 
               ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 hover:bg-rose-100/80 dark:hover:bg-rose-900/60' 
               : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
           }`}
         >
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1.5">
             <span className="text-xs font-semibold uppercase tracking-wider text-rose-900 dark:text-rose-400">Estoque Insumos</span>
             <AlertTriangle className={`w-4 h-4 ${lowStockCount > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400'}`} />
           </div>
-          <span className="text-3xl font-bold font-mono text-slate-900 dark:text-slate-100">{lowStockCount}</span>
-          <span className="text-[11px] text-rose-800 dark:text-rose-300 font-medium block mt-1">
+          <span className="text-2xl sm:text-3xl font-bold font-mono text-slate-900 dark:text-slate-100">{lowStockCount}</span>
+          <span className="text-[10px] sm:text-[11px] text-rose-800 dark:text-rose-300 font-medium block mt-0.5">
             {lowStockCount > 0 ? 'Insumos acabando!' : 'Estoque regular'}
           </span>
         </div>
       </div>
 
       {/* Status Bar / Filter Tabs */}
-      <div className="bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between overflow-x-auto gap-2 text-xs transition-colors">
+      <div className="bg-white dark:bg-slate-900 p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1.5 text-xs transition-colors">
         <button
           onClick={() => setSelectedStatusFilter('todos')}
-          className={`px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-1.5 whitespace-nowrap ${
-            selectedStatusFilter === 'todos' ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+          className={`px-3 py-2 rounded-lg font-semibold transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap text-center ${
+            selectedStatusFilter === 'todos' ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
         >
           Todos ({periodFilteredOrders.length})
@@ -301,8 +301,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
 
         <button
           onClick={() => setSelectedStatusFilter('recebido')}
-          className={`px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-1.5 whitespace-nowrap ${
-            selectedStatusFilter === 'recebido' ? 'bg-slate-700 text-white' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+          className={`px-3 py-2 rounded-lg font-semibold transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap text-center ${
+            selectedStatusFilter === 'recebido' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
         >
           1. Pedido Feito ({statusCounts.recebido})
@@ -310,8 +310,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
 
         <button
           onClick={() => setSelectedStatusFilter('em_andamento')}
-          className={`px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-1.5 whitespace-nowrap ${
-            selectedStatusFilter === 'em_andamento' ? 'bg-sky-700 text-white' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+          className={`px-3 py-2 rounded-lg font-semibold transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap text-center ${
+            selectedStatusFilter === 'em_andamento' ? 'bg-sky-700 text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
         >
           2. Em Andamento ({statusCounts.em_andamento})
@@ -319,8 +319,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
 
         <button
           onClick={() => setSelectedStatusFilter('pronto')}
-          className={`px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-1.5 whitespace-nowrap ${
-            selectedStatusFilter === 'pronto' ? 'bg-emerald-700 text-white' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+          className={`px-3 py-2 rounded-lg font-semibold transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap text-center ${
+            selectedStatusFilter === 'pronto' ? 'bg-emerald-700 text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
         >
           3. Pronto ({statusCounts.pronto})
@@ -328,8 +328,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
 
         <button
           onClick={() => setSelectedStatusFilter('entregue')}
-          className={`px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-1.5 whitespace-nowrap ${
-            selectedStatusFilter === 'entregue' ? 'bg-slate-800 text-white' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+          className={`px-3 py-2 rounded-lg font-semibold transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap text-center ${
+            selectedStatusFilter === 'entregue' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
         >
           4. Entregue ({statusCounts.entregue})
@@ -338,14 +338,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
 
       {/* Orders Operational Cards / Table */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition-colors">
-        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+        <div className="px-4 sm:px-5 py-3 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
           <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Fila de Pedidos em Produção</h3>
           <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">Exibindo {finalOrders.length} pedido(s)</span>
         </div>
 
         <div className="divide-y divide-slate-200 dark:divide-slate-800">
           {finalOrders.length === 0 ? (
-            <div className="p-12 text-center text-slate-500 dark:text-slate-400 text-sm">
+            <div className="p-8 text-center text-slate-500 dark:text-slate-400 text-sm">
               Nenhum pedido encontrado no período ({timePeriod}) e status selecionados.
             </div>
           ) : (
@@ -353,10 +353,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
               <div 
                 key={ord.id} 
                 onDoubleClick={() => onNavigate('order-detail', ord.id)}
-                className="p-6 hover:bg-slate-100/70 dark:hover:bg-slate-800/60 transition-colors space-y-4 cursor-pointer select-none"
+                className="p-4 sm:p-4.5 hover:bg-slate-100/70 dark:hover:bg-slate-800/60 transition-colors space-y-2.5 cursor-pointer select-none"
                 title="Duplo clique para abrir e editar este pedido"
               >
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
                   {/* Left Column: OS & Client */}
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -381,22 +381,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
                         {new Date(ord.createdAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
                       </span>
                     </div>
-                    <h4 className="font-semibold text-slate-900 dark:text-slate-100 text-sm mt-1">{ord.clientName}</h4>
+                    <h4 className="font-semibold text-slate-900 dark:text-slate-100 text-sm mt-0.5">{ord.clientName}</h4>
                     <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">{ord.clientPhone}</p>
                   </div>
 
                   {/* Middle Column: Weights & Pieces */}
-                  <div className="bg-slate-50 dark:bg-slate-800/80 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700/80 flex items-center gap-6 text-xs">
+                  <div className="bg-slate-50 dark:bg-slate-800/80 px-3.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700/80 flex items-center gap-4 sm:gap-5 text-xs">
                     <div>
                       <span className="text-slate-400 dark:text-slate-500 block text-[10px] uppercase font-mono">Peça Ref.</span>
                       <strong className="text-slate-800 dark:text-slate-200 font-mono text-sm">{ord.refPieceWeightGrams}g</strong>
                     </div>
-                    <div className="h-6 w-px bg-slate-200 dark:bg-slate-700"></div>
+                    <div className="h-5 w-px bg-slate-200 dark:bg-slate-700"></div>
                     <div>
                       <span className="text-slate-400 dark:text-slate-500 block text-[10px] uppercase font-mono">Peso Total</span>
                       <strong className="text-slate-800 dark:text-slate-200 font-mono text-sm">{ord.totalWeightKg} kg</strong>
                     </div>
-                    <div className="h-6 w-px bg-slate-200 dark:bg-slate-700"></div>
+                    <div className="h-5 w-px bg-slate-200 dark:bg-slate-700"></div>
                     <div>
                       <span className="text-slate-400 dark:text-slate-500 block text-[10px] uppercase font-mono">Peças Est.</span>
                       <strong className="text-sky-700 dark:text-sky-400 font-mono text-sm">{ord.estimatedPieceCount} pçs</strong>
@@ -456,7 +456,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
                 </div>
 
                 {/* Items & Passadoria Status Row */}
-                <div className="flex flex-wrap items-center justify-between text-xs text-slate-600 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-800/30 p-3 rounded-lg border border-slate-100 dark:border-slate-800 gap-2">
+                <div className="flex flex-wrap items-center justify-between text-xs text-slate-600 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-800/30 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800 gap-2">
                   <div>
                     <strong className="text-slate-800 dark:text-slate-200">Processo:</strong> {ord.items.map(i => `${i.clothingType} (${i.process})`).join(', ')}
                   </div>

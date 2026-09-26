@@ -123,7 +123,7 @@ export const AppContent: React.FC = () => {
     setCurrentTab('passador-mobile');
   };
 
-  // Ao pressionar ESC: fecha modal ativo ou fecha a aba aberta voltando ao dashboard
+  // Ao pressionar ESC: fecha modais globais ativos (scanner, marcar pronto) sem desviar a rota
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -135,16 +135,12 @@ export const AppContent: React.FC = () => {
           closeMarkReadyModal();
           return;
         }
-        const publicTabs = ['login', 'client-login', 'client-signup', 'client-portal', 'dashboard'];
-        if (!publicTabs.includes(currentTab)) {
-          handleNavigate('dashboard');
-        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isScannerOpen, markReadyOrder, currentTab]);
+  }, [isScannerOpen, markReadyOrder]);
 
   // Bloqueio de acesso: se não estiver autenticado no sistema nem for tela pública de cliente, exibe login
   if (!user && currentTab !== 'client-login' && currentTab !== 'client-signup' && currentTab !== 'client-portal') {

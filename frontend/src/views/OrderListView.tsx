@@ -51,6 +51,18 @@ export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
     setCurrentPage(1);
   }, [searchTerm, statusFilter]);
 
+  // Fecha modais de saída e edição de peso ao pressionar ESC
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setClosingSaidaOrder(null);
+        setEditingOrder(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const handleConfirmSaida = async () => {
     if (!closingSaidaOrder) return;
     setIsCompletingDelivery(true);

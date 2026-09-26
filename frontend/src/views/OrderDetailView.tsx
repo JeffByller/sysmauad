@@ -80,6 +80,33 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
   const alertThreshold = stalledOrderAlertDays > 0 ? stalledOrderAlertDays : 3;
   const isStalled = order && order.status !== 'entregue' && diffDays >= alertThreshold;
 
+  // Fecha modais ativos ao pressionar ESC ou volta à listagem se nenhum modal estiver aberto
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (isSaidaModalOpen) {
+          setIsSaidaModalOpen(false);
+          return;
+        }
+        if (isEditServicesModalOpen) {
+          setIsEditServicesModalOpen(false);
+          return;
+        }
+        if (isEditWeightModalOpen) {
+          setIsEditWeightModalOpen(false);
+          return;
+        }
+        if (isRelavadoModalOpen) {
+          setIsRelavadoModalOpen(false);
+          return;
+        }
+        onBack();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isSaidaModalOpen, isEditServicesModalOpen, isEditWeightModalOpen, isRelavadoModalOpen, onBack]);
+
   const handleOpenEditWeight = () => {
     if (!order) return;
     setEditWeightKg(order.totalWeightKg);
@@ -588,7 +615,7 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
                     ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
                     : 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
                 }`}>
-                  {order.paymentStatus === 'pago' ? 'Pago / Quitado' : 'Em Aberto'}
+                  {order.paymentStatus === 'pago' ? 'Pago / Quitado' : 'Aberto'}
                 </span>
               </div>
             </div>

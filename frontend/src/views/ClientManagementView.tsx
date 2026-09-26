@@ -1081,7 +1081,7 @@ export const ClientManagementView: React.FC = () => {
                                       ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' 
                                       : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
                                   }`}>
-                                    {o.paymentStatus === 'pago' ? 'PAGO' : 'EM ABERTO'}
+                                    {o.paymentStatus === 'pago' ? 'PAGO' : 'ABERTO'}
                                   </span>
                                 </td>
                                 <td className="p-3 text-right font-bold text-slate-900 dark:text-slate-100">

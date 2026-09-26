@@ -51,6 +51,18 @@ export const FinanceCaixaView: React.FC = () => {
     setCurrentPage(1);
   }, [startDate, endDate, reportStatusFilter, searchTerm]);
 
+  // Fecha modais do financeiro ao pressionar ESC
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsUnifiedPayModalOpen(false);
+        setSelectedOrderForHistory(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   // Ajusta período rápido
   const setQuickPeriod = (preset: 'hoje' | 'semana' | 'mes') => {
     setPeriodPreset(preset);
@@ -328,7 +340,7 @@ export const FinanceCaixaView: React.FC = () => {
         {/* Card 1: A Receber */}
         <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">A Receber (Em Aberto)</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">A Receber (Aberto)</span>
             <Clock className="w-4 h-4 text-amber-500" />
           </div>
           <span className="text-2xl font-bold text-amber-600 dark:text-amber-400 font-mono block">
@@ -419,7 +431,7 @@ export const FinanceCaixaView: React.FC = () => {
                 className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-sm"
               >
                 <option value="todos">Todas as Faturas ({orders.length})</option>
-                <option value="aberto">Apenas Em Aberto ({orders.filter(o => (o.paymentStatus || 'aberto') === 'aberto').length})</option>
+                <option value="aberto">Apenas Aberto ({orders.filter(o => (o.paymentStatus || 'aberto') === 'aberto').length})</option>
                 <option value="pago">Apenas Pagas ({orders.filter(o => o.paymentStatus === 'pago').length})</option>
               </select>
             </div>
@@ -641,7 +653,7 @@ export const FinanceCaixaView: React.FC = () => {
                           </span>
                         ) : (
                           <span className="px-2.5 py-0.5 bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 rounded-md text-[11px] font-semibold border border-amber-200 dark:border-amber-800">
-                            EM ABERTO
+                            ABERTO
                           </span>
                         )}
                       </td>
@@ -757,7 +769,7 @@ export const FinanceCaixaView: React.FC = () => {
               <th className="border border-black p-1.5 text-left">Nº OS</th>
               {!filteredClient && <th className="border border-black p-1.5 text-left">Cliente</th>}
               <th className="border border-black p-1.5 text-left">Ref / Corte</th>
-              <th className="border border-black p-1.5 text-left">Quantidade & Lavagem</th>
+              <th className="border border-black p-1.5 text-left">Processo / Serviços</th>
               <th className="border border-black p-1.5 text-right">Peças</th>
               <th className="border border-black p-1.5 text-right">Peso (kg)</th>
               <th className="border border-black p-1.5 text-right">Valor R$</th>
@@ -765,40 +777,49 @@ export const FinanceCaixaView: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            {reportOrders.map(ord => (
-              <tr key={ord.id} className="border-b border-slate-300">
-                <td className="border border-black p-1.5 font-mono">{new Date(ord.createdAt).toLocaleDateString('pt-BR')}</td>
-                <td className="border border-black p-1.5 font-mono font-bold">{ord.osNumber}</td>
-                {!filteredClient && <td className="border border-black p-1.5">{ord.clientName}</td>}
-                <td className="border border-black p-1.5 font-mono">
-                  <div>{ord.estimatedPieceCount} pçs</div>
-                  {ord.items.length > 1 ? (
-                    <div className="text-[10px] text-slate-800 space-y-0.5 mt-0.5">
-                      {ord.items.map((it, idx) => (
-                        <div key={idx}>
-                          • {it.process}: {ord.isRelavado ? 'R$ 0,00' : (it.unitPrice || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            {reportOrders.map(ord => {
+              const corte = ord.corteOs || ord.items.find(i => i.corteOs)?.corteOs || '—';
+              const isPaid = ord.paymentStatus === 'pago';
+              return (
+                <tr key={ord.id} className="border-b border-slate-300">
+                  <td className="border border-black p-1.5 font-mono">{new Date(ord.createdAt).toLocaleDateString('pt-BR')}</td>
+                  <td className="border border-black p-1.5 font-mono font-bold">{ord.osNumber}</td>
+                  {!filteredClient && <td className="border border-black p-1.5 font-sans">{ord.clientName}</td>}
+                  <td className="border border-black p-1.5 font-mono">{corte}</td>
+                  <td className="border border-black p-1.5 font-sans">
+                    {ord.items.length > 1 ? (
+                      <div className="text-[10px] text-slate-800 space-y-0.5">
+                        {ord.items.map((it, idx) => (
+                          <div key={idx}>
+                            • {it.process}: {ord.isRelavado ? 'R$ 0,00' : (it.unitPrice || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </div>
+                        ))}
+                        <div className="font-bold border-t border-slate-400 pt-0.5">
+                          Total Unit.: {ord.isRelavado ? 'R$ 0,00' : (ord.items.reduce((s, it) => s + (it.unitPrice || 0), 0)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                         </div>
-                      ))}
-                      <div className="font-bold border-t border-slate-400 pt-0.5">
-                        Total Nota: {ord.isRelavado ? 'R$ 0,00' : (ord.items.reduce((s, it) => s + (it.unitPrice || 0), 0)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                       </div>
-                    </div>
-                  ) : (
-                    <div className="text-[10px] text-slate-700">
-                      {ord.items[0]?.process || 'Lavado'}
-                      {ord.items[0]?.unitPrice ? ` (${(ord.items[0].unitPrice || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})` : ''}
-                    </div>
-                  )}
-                </td>
-                <td className="border border-black p-1.5 text-right font-mono">{(ord.totalWeightKg || 0).toFixed(1)}</td>
-                <td className="border border-black p-1.5 text-right font-mono font-bold">
-                  {(ord.totalServiceValue || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                </td>
-                <td className="border border-black p-1.5 text-center font-bold">
-                  {ord.paymentStatus === 'pago' ? 'PAGO' : 'A RECEBER'}
-                </td>
-              </tr>
-            ))}
+                    ) : (
+                      <div className="text-[10px] text-slate-700">
+                        {ord.items[0]?.process || 'Lavado'}
+                        {ord.items[0]?.unitPrice ? ` (${(ord.items[0].unitPrice || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})` : ''}
+                      </div>
+                    )}
+                  </td>
+                  <td className="border border-black p-1.5 text-right font-mono font-bold">
+                    {(ord.estimatedPieceCount || 0).toLocaleString('pt-BR')}
+                  </td>
+                  <td className="border border-black p-1.5 text-right font-mono">
+                    {(ord.totalWeightKg || 0).toFixed(1)}
+                  </td>
+                  <td className="border border-black p-1.5 text-right font-mono font-bold">
+                    {(ord.totalServiceValue || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </td>
+                  <td className="border border-black p-1.5 text-center font-bold">
+                    {isPaid ? 'PAGO' : 'ABERTO'}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
 
@@ -1112,7 +1133,7 @@ export const FinanceCaixaView: React.FC = () => {
                       ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
                       : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
                   }`}>
-                    {selectedOrderForHistory.paymentStatus === 'pago' ? 'PAGO / QUITADO' : 'EM ABERTO'}
+                    {selectedOrderForHistory.paymentStatus === 'pago' ? 'PAGO / QUITADO' : 'ABERTO'}
                   </span>
                 </div>
               </div>
