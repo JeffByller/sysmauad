@@ -25,7 +25,7 @@ import { getDatePresets, getLocalDateString } from '../utils/dateUtils';
 import { Pagination } from '../components/common/Pagination';
 
 export const FinanceCaixaView: React.FC = () => {
-  const { orders, clients, payMultipleInvoiceOrders, auditViewBoleto } = useOrders();
+  const { orders, clients, payMultipleInvoiceOrders } = useOrders();
   const { user } = useAuth();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -35,9 +35,8 @@ export const FinanceCaixaView: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<number>(1);
   const PAGE_SIZE = 20;
 
-  // Estados para Auditoria & Histórico e Visualização de Boleto
+  // Estados para Auditoria & Histórico Financeiro
   const [selectedOrderForHistory, setSelectedOrderForHistory] = useState<Order | null>(null);
-  const [selectedOrderForBoleto, setSelectedOrderForBoleto] = useState<Order | null>(null);
 
   // ─── PERÍODO & DATAS (Fuso Horário America/Sao_Paulo) ─────────────────────────
   const { todayStr, firstDayOfMonth, lastDayOfMonth, sevenDaysAgo } = useMemo(() => getDatePresets(), []);
@@ -167,8 +166,7 @@ export const FinanceCaixaView: React.FC = () => {
   const [isUnifiedPayModalOpen, setIsUnifiedPayModalOpen] = useState(false);
   const [unifiedDiscountType, setUnifiedDiscountType] = useState<'fixed' | 'pct'>('fixed');
   const [unifiedDiscountValue, setUnifiedDiscountValue] = useState<number>(0);
-  const [unifiedPaymentMethod, setUnifiedPaymentMethod] = useState<string>('boleto');
-  const [unifiedDocRef, setUnifiedDocRef] = useState<string>('');
+  const [unifiedPaymentMethod, setUnifiedPaymentMethod] = useState<string>('pix');
   const [unifiedReceiverName, setUnifiedReceiverName] = useState<string>('');
   const [unifiedNotes, setUnifiedNotes] = useState<string>('');
 
@@ -204,7 +202,7 @@ export const FinanceCaixaView: React.FC = () => {
     }
   };
 
-  // Abrir Modal de Baixa em Todos
+  // Abrir Modal de Baixa
   const handleOpenUnifiedPayModal = () => {
     // Se nenhuma estiver marcada, seleciona todas as abertas do filtro
     if (selectedOrdersToPay.length === 0) {
@@ -213,8 +211,18 @@ export const FinanceCaixaView: React.FC = () => {
     }
     setUnifiedDiscountValue(0);
     setUnifiedDiscountType('fixed');
-    setUnifiedPaymentMethod('boleto');
-    setUnifiedDocRef('');
+    setUnifiedPaymentMethod('pix');
+    setUnifiedReceiverName(user?.name || 'Ana (Financeiro)');
+    setUnifiedNotes('');
+    setIsUnifiedPayModalOpen(true);
+  };
+
+  // Abrir Modal de Baixa para uma OS individual
+  const handleOpenSinglePayModal = (ord: Order) => {
+    setSelectedOrderIdsForUnifiedPay([ord.id]);
+    setUnifiedDiscountValue(0);
+    setUnifiedDiscountType('fixed');
+    setUnifiedPaymentMethod('pix');
     setUnifiedReceiverName(user?.name || 'Ana (Financeiro)');
     setUnifiedNotes('');
     setIsUnifiedPayModalOpen(true);
@@ -234,29 +242,17 @@ export const FinanceCaixaView: React.FC = () => {
       discount,
       unifiedPaymentMethod,
       operator,
-      unifiedDocRef.trim() || undefined,
+      undefined,
       receiver,
       unifiedNotes.trim() || undefined
     );
 
     setFeedbackMsg(
-      `Baixa confirmada com sucesso! ${ordersToExecute.length} OSs quitadas no valor total de ${unifiedFinalPayAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} (${unifiedPaymentMethod.toUpperCase()}).`
+      `Baixa confirmada com sucesso! ${ordersToExecute.length} OSs quitadas no valor total de ${unifiedFinalPayAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} (${unifiedPaymentMethod.toUpperCase()}). Recebido por: ${receiver}.`
     );
     setIsUnifiedPayModalOpen(false);
     setSelectedOrderIdsForUnifiedPay([]);
     setTimeout(() => setFeedbackMsg(null), 5000);
-  };
-
-  // Abrir Boleto (Aberto ou Pago) com auditoria
-  const handleOpenBoleto = (ord: Order) => {
-    setSelectedOrderForBoleto(ord);
-    auditViewBoleto({
-      boletoRef: ord.docRef || `Boleto-OS-${ord.osNumber}`,
-      orderIds: [ord.id],
-      osNumbers: [ord.osNumber],
-      clientName: ord.clientName,
-      userName: user?.name || 'Operador Financeiro'
-    });
   };
 
   const handlePrint = () => {
@@ -642,19 +638,17 @@ export const FinanceCaixaView: React.FC = () => {
                             <History className="w-4 h-4" />
                           </button>
 
-                          {/* Botão de Boleto (Aberto ou Pago) */}
-                          <button
-                            type="button"
-                            onClick={() => handleOpenBoleto(ord)}
-                            className={`p-1.5 rounded-lg transition-colors ${
-                              isPaid
-                                ? 'text-emerald-700 hover:text-emerald-900 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/60'
-                                : 'text-sky-700 hover:text-sky-900 hover:bg-sky-50 dark:text-sky-400 dark:hover:bg-slate-800'
-                            }`}
-                            title={isPaid ? 'Abrir Boleto Já Pago (Documento Histórico)' : 'Visualizar Boleto / Fatura'}
-                          >
-                            <FileText className="w-4 h-4" />
-                          </button>
+                          {/* Ação Rápida de Baixa Individual se estiver em aberto */}
+                          {!isPaid && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenSinglePayModal(ord)}
+                              className="p-1.5 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/60 rounded-lg transition-colors"
+                              title="Dar baixa nesta OS"
+                            >
+                              <CheckCircle2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -798,11 +792,8 @@ export const FinanceCaixaView: React.FC = () => {
             </div>
             <div className="grid grid-cols-2 gap-2 pt-0.5 text-[10px]">
               <div>
-                <span><strong>Quem Recebeu:</strong> {reportPaidOrders[0].receiverName || reportPaidOrders[0].paidByOperator || 'Departamento Financeiro'}</span>
+                <span><strong>Quem Recebeu o Pagamento:</strong> {reportPaidOrders[0].receiverName || reportPaidOrders[0].paidByOperator || 'Departamento Financeiro'}</span>
                 <span className="block"><strong>Forma de Pagamento:</strong> {(reportPaidOrders[0].paymentMethod || 'QUITADO').toUpperCase()}</span>
-                {reportPaidOrders[0].docRef && (
-                  <span className="block"><strong>Doc / Boleto Ref:</strong> {reportPaidOrders[0].docRef}</span>
-                )}
               </div>
               <div>
                 <span><strong>Data da Quitação:</strong> {reportPaidOrders[0].paidAt ? new Date(reportPaidOrders[0].paidAt).toLocaleDateString('pt-BR') : 'Registrado'} {reportPaidOrders[0].paidAt ? `às ${new Date(reportPaidOrders[0].paidAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : ''}</span>
@@ -818,11 +809,15 @@ export const FinanceCaixaView: React.FC = () => {
         {/* Assinatura */}
         <div className="pt-8 grid grid-cols-2 gap-8 text-center text-[10px]">
           <div>
-            <div className="border-t border-black pt-1">MAUAD LAVANDERIA INDUSTRIAL</div>
-            <span className="text-slate-500">Departamento Financeiro</span>
+            <div className="border-t border-black pt-1 font-bold">
+              {reportPaidOrders.length > 0 && reportPaidOrders[0].receiverName
+                ? `RECEBIDO POR: ${reportPaidOrders[0].receiverName.toUpperCase()}`
+                : 'MAUAD LAVANDERIA INDUSTRIAL'}
+            </div>
+            <span className="text-slate-500">Departamento Financeiro / Caixa</span>
           </div>
           <div>
-            <div className="border-t border-black pt-1">RECEBIDO POR (CLIENTE / RESPONSÁVEL)</div>
+            <div className="border-t border-black pt-1">CLIENTE / SACADO / RESPONSÁVEL</div>
             <span className="text-slate-500">Data: _____ / _____ / _________</span>
           </div>
         </div>
@@ -839,8 +834,8 @@ export const FinanceCaixaView: React.FC = () => {
                   <CheckCircle2 className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-base text-white">Dar Baixa na Fatura Unificada</h3>
-                  <p className="text-xs text-slate-400 font-mono">Quitação em Lote com Boleto / Pagamento Único</p>
+                  <h3 className="font-bold text-base text-white">Confirmar Baixa de Pagamento</h3>
+                  <p className="text-xs text-slate-400 font-mono">Quitação Financeira e Registro no Histórico</p>
                 </div>
               </div>
               <button
@@ -933,42 +928,25 @@ export const FinanceCaixaView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Forma de Pagamento & Doc Ref */}
+              {/* Forma de Pagamento & Quem Recebeu */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1">
-                    Forma de Pagamento
+                    Forma de Pagamento <span className="text-rose-500">*</span>
                   </label>
                   <select
                     value={unifiedPaymentMethod}
                     onChange={e => setUnifiedPaymentMethod(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   >
-                    <option value="boleto">Boleto Bancário (Fatura Única)</option>
                     <option value="pix">PIX</option>
-                    <option value="transferencia">Transferência Bancária</option>
                     <option value="dinheiro">Dinheiro em Espécie</option>
+                    <option value="transferencia">Transferência Bancária</option>
                     <option value="cartao_credito">Cartão de Crédito</option>
                     <option value="cartao_debito">Cartão de Débito</option>
                   </select>
                 </div>
 
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1">
-                    Nº Documento / Boleto Ref.
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ex: Boleto 09/2026 - Lote 1"
-                    value={unifiedDocRef}
-                    onChange={e => setUnifiedDocRef(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
-                </div>
-              </div>
-
-              {/* Quem Recebeu & Observação (Novos Requisitos 1.1 e 1.3) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1">
                     Quem Recebeu o Pagamento <span className="text-rose-500">*</span>
@@ -985,22 +963,23 @@ export const FinanceCaixaView: React.FC = () => {
                     Nome da pessoa ou setor que recebeu os valores
                   </span>
                 </div>
+              </div>
 
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1">
-                    Observação (Opcional)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ex: Pago com comprovante anexo"
-                    value={unifiedNotes}
-                    onChange={e => setUnifiedNotes(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
-                  <span className="text-[10px] text-slate-400 mt-0.5 block">
-                    Registrado de forma permanente no histórico
-                  </span>
-                </div>
+              {/* Observação (Opcional) */}
+              <div>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1">
+                  Observação (Opcional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: Pago via PIX pelo responsável financeiro"
+                  value={unifiedNotes}
+                  onChange={e => setUnifiedNotes(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+                <span className="text-[10px] text-slate-400 mt-0.5 block">
+                  Registrado de forma permanente no histórico e nos comprovantes
+                </span>
               </div>
 
               {/* Total Summary */}
@@ -1169,8 +1148,8 @@ export const FinanceCaixaView: React.FC = () => {
                             </strong>
                           </div>
                           <div>
-                            <span className="text-slate-500 block text-[10px]">DOC / REF</span>
-                            <span>{p.docRef || '—'}</span>
+                            <span className="text-slate-500 block text-[10px]">{p.docRef ? 'DOC / REF' : 'SITUAÇÃO'}</span>
+                            <span className="font-bold text-emerald-600 dark:text-emerald-400">{p.docRef || 'QUITADO'}</span>
                           </div>
                         </div>
                         {p.notes && (
@@ -1216,195 +1195,6 @@ export const FinanceCaixaView: React.FC = () => {
                 className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold"
               >
                 Fechar Histórico
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ─── MODAL: VISUALIZAR BOLETO (ABERTO OU JÁ PAGO) (Tarefa 2) ────────── */}
-      {selectedOrderForBoleto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white text-slate-900 rounded-2xl shadow-2xl border border-slate-300 max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden">
-            {/* Header com botões */}
-            <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-xl">
-                  <FileText className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-base text-white">
-                    {selectedOrderForBoleto.paymentStatus === 'pago'
-                      ? 'Boleto Bancário / Fatura (Documento Histórico)'
-                      : 'Boleto Bancário / Fatura de Cobrança'}
-                  </h3>
-                  <p className="text-xs text-slate-400 font-mono">
-                    OS: {selectedOrderForBoleto.osNumber} • Cliente: {selectedOrderForBoleto.clientName}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-colors"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span>Imprimir Boleto</span>
-                </button>
-                <button
-                  onClick={() => setSelectedOrderForBoleto(null)}
-                  className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Conteúdo do Boleto (Somente Leitura e Histórico Imutável) */}
-            <div className="p-6 overflow-y-auto space-y-4 font-mono text-xs">
-              {/* Tarja de Documento Histórico / Pago */}
-              {selectedOrderForBoleto.paymentStatus === 'pago' ? (
-                <div className="p-3 bg-emerald-50 border-2 border-emerald-600 rounded-xl flex items-center gap-3 text-emerald-900">
-                  <ShieldCheck className="w-8 h-8 text-emerald-600 shrink-0" />
-                  <div>
-                    <h4 className="font-bold text-xs uppercase tracking-wider text-emerald-800">
-                      DOCUMENTO HISTÓRICO — BOLETO QUITADO / PAGO
-                    </h4>
-                    <p className="text-[11px] text-emerald-700 mt-0.5 font-sans">
-                      Este documento é um registro histórico de cobrança quitado. Os valores e parâmetros originais de emissão foram integralmente preservados.
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl flex items-center gap-3 text-amber-900">
-                  <AlertCircle className="w-6 h-6 text-amber-600 shrink-0" />
-                  <div>
-                    <h4 className="font-bold text-xs uppercase tracking-wider text-amber-800">
-                      TÍTULO EM ABERTO — AGUARDANDO PAGAMENTO
-                    </h4>
-                    <p className="text-[11px] text-amber-700 font-sans">
-                      Aguardando confirmação bancária ou baixa manual no caixa da lavanderia.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Corpo do Boleto Bancário Padrão */}
-              <div className="border-2 border-black p-4 bg-white space-y-3 print-sheet">
-                {/* Linha 1: Banco e Linha Digitável */}
-                <div className="flex justify-between items-center border-b-2 border-black pb-2">
-                  <div className="flex items-center gap-3">
-                    <span className="font-black text-lg">MAUAD BANK</span>
-                    <span className="font-bold text-base border-l-2 border-r-2 border-black px-2">341-7</span>
-                  </div>
-                  <span className="text-xs font-bold tracking-wider">
-                    34191.79001 01043.510047 91020.150008 1 987600000{Math.round(selectedOrderForBoleto.totalServiceValue || 0)}
-                  </span>
-                </div>
-
-                {/* Grade de Informações do Boleto */}
-                <div className="grid grid-cols-4 border border-black divide-x divide-y divide-black text-[10px]">
-                  <div className="p-1.5 col-span-3">
-                    <span className="text-slate-500 block uppercase text-[9px]">Local de Pagamento</span>
-                    <strong>PAGÁVEL EM QUALQUER BANCO OU VIA PIX ATÉ O VENCIMENTO</strong>
-                  </div>
-                  <div className="p-1.5 bg-slate-50">
-                    <span className="text-slate-500 block uppercase text-[9px]">Vencimento</span>
-                    <strong className="text-xs">
-                      {new Date(new Date(selectedOrderForBoleto.createdAt).getTime() + 7 * 86400000).toLocaleDateString('pt-BR')}
-                    </strong>
-                  </div>
-
-                  <div className="p-1.5 col-span-3">
-                    <span className="text-slate-500 block uppercase text-[9px]">Beneficiário / Cedente</span>
-                    <strong>MAUAD LAVANDERIA INDUSTRIAL LTDA • CNPJ 12.345.678/0001-90</strong>
-                  </div>
-                  <div className="p-1.5 bg-slate-50">
-                    <span className="text-slate-500 block uppercase text-[9px]">Valor do Documento</span>
-                    <strong className="text-xs">
-                      {(selectedOrderForBoleto.totalServiceValue || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                    </strong>
-                  </div>
-
-                  <div className="p-1.5">
-                    <span className="text-slate-500 block uppercase text-[9px]">Data Emissão</span>
-                    <span>{new Date(selectedOrderForBoleto.createdAt).toLocaleDateString('pt-BR')}</span>
-                  </div>
-                  <div className="p-1.5">
-                    <span className="text-slate-500 block uppercase text-[9px]">Nº Documento</span>
-                    <strong>{selectedOrderForBoleto.docRef || selectedOrderForBoleto.osNumber}</strong>
-                  </div>
-                  <div className="p-1.5">
-                    <span className="text-slate-500 block uppercase text-[9px]">Espécie Doc</span>
-                    <span>DM</span>
-                  </div>
-                  <div className="p-1.5 bg-slate-50">
-                    <span className="text-slate-500 block uppercase text-[9px]">Desconto / Abatimento</span>
-                    <span>{(selectedOrderForBoleto.discountAmount || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                  </div>
-
-                  <div className="p-1.5 col-span-4 bg-slate-50/50">
-                    <span className="text-slate-500 block uppercase text-[9px]">Instruções de Responsabilidade do Beneficiário</span>
-                    <p className="text-[10px] text-slate-800 font-sans">
-                      • Cobrança referente a serviços da Ordem de Serviço Nº {selectedOrderForBoleto.osNumber}.<br />
-                      • Quantidade faturada: {selectedOrderForBoleto.estimatedPieceCount} peças (Peso: {(selectedOrderForBoleto.totalWeightKg || 0).toFixed(1)} kg).<br />
-                      • Discriminação dos Serviços: {selectedOrderForBoleto.items.map(i => `${i.process}: ${(i.unitPrice || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`).join(' | ')} (Total Unitário: {selectedOrderForBoleto.items.reduce((s, i) => s + (i.unitPrice || 0), 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}).<br />
-                      • Não receber após 30 dias do vencimento sem autorização prévia da Mauad Lavanderia.
-                    </p>
-                  </div>
-
-                  <div className="p-2 col-span-4">
-                    <span className="text-slate-500 block uppercase text-[9px]">Pagador / Sacado</span>
-                    <strong className="text-xs">{selectedOrderForBoleto.clientName}</strong>
-                    <span className="block text-[10px] text-slate-600">
-                      Telefone: {selectedOrderForBoleto.clientPhone || '—'} {selectedOrderForBoleto.clientAddress ? `• Endereço: ${selectedOrderForBoleto.clientAddress}` : ''}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Se estiver PAGO, exibe a autenticação mecânica de quitação */}
-                {selectedOrderForBoleto.paymentStatus === 'pago' ? (
-                  <div className="p-3 bg-emerald-50/80 border-2 border-emerald-600 rounded text-xs space-y-1">
-                    <div className="flex justify-between font-bold text-emerald-900 border-b border-emerald-300 pb-1">
-                      <span>AUTENTICAÇÃO DE QUITAÇÃO FINANCEIRA</span>
-                      <span>STATUS: QUITADO / PAGO</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 pt-1 text-[11px]">
-                      <div>
-                        <span><strong>Data da Quitação:</strong> {selectedOrderForBoleto.paidAt ? new Date(selectedOrderForBoleto.paidAt).toLocaleString('pt-BR') : 'Data não informada'}</span>
-                        <span className="block"><strong>Quem Recebeu:</strong> {selectedOrderForBoleto.receiverName || selectedOrderForBoleto.paidByOperator || 'Departamento Financeiro'}</span>
-                        <span className="block"><strong>Operador da Baixa:</strong> {selectedOrderForBoleto.paidByOperator || 'Sistema'}</span>
-                      </div>
-                      <div>
-                        <span><strong>Forma Utilizada:</strong> {(selectedOrderForBoleto.paymentMethod || 'QUITADO').toUpperCase()}</span>
-                        <span className="block"><strong>Valor Pago Quitado:</strong> {(selectedOrderForBoleto.finalPaidAmount || selectedOrderForBoleto.totalServiceValue || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                        {selectedOrderForBoleto.paymentNotes && (
-                          <span className="block text-slate-700 italic"><strong>Obs:</strong> {selectedOrderForBoleto.paymentNotes}</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  /* Código de Barras Visual para Título em Aberto */
-                  <div className="pt-2 flex justify-between items-center">
-                    <div className="h-10 w-80 bg-slate-900 flex items-center justify-around px-2 text-white text-[9px] tracking-widest font-mono select-none">
-                      ||| | |||| | ||||| || |||| | |||| ||| |||| | ||||| ||
-                    </div>
-                    <span className="text-[10px] text-slate-500">Autenticação Mecânica / Ficha de Compensação</span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end shrink-0">
-              <button
-                type="button"
-                onClick={() => setSelectedOrderForBoleto(null)}
-                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold"
-              >
-                Fechar Visualização
               </button>
             </div>
           </div>

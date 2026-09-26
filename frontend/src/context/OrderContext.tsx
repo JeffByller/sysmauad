@@ -963,7 +963,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const payMultipleInvoiceOrders = (
     orderIds: string[],
     totalDiscountAmount: number = 0,
-    paymentMethod: string = 'boleto',
+    paymentMethod: string = 'pix',
     operatorName: string = 'Ana (Financeiro)',
     unifiedDocRef?: string,
     receiverName?: string,

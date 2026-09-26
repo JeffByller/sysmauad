@@ -651,6 +651,22 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
                 <span className="font-bold">SITUAÇÃO DO PAGAMENTO:</span>
                 <span className="font-bold uppercase">{order.paymentStatus === 'pago' ? 'PAGO / QUITADO' : 'EM ABERTO'}</span>
               </div>
+              {order.paymentStatus === 'pago' && (
+                <>
+                  <div className="flex justify-between">
+                    <span className="font-bold">QUEM RECEBEU:</span>
+                    <span className="font-mono font-bold uppercase text-slate-900">
+                      {order.receiverName || order.paidByOperator || 'MAUAD LAVANDERIA'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-bold">FORMA DE PAGAMENTO:</span>
+                    <span className="font-mono uppercase font-bold">
+                      {(order.paymentMethod || 'QUITADO').toUpperCase()}
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -738,19 +754,84 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
                 <span className="text-slate-600 font-normal">PAGAMENTO:</span>
                 <span className="uppercase text-slate-900">{order.paymentStatus === 'pago' ? 'PAGO / QUITADO' : 'EM ABERTO'}</span>
               </div>
+              {order.paymentStatus === 'pago' && (
+                <>
+                  <div className="flex justify-between text-[11px]">
+                    <span className="text-slate-600 font-normal">RECEBIDO POR:</span>
+                    <span className="font-mono uppercase text-emerald-800 font-bold">
+                      {order.receiverName || order.paidByOperator || 'MAUAD LAVANDERIA'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-[11px]">
+                    <span className="text-slate-600 font-normal">FORMA DE PAGTO:</span>
+                    <span className="font-mono uppercase text-slate-800 font-bold">
+                      {(order.paymentMethod || 'QUITADO').toUpperCase()}
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
+
+          {/* Bloco de Comprovante de Quitação com Quem Recebeu */}
+          {order.paymentStatus === 'pago' && (
+            <div className="p-3 bg-emerald-50/70 border border-emerald-500 rounded text-xs space-y-1">
+              <div className="flex justify-between font-bold text-emerald-950 border-b border-emerald-300 pb-1">
+                <span className="uppercase tracking-wider">RECIBO DE QUITAÇÃO & PAGAMENTO</span>
+                <span>STATUS: QUITADO / PAGO</span>
+              </div>
+              <div className="grid grid-cols-2 gap-3 pt-1 text-[11px]">
+                <div>
+                  <span className="text-slate-600 block">QUEM RECEBEU O PAGAMENTO:</span>
+                  <strong className="text-slate-900 uppercase text-xs">
+                    {order.receiverName || order.paidByOperator || 'MAUAD LAVANDERIA'}
+                  </strong>
+                  <span className="block text-slate-500 text-[10px] mt-0.5">
+                    Operador / Registro: {order.paidByOperator || 'Sistema'}
+                  </span>
+                </div>
+                <div className="space-y-0.5">
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Forma Utilizada:</span>
+                    <strong className="uppercase font-mono">{(order.paymentMethod || 'QUITADO').toUpperCase()}</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Data da Quitação:</span>
+                    <strong className="font-mono">
+                      {order.paidAt ? new Date(order.paidAt).toLocaleDateString('pt-BR') : dateShort}
+                      {order.paidAt ? ` às ${new Date(order.paidAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : ''}
+                    </strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Valor Efetivo Quitado:</span>
+                    <strong className="font-mono text-emerald-800">
+                      {(order.finalPaidAmount || order.totalServiceValue || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    </strong>
+                  </div>
+                  {order.paymentNotes && (
+                    <div className="text-[10px] text-slate-600 italic pt-0.5">
+                      <strong>Obs:</strong> {order.paymentNotes}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Rodapé com Assinaturas */}
           <div className="pt-8 grid grid-cols-12 items-end gap-4 text-center font-mono text-[10px] uppercase">
             <div className="col-span-5">
               <div className="border-b border-black w-4/5 mx-auto mb-1"></div>
-              <div className="font-bold">MAUAD LAVANDERIA (ENTREGADOR)</div>
+              <div className="font-bold">
+                {order.paymentStatus === 'pago' && order.receiverName
+                  ? `RECEBIDO POR: ${order.receiverName.toUpperCase()}`
+                  : 'MAUAD LAVANDERIA (RESPONSÁVEL)'}
+              </div>
             </div>
 
             <div className="col-span-5">
               <div className="border-b border-black w-4/5 mx-auto mb-1"></div>
-              <div className="font-bold">RECEBIDO POR (CLIENTE / RESPONSÁVEL)</div>
+              <div className="font-bold">CLIENTE / SACADO / RESPONSÁVEL</div>
             </div>
 
             <div className="col-span-2 flex flex-col items-end justify-center text-[9px] text-slate-600">
