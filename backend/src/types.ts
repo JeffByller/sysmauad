@@ -237,7 +237,29 @@ export interface SystemSettings {
   backupTime: string;
   defaultPassadorRate?: number;
   stalledOrderAlertDays?: number;
+  reportRetentionDays?: number;
   updatedAt?: string;
+}
+
+export interface SharedReport {
+  id: string;
+  token: string;
+  title: string;
+  reportType: 'lavados' | 'passadores' | 'fornecedores' | 'gerencial_completo';
+  periodPreset: 'hoje' | 'semana' | 'mes' | 'custom';
+  startDate?: string;
+  endDate?: string;
+  fileName: string;
+  fileSizeBytes: number;
+  targetPhone?: string;
+  summaryText?: string;
+  createdBy: string;
+  accessCount: number;
+  lastAccessedAt?: string;
+  expiresAt: string;
+  createdAt: string;
+  viewUrl?: string;
+  downloadUrl?: string;
 }
 
 export interface BackupFile {

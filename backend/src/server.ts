@@ -20,7 +20,8 @@ import {
   BackupFile,
   WhatsAppStatus,
   AuditLog,
-  AuditStats
+  AuditStats,
+  SharedReport
 } from './types';
 import {
   getClientIp,
@@ -33,6 +34,13 @@ import {
   getAuditStats,
   purgeOldAuditLogs
 } from './security';
+import {
+  generateAndSaveReport,
+  purgeExpiredReports,
+  mapSharedReportRow,
+  renderExpiredReportPage,
+  REPORTS_BACKLOG_DIR
+} from './reportService';
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -41,6 +49,18 @@ app.set('trust proxy', 1);
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(apiRateLimiter);
+
+function getBaseUrl(req: Request): string {
+  const proto = req.headers['x-forwarded-proto'] || (req.secure ? 'https' : 'http');
+  const host = req.headers['x-forwarded-host'] || req.headers['host'] || 'sysmauad.jeffgsan.com.br';
+  if (process.env.PUBLIC_URL) {
+    return process.env.PUBLIC_URL.replace(/\/+$/, '');
+  }
+  if (String(host).includes('localhost') || String(host).includes('127.0.0.1')) {
+    return `${proto}://${host}`;
+  }
+  return `https://sysmauad.jeffgsan.com.br`;
+}
 
 
 const SUPER_ADMIN = {
@@ -246,6 +266,7 @@ function mapSettings(row: any): SystemSettings {
     backupTime: row.backup_time || '02:00',
     defaultPassadorRate: Number(row.default_passador_rate !== null && row.default_passador_rate !== undefined ? row.default_passador_rate : 0.15),
     stalledOrderAlertDays: Number(row.stalled_order_alert_days !== null && row.stalled_order_alert_days !== undefined ? row.stalled_order_alert_days : 3),
+    reportRetentionDays: Number(row.report_retention_days !== null && row.report_retention_days !== undefined ? row.report_retention_days : 30),
     updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : undefined
   };
 }
@@ -2717,7 +2738,248 @@ app.delete('/audit/logs', async (req: Request, res: Response) => {
 });
 
 // ----------------------------------------------------
-// 15. GLOBAL EXPRESS ERROR HANDLER
+// 15. RELATÓRIOS COMPARTILHADOS VIA WHATSAPP (BACKLOG)
+// ----------------------------------------------------
+
+// Gerar relatório e (opcionalmente) enviar via WhatsApp
+app.post('/reports/generate', async (req: Request, res: Response) => {
+  try {
+    const { reportType, periodPreset, startDate, endDate, statusFilter, passadorId, supplierId, targetPhone, notes, createdBy, sendWhatsApp } = req.body;
+
+    if (!reportType || !periodPreset) {
+      return res.status(400).json({ success: false, message: 'Tipo de relatório e período são obrigatórios.' });
+    }
+
+    const validTypes = ['lavados', 'passadores', 'fornecedores', 'gerencial_completo'];
+    if (!validTypes.includes(reportType)) {
+      return res.status(400).json({ success: false, message: `Tipo de relatório inválido. Use: ${validTypes.join(', ')}` });
+    }
+
+    const validPresets = ['hoje', 'semana', 'mes', 'custom'];
+    if (!validPresets.includes(periodPreset)) {
+      return res.status(400).json({ success: false, message: `Período inválido. Use: ${validPresets.join(', ')}` });
+    }
+
+    const baseUrl = getBaseUrl(req);
+
+    const result = await generateAndSaveReport({
+      reportType,
+      periodPreset,
+      startDate,
+      endDate,
+      statusFilter,
+      passadorId,
+      supplierId,
+      targetPhone,
+      notes,
+      createdBy: createdBy || 'Operador',
+      baseUrl
+    });
+
+    // Envio opcional via WhatsApp
+    let whatsAppSent = false;
+    let whatsAppError: string | undefined;
+
+    if (sendWhatsApp !== false) {
+      const settingsRes = await query('SELECT * FROM sysmauad.system_settings WHERE id = $1', ['default']);
+      const settings = settingsRes.rows.length > 0 ? mapSettings(settingsRes.rows[0]) : null;
+      const phone = targetPhone || (settings ? settings.whatsappTargetPhone : '');
+
+      if (phone) {
+        const cleanNum = cleanPhone(phone);
+        try {
+          const resp = await fetch(`${EVOLUTION_API_URL}/message/sendText/${WHATSAPP_INSTANCE}`, {
+            method: 'POST',
+            headers: {
+              'apikey': EVOLUTION_API_KEY,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              number: cleanNum,
+              text: result.whatsAppMessage
+            })
+          });
+
+          const respBody = await resp.json() as any;
+          if (resp.ok) {
+            whatsAppSent = true;
+            console.log(`[Reports] Relatório "${result.title}" enviado via WhatsApp para ${cleanNum}`);
+          } else {
+            whatsAppError = respBody?.message || 'Falha no envio via WhatsApp';
+            console.warn('[Reports] Falha ao enviar relatório via WhatsApp:', whatsAppError);
+          }
+        } catch (err: any) {
+          whatsAppError = err.message;
+          console.error('[Reports] Erro ao enviar relatório via WhatsApp:', err.message);
+        }
+      }
+    }
+
+    res.status(201).json({
+      success: true,
+      report: {
+        id: result.reportId,
+        token: result.token,
+        title: result.title,
+        fileName: result.fileName,
+        fileSizeBytes: result.fileSizeBytes,
+        viewUrl: result.viewUrl,
+        downloadUrl: result.downloadUrl,
+        summaryText: result.summaryText,
+        retentionDays: result.retentionDays,
+        expiresAt: result.expiresAt,
+        totalPieces: result.totalPieces,
+        totalKg: result.totalKg,
+        totalOrders: result.totalOrders,
+        totalValue: result.totalValue
+      },
+      whatsAppMessage: result.whatsAppMessage,
+      whatsAppSent,
+      whatsAppError
+    });
+  } catch (err: any) {
+    console.error('[Reports] Erro ao gerar relatório:', err.message);
+    res.status(500).json({ success: false, message: 'Erro ao gerar relatório: ' + err.message });
+  }
+});
+
+// Listar relatórios compartilhados
+app.get('/reports', async (req: Request, res: Response) => {
+  try {
+    const baseUrl = getBaseUrl(req);
+    const limit = Math.min(parseInt(String(req.query.limit || '50'), 10), 200);
+    const offset = parseInt(String(req.query.offset || '0'), 10);
+
+    const result = await query(
+      'SELECT * FROM sysmauad.shared_reports ORDER BY created_at DESC LIMIT $1 OFFSET $2',
+      [limit, offset]
+    );
+
+    const countRes = await query('SELECT COUNT(*)::int AS total FROM sysmauad.shared_reports');
+    const total = countRes.rows[0]?.total || 0;
+
+    const reports = result.rows.map((row: any) => mapSharedReportRow(row, baseUrl));
+
+    res.json({ reports, total, limit, offset });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Visualizar relatório pelo token (HTML no navegador)
+app.get('/reports/view/:token', async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+
+    const result = await query(
+      'SELECT * FROM sysmauad.shared_reports WHERE token = $1',
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      const settingsRes = await query('SELECT report_retention_days FROM sysmauad.system_settings WHERE id = $1', ['default']);
+      const retDays = settingsRes.rows.length > 0 ? Number(settingsRes.rows[0].report_retention_days || 30) : 30;
+      res.status(404).type('html').send(renderExpiredReportPage(token, retDays));
+      return;
+    }
+
+    const row = result.rows[0];
+
+    // Verificar se expirou
+    if (new Date(row.expires_at) < new Date()) {
+      // Limpar arquivo e registro
+      if (row.file_path && fs.existsSync(row.file_path)) {
+        try { fs.unlinkSync(row.file_path); } catch (_) {}
+      }
+      await query('DELETE FROM sysmauad.shared_reports WHERE id = $1', [row.id]);
+      const retDays = Number(row.report_retention_days || 30);
+      res.status(410).type('html').send(renderExpiredReportPage(token, retDays));
+      return;
+    }
+
+    // Verificar se o arquivo existe em disco
+    if (!row.file_path || !fs.existsSync(row.file_path)) {
+      res.status(404).type('html').send(renderExpiredReportPage(token, 30));
+      return;
+    }
+
+    // Registrar acesso
+    await query(
+      'UPDATE sysmauad.shared_reports SET access_count = COALESCE(access_count, 0) + 1, last_accessed_at = NOW() WHERE id = $1',
+      [row.id]
+    );
+
+    res.type('html').sendFile(row.file_path);
+  } catch (err: any) {
+    console.error('[Reports] Erro ao visualizar relatório:', err.message);
+    res.status(500).json({ error: 'Erro interno ao carregar relatório.' });
+  }
+});
+
+// Download do relatório pelo token
+app.get('/reports/download/:token', async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+
+    const result = await query(
+      'SELECT * FROM sysmauad.shared_reports WHERE token = $1',
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Relatório não encontrado ou expirado.' });
+    }
+
+    const row = result.rows[0];
+
+    if (new Date(row.expires_at) < new Date()) {
+      return res.status(410).json({ error: 'Este relatório expirou e não está mais disponível para download.' });
+    }
+
+    if (!row.file_path || !fs.existsSync(row.file_path)) {
+      return res.status(404).json({ error: 'Arquivo do relatório não encontrado no servidor.' });
+    }
+
+    // Registrar acesso
+    await query(
+      'UPDATE sysmauad.shared_reports SET access_count = COALESCE(access_count, 0) + 1, last_accessed_at = NOW() WHERE id = $1',
+      [row.id]
+    );
+
+    res.download(row.file_path, row.file_name || `relatorio_${token.slice(0, 8)}.html`);
+  } catch (err: any) {
+    console.error('[Reports] Erro ao baixar relatório:', err.message);
+    res.status(500).json({ error: 'Erro interno ao baixar relatório.' });
+  }
+});
+
+// Excluir relatório manualmente
+app.delete('/reports/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const result = await query('SELECT * FROM sysmauad.shared_reports WHERE id = $1', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Relatório não encontrado.' });
+    }
+
+    const row = result.rows[0];
+
+    // Excluir arquivo do disco
+    if (row.file_path && fs.existsSync(row.file_path)) {
+      try { fs.unlinkSync(row.file_path); } catch (_) {}
+    }
+
+    await query('DELETE FROM sysmauad.shared_reports WHERE id = $1', [id]);
+
+    res.json({ success: true, message: 'Relatório excluído com sucesso.' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ----------------------------------------------------
+// 16. GLOBAL EXPRESS ERROR HANDLER
 // ----------------------------------------------------
 app.use((err: any, req: Request, res: Response, _next: any) => {
   const ip = getClientIp(req);
@@ -2739,7 +3001,7 @@ app.use((err: any, req: Request, res: Response, _next: any) => {
 });
 
 // ----------------------------------------------------
-// 16. SCHEDULER DE AUTOMAÇÃO EM SEGUNDO PLANO
+// 17. SCHEDULER DE AUTOMAÇÃO EM SEGUNDO PLANO
 // ----------------------------------------------------
 let lastBackupDate = '';
 let lastReportDate = '';
@@ -2818,6 +3080,18 @@ async function startServer() {
     // Limpeza inicial e rotina periódica de retenção de logs
     await purgeOldAuditLogs(30, 20000);
     setInterval(() => purgeOldAuditLogs(30, 20000), 24 * 60 * 60 * 1000);
+
+    // Limpeza inicial e rotina periódica de relatórios expirados no backlog (a cada 1h)
+    purgeExpiredReports().catch(err => console.error('[Reports Backlog] Erro na limpeza inicial:', err.message));
+    setInterval(async () => {
+      try {
+        const settingsRes = await query('SELECT report_retention_days FROM sysmauad.system_settings WHERE id = $1', ['default']);
+        const retDays = settingsRes.rows.length > 0 ? Number(settingsRes.rows[0].report_retention_days || 30) : 30;
+        await purgeExpiredReports(retDays);
+      } catch (err: any) {
+        console.error('[Reports Backlog] Erro na rotina periódica de limpeza:', err.message);
+      }
+    }, 60 * 60 * 1000);
 
     startAutomationScheduler();
     app.listen(port, () => {

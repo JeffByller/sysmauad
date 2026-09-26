@@ -1,0 +1,301 @@
+## Objetivo
+
+Quero revisar e melhorar a lógica atual do sistema de lavanderia, principalmente os processos relacionados a **entrada de peças, cálculo de peso, montagem dos lavados, consumo de produtos químicos, serviços diferenciados e relatórios de produção/estoque**.
+
+A ideia é manter o processo real utilizado na lavanderia e fazer com que o sistema siga essa lógica de forma simples e coerente.
+
+---
+
+# 1. Entrada de peças e cálculo do peso total
+
+Atualmente o sistema está funcionando de forma inversa.
+
+### Como está atualmente
+
+Eu informo o peso de uma peça e o sistema estima a quantidade de peças.
+
+### Como deve funcionar
+
+A **quantidade de peças** e o **peso de uma unidade** serão informados pelo usuário.
+
+O sistema deverá calcular automaticamente o **peso total da ficha**.
+
+### Exemplo
+
+* Quantidade de peças: **10**
+* Peso de uma peça: **0,300 kg**
+* Peso total calculado: **3,00 kg**
+
+### Fórmula
+
+**Peso Total = Quantidade de Peças × Peso de 1 Peça**
+
+Exemplo:
+
+`10 × 0,300 kg = 3,00 kg`
+
+Portanto, no cadastro/entrada da ficha, os campos principais deverão ser:
+
+* Quantidade de peças → digitado pelo usuário
+* Peso de uma peça → digitado pelo usuário
+* Peso total → calculado automaticamente pelo sistema
+
+O peso total será utilizado posteriormente para calcular a quantidade de produtos químicos necessária para o processo de lavagem.
+
+---
+
+# 2. Exemplo completo de uma ficha
+
+Quando chega um pedido, recebemos uma quantidade total de peças.
+
+O procedimento é:
+
+1. Contar a quantidade de peças.
+2. Pesar uma peça.
+3. Informar esses dois valores no sistema.
+4. O sistema calcula o peso total.
+5. O peso total é utilizado para calcular os produtos químicos necessários.
+6. A ficha é associada a um determinado lavado.
+7. O lavado possui várias fases/processos.
+8. Cada fase possui produtos químicos com uma determinada concentração/percentual.
+
+### Exemplo
+
+**Ficha**
+
+* Quantidade de peças: 10
+* Peso por unidade: 0,300 kg
+* Peso total: 3,00 kg
+
+**Lavado:** Hiper Dest
+
+### Processos
+
+**Fase 1 — Desengomagem**
+
+* Desengomante: 0,3%
+* Peróxido: 0,2%
+
+**Fase 2 — Estonagem**
+
+* PV DEP T12: 1,00%
+
+Os valores acima são apenas exemplos para demonstrar a lógica. Os valores reais deverão ser cadastrados no sistema.
+
+---
+
+# 3. Cadastro das Fases / Processos
+
+Antes de criar um lavado, deverá ser possível cadastrar as **fases que podem fazer parte dos lavados**.
+
+Exemplos de fases:
+
+* Desengomagem
+* Estonagem
+* Clareamento
+* Amaciar
+
+Cada fase poderá possuir **um ou vários produtos químicos**.
+
+### Exemplo
+
+**Fase: Desengomagem**
+
+Produtos:
+
+* Desengomante → percentual definido
+* Peróxido → percentual definido
+* Produto X → percentual definido
+
+Portanto, uma fase não deve ficar limitada a apenas um produto.
+
+---
+
+# 4. Cadastro do Lavado
+
+Depois de cadastrar as fases, será possível montar um **Lavado**.
+
+Exemplo:
+
+### Lavado: Hiper Dest
+
+**Fase 1 — Desengomagem**
+
+Produtos e quantidades calculadas conforme o peso total da ficha.
+
+**Fase 2 — Estonagem**
+
+Produtos e quantidades calculadas conforme o peso total.
+
+**Fase 3 — Clareamento**
+
+Produtos e quantidades calculadas conforme o peso total.
+
+**Fase 4 — Amaciar**
+
+Produtos e quantidades calculadas conforme o peso total.
+
+---
+
+# 5. Cálculo dos produtos químicos
+
+O sistema deverá utilizar o **peso total da ficha** como base para calcular a quantidade necessária de cada produto.
+
+A lógica geral será:
+
+**Quantidade do produto = Peso total da ficha × percentual definido para o produto**
+
+Por exemplo, considerando uma ficha de 3 kg:
+
+* Peso total: 3 kg
+* Produto: X
+* Concentração cadastrada: 1%
+
+O sistema deverá calcular automaticamente a quantidade necessária do produto para aquela ficha.
+
+> Importante: os valores apresentados neste documento são apenas exemplos. A fórmula e as unidades devem ser validadas durante a implementação para garantir que o resultado apresentado ao usuário corresponda à forma como a lavanderia realmente dosa os produtos.
+
+---
+
+# 6. Serviços Diferenciados
+
+Além do processo de lavado, algumas peças também possuem serviços adicionais.
+
+Nem todas as peças possuem esses serviços, mas grande parte dos pedidos pode possuir algum tipo de serviço diferenciado.
+
+Esses serviços precisam ser registrados separadamente do lavado.
+
+### Exemplos
+
+* Bigode Laser → R$ 1,00
+* Puído Laser → R$ 1,50
+* Pistolado → R$ 1,20
+
+O sistema deverá permitir:
+
+* Cadastrar os serviços diferenciados.
+* Definir o valor de cada serviço.
+* Associar um ou mais serviços às peças/ficha.
+* Quantificar o serviço quando necessário.
+* Calcular o valor correspondente.
+* Considerar esses valores no fechamento/faturamento do pedido.
+
+É importante que **Lavado** e **Serviço Diferenciado** sejam conceitos separados, pois uma mesma peça pode ter um lavado e também um ou mais serviços adicionais.
+
+---
+
+# 7. Relatórios e acompanhamento das peças
+
+Também precisamos melhorar a parte de relatórios.
+
+Uma das informações mais importantes é conseguir visualizar **tudo que atualmente está dentro da lavanderia e ainda não foi entregue**.
+
+O sistema deverá permitir consultar as peças/pedidos que:
+
+* Foram recebidos;
+* Já deram entrada na lavanderia;
+* Ainda estão em processamento;
+* Estão aguardando alguma etapa;
+* Foram finalizados;
+* Ainda não foram entregues;
+* Já foram entregues.
+
+### Relatório principal
+
+Precisamos de uma visão semelhante a:
+
+**Peças atualmente na lavanderia**
+
+| Pedido | Cliente   | Quantidade |  Peso | Lavado     | Serviços     | Status      | Data de entrada |
+| ------ | --------- | ---------: | ----: | ---------- | ------------ | ----------- | --------------- |
+| 001    | Cliente A |        100 | 30 kg | Hiper Dest | Bigode Laser | Em processo | 24/09/2026      |
+| 002    | Cliente B |         50 | 15 kg | Lavado X   | Puído        | Aguardando  | 24/09/2026      |
+
+O objetivo é conseguir saber rapidamente:
+
+**"Quantas peças estão dentro da lavanderia neste momento e onde elas estão no processo?"**
+
+---
+
+# 8. Fluxo geral desejado
+
+O fluxo ideal do sistema deverá seguir aproximadamente esta sequência:
+
+### 1. Entrada do pedido
+
+Cadastrar:
+
+* Cliente
+* Pedido/ficha
+* Quantidade de peças
+* Peso de uma peça
+
+### 2. Cálculo automático
+
+Sistema calcula:
+
+**Quantidade de peças × Peso por peça = Peso total**
+
+### 3. Seleção do Lavado
+
+Selecionar o lavado utilizado.
+
+Exemplo:
+
+**Hiper Dest**
+
+### 4. Processos do Lavado
+
+O sistema identifica as fases cadastradas:
+
+* Desengomagem
+* Estonagem
+* Clareamento
+* Amaciar
+
+### 5. Cálculo dos produtos
+
+Para cada fase, o sistema calcula automaticamente a quantidade de cada produto com base no peso total da ficha e na concentração cadastrada.
+
+### 6. Serviços diferenciados
+
+Adicionar, quando necessário:
+
+* Bigode Laser
+* Puído Laser
+* Pistolado
+* Outros serviços
+
+### 7. Processamento
+
+A ficha passa pelas etapas da lavanderia, mantendo o status atualizado.
+
+### 8. Finalização
+
+Quando todas as etapas forem concluídas, o pedido fica disponível para entrega.
+
+### 9. Entrega
+
+Ao entregar o pedido, o sistema registra a saída das peças da lavanderia.
+
+---
+
+# 9. Ponto importante para revisão
+
+Antes de implementar, quero revisar a estrutura atual do sistema e identificar:
+
+* O que já funciona corretamente;
+* O que está invertido;
+* Quais cálculos precisam ser alterados;
+* Como estruturar corretamente Fases, Produtos e Lavados;
+* Como permitir vários produtos dentro de uma mesma fase;
+* Como calcular automaticamente as quantidades dos produtos;
+* Como separar Lavados de Serviços Diferenciados;
+* Como controlar o status das peças;
+* Como controlar entrada e saída;
+* Quais informações devem aparecer nos relatórios;
+* Quais alterações são necessárias no banco de dados;
+* Quais telas precisam ser modificadas;
+* Se a estrutura atual permite futuras expansões.
+
+A

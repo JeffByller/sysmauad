@@ -668,6 +668,32 @@ export async function initDb() {
     CREATE INDEX IF NOT EXISTS idx_client_messages_created_at ON sysmauad.client_messages (created_at DESC);
   `);
 
+  // 14. Tabela de Relatórios Gerados & Backlog no Servidor (Compartilhamento WhatsApp)
+  await query(`
+    CREATE TABLE IF NOT EXISTS sysmauad.shared_reports (
+      id VARCHAR(100) PRIMARY KEY,
+      token VARCHAR(100) UNIQUE NOT NULL,
+      title VARCHAR(255) NOT NULL,
+      report_type VARCHAR(50) NOT NULL,
+      period_preset VARCHAR(50) NOT NULL,
+      start_date VARCHAR(50),
+      end_date VARCHAR(50),
+      file_name VARCHAR(255) NOT NULL,
+      file_path VARCHAR(500) NOT NULL,
+      file_size_bytes INT DEFAULT 0,
+      target_phone VARCHAR(50),
+      summary_text TEXT,
+      created_by VARCHAR(255) DEFAULT 'Sistema',
+      access_count INT DEFAULT 0,
+      last_accessed_at TIMESTAMP WITH TIME ZONE,
+      expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_shared_reports_token ON sysmauad.shared_reports (token);
+    CREATE INDEX IF NOT EXISTS idx_shared_reports_expires_at ON sysmauad.shared_reports (expires_at);
+  `);
+
   // Migrações incrementais seguras
   await query(`
     ALTER TABLE sysmauad.passadores ADD COLUMN IF NOT EXISTS rate_per_piece NUMERIC(10,2) DEFAULT 0.15;
@@ -691,6 +717,9 @@ export async function initDb() {
 
     -- Campo para configuração de dias para alerta de OS parada
     ALTER TABLE sysmauad.system_settings ADD COLUMN IF NOT EXISTS stalled_order_alert_days INT DEFAULT 3;
+
+    -- Campo para configuração de retenção do backlog de relatórios (dias)
+    ALTER TABLE sysmauad.system_settings ADD COLUMN IF NOT EXISTS report_retention_days INT DEFAULT 30;
   `);
 
   // SEED INICIAL CASO TABELAS ESTEJAM VAZIAS
