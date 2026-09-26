@@ -1,7 +1,23 @@
 import React, { useState, useMemo } from 'react';
 import { useOrders } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
-import { Printer, FileText, Shirt, Truck, UserCheck, Layers, ListFilter, CheckCircle2, Clock, Play, PackageCheck, Scale, CheckCircle } from 'lucide-react';
+import { 
+  Printer, 
+  FileText, 
+  Shirt, 
+  Truck, 
+  UserCheck, 
+  Layers, 
+  ListFilter, 
+  CheckCircle2, 
+  Clock, 
+  Play, 
+  PackageCheck, 
+  Scale, 
+  CheckCircle,
+  Search,
+  X
+} from 'lucide-react';
 import { getDatePresets, getLocalDateString } from '../utils/dateUtils';
 import { OrderStatus, Order } from '../types';
 
@@ -23,6 +39,8 @@ export const PassadorReportView: React.FC = () => {
 
   // Filtros de Unidade (Individual vs Geral)
   const [selectedPassadorId, setSelectedPassadorId] = useState<string>('all');
+  const [passadorSearchTerm, setPassadorSearchTerm] = useState<string>('');
+  const [isPassadorDropdownOpen, setIsPassadorDropdownOpen] = useState<boolean>(false);
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>('all');
 
   // Exibição e cálculo de Valores no Relatório de Produção por Passador
@@ -52,10 +70,33 @@ export const PassadorReportView: React.FC = () => {
     }
   };
 
-  // Se o usuário logado for passador, restringe aos próprios dados
-  const visiblePassadores = isPassadorUser && user
-    ? passadores.filter(p => p.id === user.id || p.name.toLowerCase() === user.name.toLowerCase())
-    : passadores;
+  // Se o usuário logado for passador, restringe aos próprios dados, garantindo apenas perfil ativo
+  const activePassadores = useMemo(() => {
+    const list = isPassadorUser && user
+      ? passadores.filter(p => p.id === user.id || p.name.toLowerCase() === user.name.toLowerCase())
+      : passadores;
+    return list.filter(p => p.active !== false);
+  }, [isPassadorUser, user, passadores]);
+
+  // Lista filtrada para autocomplete de passadores ativos
+  const filteredPassadores = useMemo(() => {
+    if (!passadorSearchTerm.trim()) return activePassadores;
+    const term = passadorSearchTerm.toLowerCase().trim();
+    return activePassadores.filter(p =>
+      p.name.toLowerCase().includes(term) || (p.phone && p.phone.includes(term))
+    );
+  }, [activePassadores, passadorSearchTerm]);
+
+  // Fecha dropdown de autocomplete ao pressionar ESC
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsPassadorDropdownOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Lista única de fornecedores para filtro individual
   const uniqueSuppliers = (() => {
@@ -211,7 +252,7 @@ export const PassadorReportView: React.FC = () => {
     return isAfterStart && isBeforeEnd;
   });
 
-  const passadorReports = visiblePassadores.map(pas => {
+  const passadorReports = activePassadores.map(pas => {
     const pasLogs = allLogs.filter(l => l.passadorId === pas.id || l.passadorName?.toLowerCase() === pas.name?.toLowerCase());
     const totalPiecesInPeriod = pasLogs.reduce((sum, l) => sum + l.piecesIroned, 0);
     const pieces = pasLogs.length > 0 ? totalPiecesInPeriod : pas.totalPiecesIroned;
@@ -413,13 +454,7 @@ export const PassadorReportView: React.FC = () => {
               className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 dark:bg-sky-700 dark:hover:bg-sky-800 text-white font-semibold rounded-xl text-xs transition-colors flex items-center gap-2 shadow-sm font-mono"
             >
               <Printer className="w-4 h-4" />
-              <span>
-                {reportType === 'passadores' && selectedPassador
-                  ? `Imprimir Passador (${selectedPassador.name})`
-                  : reportType === 'fornecedores' && selectedSupplier
-                  ? `Imprimir Fornecedor (${selectedSupplier.name})`
-                  : 'Imprimir Relatório'}
-              </span>
+              <span>Imprimir</span>
             </button>
           </div>
         </div>
@@ -705,41 +740,115 @@ export const PassadorReportView: React.FC = () => {
           </div>
         )}
 
-        {/* OPÇÃO DE FILTRAR POR PASSADOR: TODOS OU INDIVIDUAL & MOSTRAR VALORES */}
+        {/* OPÇÃO DE FILTRAR POR PASSADOR: CAMPO DE BUSCA (AUTOCOMPLETE) & MOSTRAR VALORES */}
         {reportType === 'passadores' && (
           <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-slate-500 dark:text-slate-400 font-bold uppercase text-[11px] flex items-center gap-1 mr-1">
-                <UserCheck className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
-                Passador:
-              </span>
+            {/* Campo de Busca Autocomplete */}
+            <div className="relative flex-1 min-w-[280px] max-w-md">
+              <div className="flex items-center gap-2">
+                <span className="text-slate-500 dark:text-slate-400 font-bold uppercase text-[11px] flex items-center gap-1 shrink-0">
+                  <UserCheck className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                  Passador:
+                </span>
 
-              <button
-                type="button"
-                onClick={() => setSelectedPassadorId('all')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
-                  selectedPassadorId === 'all'
-                    ? 'bg-slate-900 text-white dark:bg-sky-700 dark:text-white shadow-sm'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-                }`}
-              >
-                Todos
-              </button>
+                <div className="relative flex-1">
+                  {selectedPassador ? (
+                    <div className="flex items-center justify-between px-3 py-1.5 bg-sky-50 dark:bg-sky-950/60 border border-sky-300 dark:border-sky-800 rounded-xl text-xs font-bold text-sky-900 dark:text-sky-200 shadow-sm">
+                      <div className="flex items-center gap-1.5 truncate">
+                        <UserCheck className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                        <span className="truncate">{selectedPassador.name}</span>
+                        {selectedPassador.phone && (
+                          <span className="text-[10px] text-sky-600/70 font-mono font-normal">({selectedPassador.phone})</span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedPassadorId('all');
+                          setPassadorSearchTerm('');
+                        }}
+                        className="p-1 text-sky-600 hover:text-sky-800 dark:hover:text-sky-100 rounded-lg hover:bg-sky-100 dark:hover:bg-sky-900 transition-colors ml-1"
+                        title="Limpar e ver todos os passadores"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                      <input
+                        type="text"
+                        placeholder="Buscar passador ativo..."
+                        value={passadorSearchTerm}
+                        onChange={e => {
+                          setPassadorSearchTerm(e.target.value);
+                          setIsPassadorDropdownOpen(true);
+                        }}
+                        onFocus={() => setIsPassadorDropdownOpen(true)}
+                        className="w-full pl-8 pr-7 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-sm"
+                      />
+                      {passadorSearchTerm && (
+                        <button
+                          type="button"
+                          onClick={() => setPassadorSearchTerm('')}
+                          className="absolute right-2 top-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                          title="Limpar busca"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  )}
 
-              {visiblePassadores.map(p => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => setSelectedPassadorId(p.id)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
-                    selectedPassadorId === p.id
-                      ? 'bg-slate-900 text-white dark:bg-sky-700 dark:text-white shadow-sm'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-                  }`}
-                >
-                  {p.name}
-                </button>
-              ))}
+                  {/* Dropdown de Autocomplete */}
+                  {isPassadorDropdownOpen && !selectedPassador && (
+                    <>
+                      <div
+                        className="fixed inset-0 z-10"
+                        onClick={() => setIsPassadorDropdownOpen(false)}
+                      />
+                      <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedPassadorId('all');
+                            setPassadorSearchTerm('');
+                            setIsPassadorDropdownOpen(false);
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs font-bold text-sky-700 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-slate-800 flex items-center justify-between"
+                        >
+                          <span>• Todos os Passadores Ativos ({activePassadores.length})</span>
+                          {selectedPassadorId === 'all' && <CheckCircle2 className="w-3.5 h-3.5 text-sky-600" />}
+                        </button>
+                        {filteredPassadores.length === 0 ? (
+                          <div className="px-3 py-3 text-center text-xs text-slate-400">
+                            Nenhum passador ativo encontrado com "{passadorSearchTerm}".
+                          </div>
+                        ) : (
+                          filteredPassadores.map(p => (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedPassadorId(p.id);
+                                setPassadorSearchTerm('');
+                                setIsPassadorDropdownOpen(false);
+                              }}
+                              className="w-full text-left px-3 py-2 text-xs hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center justify-between"
+                            >
+                              <div>
+                                <span className="font-semibold text-slate-900 dark:text-slate-100 block">{p.name}</span>
+                                {p.phone && <span className="text-[10px] text-slate-400 font-mono">{p.phone}</span>}
+                              </div>
+                              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold font-mono">Ativo</span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Opção "Mostrar valores" com Sim / Não (padrão Não) e campo de valor */}
