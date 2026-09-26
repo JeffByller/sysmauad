@@ -2026,6 +2026,109 @@ app.post('/orders/:id/ironing', async (req: Request, res: Response) => {
   }
 });
 
+app.put('/orders/:orderId/ironing/:logId', async (req: Request, res: Response) => {
+  try {
+    const { orderId, logId } = req.params;
+    const { newPieces, editorRole, editorName, editorId } = req.body;
+    const pieces = Number(newPieces);
+
+    if (isNaN(pieces) || pieces <= 0) {
+      return res.status(400).json({ success: false, message: 'A quantidade de peças deve ser maior que zero.' });
+    }
+
+    const current = await query('SELECT * FROM sysmauad.orders WHERE id = $1', [orderId]);
+    if (current.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Pedido não encontrado.' });
+    }
+    const row = current.rows[0];
+    const logs = Array.isArray(row.ironing_logs) ? row.ironing_logs : [];
+    const logIndex = logs.findIndex((l: any) => l.id === logId);
+
+    if (logIndex === -1) {
+      return res.status(404).json({ success: false, message: 'Registro de passadoria não encontrado.' });
+    }
+
+    const targetLog = logs[logIndex];
+    const isAdmin = editorRole === 'admin' || editorRole === 'super-admin';
+
+    // Validação para perfil Passador
+    if (!isAdmin) {
+      if (targetLog.passadorId && editorId && targetLog.passadorId !== editorId && targetLog.passadorName !== editorName) {
+        return res.status(403).json({ success: false, message: 'Você só pode editar seus próprios lançamentos.' });
+      }
+      if ((targetLog.editCount || 0) >= 1) {
+        return res.status(403).json({
+          success: false,
+          message: 'Você já realizou a edição permitida (1/1) para este lançamento. Para novas alterações, solicite ao Administrador.'
+        });
+      }
+    }
+
+    const oldPieces = Number(targetLog.piecesIroned || 0);
+    const diff = pieces - oldPieces;
+    const currentTotal = Number(row.total_ironed_pieces || 0);
+    const newTotalIroned = Math.max(0, currentTotal + diff);
+
+    // Atualiza o log com controle de edição
+    logs[logIndex] = {
+      ...targetLog,
+      piecesIroned: pieces,
+      editCount: (targetLog.editCount || 0) + 1,
+      lastEditedAt: new Date().toISOString(),
+      lastEditedBy: editorName || (isAdmin ? 'Administrador' : targetLog.passadorName)
+    };
+
+    const history = Array.isArray(row.history) ? row.history : [];
+    history.push({
+      timestamp: new Date().toISOString(),
+      status: row.status,
+      operator: editorName || (isAdmin ? 'Administrador' : targetLog.passadorName),
+      note: `Correção de passadoria (${targetLog.passadorName}): alterado de ${oldPieces} para ${pieces} pçs (Total: ${newTotalIroned}/${row.estimated_piece_count})`
+    });
+
+    const updated = await query(
+      `UPDATE sysmauad.orders SET total_ironed_pieces = $1, ironing_logs = $2, history = $3, updated_at = NOW() WHERE id = $4 RETURNING *`,
+      [newTotalIroned, JSON.stringify(logs), JSON.stringify(history), orderId]
+    );
+
+    // Atualiza estatística do passador no banco se houver diferença
+    if (targetLog.passadorId && diff !== 0) {
+      await query(
+        'UPDATE sysmauad.passadores SET total_pieces_ironed = GREATEST(0, total_pieces_ironed + $1) WHERE id = $2',
+        [diff, targetLog.passadorId]
+      );
+    }
+
+    const ip = getClientIp(req);
+    recordAuditLog({
+      level: 'info',
+      category: 'orders',
+      action: 'order_ironing_edited',
+      userName: editorName || (isAdmin ? 'Administrador' : targetLog.passadorName),
+      ipAddress: ip,
+      userAgent: req.headers['user-agent'] as string,
+      details: {
+        orderId,
+        osNumber: row.os_number,
+        logId,
+        passadorName: targetLog.passadorName,
+        oldPieces,
+        newPieces: pieces,
+        diff,
+        editorRole: editorRole || 'passador'
+      }
+    }).catch(() => {});
+
+    return res.json({
+      success: true,
+      message: `Lançamento atualizado com sucesso de ${oldPieces} para ${pieces} peças!`,
+      order: mapOrder(updated.rows[0])
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 app.post('/orders/:id/pay', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;

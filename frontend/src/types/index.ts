@@ -162,6 +162,9 @@ export interface PassadorLog {
   passadorName: string;
   piecesIroned: number;
   timestamp: string;
+  editCount?: number;
+  lastEditedAt?: string;
+  lastEditedBy?: string;
 }
 
 export type ClientPortalStatus = 'pendente' | 'ativo' | 'bloqueado';

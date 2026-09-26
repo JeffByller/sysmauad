@@ -42,6 +42,7 @@ interface OrderContextType {
   updateOrderWeight: (orderId: string, newTotalWeightKg: number, newPieceCount?: number, reason?: string, operatorName?: string) => Promise<{ success: boolean; message: string }>;
   updateOrderServices: (orderId: string, newItems: OrderItem[], operatorName?: string) => Promise<{ success: boolean; message: string }>;
   registerIroning: (orderId: string, passadorId: string, passadorName: string, piecesIroned: number) => { success: boolean; message: string };
+  updateIroningLog: (orderId: string, logId: string, newPieces: number, editorRole: string, editorName: string, editorId: string) => Promise<{ success: boolean; message: string }>;
   registerNewPassador: (name: string, phone?: string) => Passador;
   updatePassador: (id: string, data: Partial<Passador>) => Promise<{ success: boolean; message: string }>;
   addStockItem: (item: Omit<ChemicalStockItem, 'id'>) => ChemicalStockItem;
@@ -820,6 +821,100 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return { success: true, message: `Lançamento de ${piecesIroned} peças registrado para ${passadorName}!` };
   };
 
+  const updateIroningLog = async (
+    orderId: string,
+    logId: string,
+    newPieces: number,
+    editorRole: string,
+    editorName: string,
+    editorId: string
+  ): Promise<{ success: boolean; message: string }> => {
+    if (isNaN(newPieces) || newPieces <= 0) {
+      return { success: false, message: 'A quantidade de peças deve ser maior que zero.' };
+    }
+
+    const targetOrder = orders.find(o => o.id === orderId || o.osNumber === orderId);
+    if (!targetOrder) {
+      return { success: false, message: 'Pedido não encontrado.' };
+    }
+
+    const log = targetOrder.ironingLogs.find(l => l.id === logId);
+    if (!log) {
+      return { success: false, message: 'Registro de passadoria não encontrado.' };
+    }
+
+    const isAdmin = editorRole === 'admin' || editorRole === 'super-admin';
+    if (!isAdmin) {
+      if (log.passadorId && editorId && log.passadorId !== editorId && log.passadorName !== editorName) {
+        return { success: false, message: 'Você só pode editar seus próprios lançamentos.' };
+      }
+      if ((log.editCount || 0) >= 1) {
+        return {
+          success: false,
+          message: 'Você já realizou a edição permitida (1/1) para este lançamento. Para novas correções, solicite ao Administrador.'
+        };
+      }
+    }
+
+    const oldPieces = log.piecesIroned;
+    const diff = newPieces - oldPieces;
+    const newTotal = Math.max(0, targetOrder.totalIronedPieces + diff);
+
+    // Atualização otimista no estado local
+    setOrders(prev => prev.map(ord => {
+      if (ord.id !== targetOrder.id) return ord;
+      return {
+        ...ord,
+        totalIronedPieces: newTotal,
+        ironingLogs: ord.ironingLogs.map(l => {
+          if (l.id !== logId) return l;
+          return {
+            ...l,
+            piecesIroned: newPieces,
+            editCount: (l.editCount || 0) + 1,
+            lastEditedAt: new Date().toISOString(),
+            lastEditedBy: editorName || (isAdmin ? 'Administrador' : l.passadorName)
+          };
+        }),
+        history: [
+          ...ord.history,
+          {
+            timestamp: new Date().toISOString(),
+            status: ord.status,
+            operator: editorName || (isAdmin ? 'Administrador' : log.passadorName),
+            note: `Correção de passadoria (${log.passadorName}): alterado de ${oldPieces} para ${newPieces} pçs (Total: ${newTotal}/${ord.estimatedPieceCount})`
+          }
+        ]
+      };
+    }));
+
+    if (log.passadorId && diff !== 0) {
+      setPassadores(prev => prev.map(p => {
+        if (p.id !== log.passadorId) return p;
+        return {
+          ...p,
+          totalPiecesIroned: Math.max(0, p.totalPiecesIroned + diff)
+        };
+      }));
+    }
+
+    try {
+      const res = await fetch(`/api/orders/${targetOrder.id}/ironing/${logId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newPieces, editorRole, editorName, editorId })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return { success: false, message: data.message || 'Erro ao atualizar no servidor.' };
+      }
+      return { success: true, message: data.message || `Lançamento atualizado de ${oldPieces} para ${newPieces} peças!` };
+    } catch (err: any) {
+      console.error('[OrderContext] Erro ao editar passadoria no backend:', err);
+      return { success: true, message: `Lançamento atualizado para ${newPieces} peças!` };
+    }
+  };
+
   const registerNewPassador = (name: string, phone?: string): Passador => {
     const cleanUsername = name.toLowerCase().replace(/\s+/g, '.').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const newUser = addUser({
@@ -1228,6 +1323,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       updateOrderWeight,
       updateOrderServices,
       registerIroning,
+      updateIroningLog,
       registerNewPassador,
       updatePassador,
       addStockItem,

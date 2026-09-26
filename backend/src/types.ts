@@ -127,6 +127,9 @@ export interface PassadorLog {
   passadorName: string;
   piecesIroned: number;
   timestamp: string;
+  editCount?: number;
+  lastEditedAt?: string;
+  lastEditedBy?: string;
 }
 
 export interface OrderHistoryEvent {

@@ -23,7 +23,7 @@ import {
   Trash2,
   X
 } from 'lucide-react';
-import { OrderStatus, OrderItem } from '../types';
+import { OrderStatus, OrderItem, PassadorLog } from '../types';
 
 interface OrderDetailViewProps {
   orderId: string;
@@ -37,7 +37,8 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
     getOrderByOS, 
     updateOrderStatus, 
     updateOrderWeight, 
-    updateOrderServices, 
+    updateOrderServices,
+    updateIroningLog,
     createOrder, 
     calculateChemicals,
     stalledOrderAlertDays
@@ -72,6 +73,11 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
   const [isCreatingRelavado, setIsCreatingRelavado] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Estados para Edição de Passada (Administrador)
+  const [editingIroningLog, setEditingIroningLog] = useState<PassadorLog | null>(null);
+  const [editIroningPiecesInput, setEditIroningPiecesInput] = useState<string>('');
+  const [isSavingIroning, setIsSavingIroning] = useState<boolean>(false);
+
   // Cálculo de OS Parada (>= stalledOrderAlertDays sem movimentação)
   const lastActivity = (order?.history && order.history.length > 0)
     ? order.history[order.history.length - 1].timestamp
@@ -84,6 +90,10 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (editingIroningLog) {
+          setEditingIroningLog(null);
+          return;
+        }
         if (isSaidaModalOpen) {
           setIsSaidaModalOpen(false);
           return;
@@ -105,7 +115,7 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isSaidaModalOpen, isEditServicesModalOpen, isEditWeightModalOpen, isRelavadoModalOpen, onBack]);
+  }, [editingIroningLog, isSaidaModalOpen, isEditServicesModalOpen, isEditWeightModalOpen, isRelavadoModalOpen, onBack]);
 
   const handleOpenEditWeight = () => {
     if (!order) return;
@@ -729,12 +739,33 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
                 {order.ironingLogs.map(log => (
                   <div key={log.id} className="p-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 rounded-xl flex items-center justify-between text-xs font-mono">
                     <div>
-                      <strong className="text-slate-900 dark:text-slate-100 block">{log.passadorName}</strong>
+                      <div className="flex items-center gap-1.5">
+                        <strong className="text-slate-900 dark:text-slate-100 block">{log.passadorName}</strong>
+                        {(log.editCount || 0) > 0 && (
+                          <span className="text-[9px] font-sans px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                            Editado ({log.editCount}x)
+                          </span>
+                        )}
+                      </div>
                       <span className="text-slate-400 text-[10px]">{new Date(log.timestamp).toLocaleString('pt-BR')}</span>
                     </div>
-                    <span className="font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-3 py-1 rounded-lg text-sm">
-                      +{log.piecesIroned} pçs
-                    </span>
+
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-3 py-1 rounded-lg text-sm">
+                        +{log.piecesIroned} pçs
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingIroningLog(log);
+                          setEditIroningPiecesInput(String(log.piecesIroned));
+                        }}
+                        title="Corrigir quantidade deste lançamento (Administrador)"
+                        className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 hover:text-emerald-600 dark:text-slate-300 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1282,6 +1313,108 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
                 >
                   <Check className="w-4 h-4" />
                   {isSavingServices ? 'Salvando...' : 'Salvar Alterações'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Edição de Passada (Administrador) */}
+      {editingIroningLog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden animate-in zoom-in-95">
+            <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Shirt className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                  Corrigir Passada (Administrador)
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingIroningLog(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const newCount = parseInt(editIroningPiecesInput, 10);
+                if (isNaN(newCount) || newCount <= 0) {
+                  setToastMessage('Informe uma quantidade válida de peças.');
+                  return;
+                }
+
+                setIsSavingIroning(true);
+                const res = await updateIroningLog(
+                  order.id,
+                  editingIroningLog.id,
+                  newCount,
+                  'admin',
+                  user?.name || 'Administrador',
+                  user?.id || ''
+                );
+                setIsSavingIroning(false);
+
+                if (res.success) {
+                  setToastMessage(res.message);
+                  setEditingIroningLog(null);
+                } else {
+                  setToastMessage(res.message);
+                }
+              }}
+              className="p-5 space-y-4"
+            >
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1 text-xs font-mono">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Passador:</span>
+                  <strong className="text-slate-800 dark:text-slate-200">{editingIroningLog.passadorName}</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Valor Atual:</span>
+                  <strong className="text-amber-600 dark:text-amber-400">{editingIroningLog.piecesIroned} peças</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Data/Hora:</span>
+                  <span>{new Date(editingIroningLog.timestamp).toLocaleString('pt-BR')}</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1">
+                  Nova Quantidade de Peças
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="1000"
+                  value={editIroningPiecesInput}
+                  onChange={e => setEditIroningPiecesInput(e.target.value.replace(/^0+(?=\d)/, ''))}
+                  onFocus={e => e.target.select()}
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-lg font-mono font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  required
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setEditingIroningLog(null)}
+                  className="flex-1 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingIroning}
+                  className="flex-1 py-2 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white font-bold text-xs rounded-xl transition-colors shadow-sm"
+                >
+                  {isSavingIroning ? 'Salvando...' : 'Salvar Alteração'}
                 </button>
               </div>
             </form>
