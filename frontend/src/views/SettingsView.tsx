@@ -84,6 +84,16 @@ export const SettingsView: React.FC = () => {
   const [testingReport, setTestingReport] = useState(false);
   const [reportPreview, setReportPreview] = useState<string | null>(null);
 
+  // Envio Manual de Relatório com Link
+  const [manualReportType, setManualReportType] = useState<'lavados' | 'passadores' | 'fornecedores' | 'gerencial_completo'>('gerencial_completo');
+  const [manualPeriodPreset, setManualPeriodPreset] = useState<'hoje' | 'semana' | 'mes' | 'custom'>('hoje');
+  const [manualStartDate, setManualStartDate] = useState('');
+  const [manualEndDate, setManualEndDate] = useState('');
+  const [manualTargetPhone, setManualTargetPhone] = useState('');
+  const [manualNotes, setManualNotes] = useState('');
+  const [sendingManualReport, setSendingManualReport] = useState(false);
+  const [manualReportResult, setManualReportResult] = useState<any>(null);
+
   const showToast = (type: 'success' | 'error' | 'info', message: string) => {
     setToast({ type, message });
     setTimeout(() => setToast(null), 5000);
@@ -323,6 +333,60 @@ export const SettingsView: React.FC = () => {
         : [...current, itemKey];
       return { ...prev, selectedReports: updated };
     });
+  };
+
+  // Gerar e enviar relatório manual com link
+  const handleSendManualReport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSendingManualReport(true);
+    setManualReportResult(null);
+    try {
+      const body: any = {
+        reportType: manualReportType,
+        periodPreset: manualPeriodPreset,
+        createdBy: 'Operador (Manual)',
+        sendWhatsApp: true
+      };
+      if (manualPeriodPreset === 'custom') {
+        if (!manualStartDate || !manualEndDate) {
+          showToast('error', 'Informe as datas de início e fim para o período personalizado.');
+          setSendingManualReport(false);
+          return;
+        }
+        body.startDate = manualStartDate;
+        body.endDate = manualEndDate;
+      }
+      if (manualTargetPhone.trim()) {
+        body.targetPhone = manualTargetPhone.trim();
+      }
+      if (manualNotes.trim()) {
+        body.notes = manualNotes.trim();
+      }
+
+      const res = await fetch('/api/reports/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setManualReportResult(data);
+        if (data.whatsAppSent) {
+          showToast('success', 'Relatório gerado e enviado via WhatsApp com sucesso!');
+        } else {
+          showToast('info', data.whatsAppError
+            ? `Relatório gerado! Envio WhatsApp falhou: ${data.whatsAppError}`
+            : 'Relatório gerado com sucesso! Link disponível abaixo.'
+          );
+        }
+      } else {
+        showToast('error', data.message || 'Erro ao gerar relatório.');
+      }
+    } catch (err: any) {
+      showToast('error', err.message || 'Erro de conexão com o servidor.');
+    } finally {
+      setSendingManualReport(false);
+    }
   };
 
   return (
@@ -1022,6 +1086,161 @@ export const SettingsView: React.FC = () => {
                   Enviado via Sysmauad Bot • {settings.reportSendTime}
                 </div>
               </div>
+            </div>
+
+            {/* Card: Gerar Relatório com Link Compartilhável */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-4">
+              <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+                <FileText className="w-4 h-4 text-indigo-500" />
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                  Gerar Relatório com Link via WhatsApp
+                </h3>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Gere um relatório detalhado em HTML e envie automaticamente por WhatsApp com um link seguro de acesso. O arquivo ficará disponível por {settings.reportRetentionDays || 30} dias.
+              </p>
+
+              <form onSubmit={handleSendManualReport} className="space-y-3">
+                {/* Tipo de Relatório */}
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                    Tipo de Relatório:
+                  </label>
+                  <select
+                    value={manualReportType}
+                    onChange={e => setManualReportType(e.target.value as any)}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="gerencial_completo">📊 Gerencial Completo (Todos os módulos)</option>
+                    <option value="lavados">📦 Produção & Lavados</option>
+                    <option value="passadores">✨ Passadoria & Acabamento</option>
+                    <option value="fornecedores">🧪 Fornecedores & Insumos</option>
+                  </select>
+                </div>
+
+                {/* Período */}
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                    Período:
+                  </label>
+                  <select
+                    value={manualPeriodPreset}
+                    onChange={e => setManualPeriodPreset(e.target.value as any)}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="hoje">📅 Hoje (Diário)</option>
+                    <option value="semana">📅 Últimos 7 Dias (Semanal)</option>
+                    <option value="mes">📅 Este Mês (Mensal)</option>
+                    <option value="custom">📅 Personalizado</option>
+                  </select>
+                </div>
+
+                {/* Datas Personalizadas */}
+                {manualPeriodPreset === 'custom' && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">De:</label>
+                      <input
+                        type="date"
+                        value={manualStartDate}
+                        onChange={e => setManualStartDate(e.target.value)}
+                        className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">Até:</label>
+                      <input
+                        type="date"
+                        value={manualEndDate}
+                        onChange={e => setManualEndDate(e.target.value)}
+                        className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500"
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Telefone destino (opcional) */}
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                    WhatsApp Destino <span className="font-normal text-slate-400">(vazio = número padrão)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={manualTargetPhone}
+                    onChange={e => setManualTargetPhone(e.target.value)}
+                    placeholder={settings.whatsappTargetPhone || 'Ex: 81999999999'}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                {/* Observação (opcional) */}
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                    Observação <span className="font-normal text-slate-400">(opcional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={manualNotes}
+                    onChange={e => setManualNotes(e.target.value)}
+                    placeholder="Ex: Relatório solicitado pela diretoria"
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                {/* Botão Gerar */}
+                <button
+                  type="submit"
+                  disabled={sendingManualReport}
+                  className="w-full px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2"
+                >
+                  <Send className="w-4 h-4" />
+                  <span>{sendingManualReport ? 'Gerando e enviando...' : 'Gerar Relatório e Enviar via WhatsApp'}</span>
+                </button>
+              </form>
+
+              {/* Resultado do Envio */}
+              {manualReportResult && manualReportResult.report && (
+                <div className="mt-4 p-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl space-y-2">
+                  <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span className="text-xs font-bold">Relatório gerado com sucesso!</span>
+                  </div>
+                  <div className="space-y-1.5 text-xs text-slate-700 dark:text-slate-300">
+                    <p><strong>Título:</strong> {manualReportResult.report.title}</p>
+                    <p><strong>Arquivo:</strong> {manualReportResult.report.fileName}</p>
+                    <p><strong>Expira em:</strong> {new Date(manualReportResult.report.expiresAt).toLocaleDateString('pt-BR')} ({manualReportResult.report.retentionDays} dias)</p>
+                    {manualReportResult.whatsAppSent && (
+                      <p className="text-emerald-600 dark:text-emerald-400 font-semibold">✅ Enviado via WhatsApp</p>
+                    )}
+                    {manualReportResult.whatsAppError && (
+                      <p className="text-amber-600 dark:text-amber-400 font-semibold">⚠️ WhatsApp: {manualReportResult.whatsAppError}</p>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    <a
+                      href={manualReportResult.report.viewUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-colors"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      Visualizar Relatório
+                    </a>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(manualReportResult.report.viewUrl);
+                        showToast('success', 'Link copiado para a área de transferência!');
+                      }}
+                      className="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-colors"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      Copiar Link
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
