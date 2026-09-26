@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useOrders } from '../context/OrderContext';
 import { Package, Plus, AlertTriangle, CheckCircle2, RefreshCw, Search, FlaskConical, PackagePlus, BookOpen } from 'lucide-react';
 import { InsumoEntryView } from './InsumoEntryView';
 import { ReceitasLavadoView } from './ReceitasLavadoView';
+import { Pagination } from '../components/common/Pagination';
 
 type StockTab = 'estoque' | 'entradas' | 'receitas';
 
@@ -10,6 +11,7 @@ export const StockView: React.FC = () => {
   const { stockItems, addStockItem, updateStockQuantity, updateStockItem } = useOrders();
   const [stockTab, setStockTab] = useState<StockTab>('estoque');
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
 
@@ -26,6 +28,15 @@ export const StockView: React.FC = () => {
     item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.category.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
+  const paginatedItems = useMemo(() => {
+    const start = (currentPage - 1) * 20;
+    return filteredItems.slice(start, start + 20);
+  }, [filteredItems, currentPage]);
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -219,7 +230,7 @@ export const StockView: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {filteredItems.map(item => {
+              {paginatedItems.map(item => {
                 const isLow = item.currentStock <= item.minStockAlert;
                 return (
                   <tr 
@@ -263,6 +274,14 @@ export const StockView: React.FC = () => {
             </tbody>
           </table>
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filteredItems.length}
+          pageSize={20}
+          onPageChange={setCurrentPage}
+          label="insumos"
+        />
       </div>
 
       {/* Modal: Register / Edit Stock Item */}

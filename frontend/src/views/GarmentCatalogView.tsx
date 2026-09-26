@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useOrders } from '../context/OrderContext';
 import { PlusCircle, Tag, Scale, CheckCircle2, Search, Edit3, Trash2, X, AlertCircle } from 'lucide-react';
 import { GarmentProcessCatalogItem } from '../types';
+import { Pagination } from '../components/common/Pagination';
 
 export const GarmentCatalogView: React.FC = () => {
   const { 
@@ -157,6 +158,12 @@ export const GarmentCatalogView: React.FC = () => {
     setTimeout(() => setFeedback(null), 4000);
   };
 
+  const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
   const filteredCatalog = garmentCatalog.filter(item => {
     const term = searchTerm.toLowerCase();
     return (
@@ -165,6 +172,11 @@ export const GarmentCatalogView: React.FC = () => {
       (item.category && item.category.toLowerCase().includes(term))
     );
   });
+
+  const paginatedCatalog = useMemo(() => {
+    const start = (currentPage - 1) * 20;
+    return filteredCatalog.slice(start, start + 20);
+  }, [filteredCatalog, currentPage]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -408,7 +420,7 @@ export const GarmentCatalogView: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                filteredCatalog.map(item => (
+                paginatedCatalog.map(item => (
                   <tr 
                     key={item.id} 
                     onDoubleClick={() => handleOpenEdit(item)}
@@ -458,6 +470,14 @@ export const GarmentCatalogView: React.FC = () => {
             </tbody>
           </table>
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filteredCatalog.length}
+          pageSize={20}
+          onPageChange={setCurrentPage}
+          label="peças"
+        />
       </div>
     </div>
   );

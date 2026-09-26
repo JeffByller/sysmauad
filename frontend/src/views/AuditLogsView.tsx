@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { AuditLog, AuditStats } from '../types';
+import { Pagination } from '../components/common/Pagination';
 import {
   ShieldAlert,
   AlertCircle,
@@ -36,7 +37,7 @@ export const AuditLogsView: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const pageSize = 25;
+  const pageSize = 20;
 
   // Modal de Detalhes
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
@@ -544,31 +545,13 @@ export const AuditLogsView: React.FC = () => {
         </div>
 
         {/* Pagination Bar */}
-        <div className="border-t border-slate-800 px-4 py-3 bg-slate-950/40 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
-          <div>
-            Mostrando <strong>{logs.length > 0 ? (currentPage - 1) * pageSize + 1 : 0}</strong> a{' '}
-            <strong>{Math.min(currentPage * pageSize, totalCount)}</strong> de <strong>{totalCount}</strong> logs
-          </div>
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage <= 1 || isLoading}
-              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg disabled:opacity-40 font-semibold"
-            >
-              Anterior
-            </button>
-            <span className="px-3 font-mono text-slate-300 font-semibold">
-              {currentPage} / {totalPages}
-            </span>
-            <button
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage >= totalPages || isLoading}
-              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg disabled:opacity-40 font-semibold"
-            >
-              Próxima
-            </button>
-          </div>
-        </div>
+        <Pagination
+          currentPage={currentPage}
+          totalItems={totalCount}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          label="logs de auditoria"
+        />
       </div>
 
       {/* MODAL: DETALHES COMPLETOS DO LOG */}

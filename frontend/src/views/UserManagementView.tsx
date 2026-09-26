@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { ALL_MENU_KEYS } from '../mock/initialData';
 import { Users, ShieldCheck, CheckCircle2, UserPlus, Eye, EyeOff, Lock, Key, Check, X, Edit3, Phone, Trash2 } from 'lucide-react';
 import { SystemUser } from '../types';
+import { Pagination } from '../components/common/Pagination';
 
 export const UserManagementView: React.FC = () => {
   const { 
@@ -17,10 +18,16 @@ export const UserManagementView: React.FC = () => {
   } = useAuth();
 
   const [isAddingUser, setIsAddingUser] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const [editingPermissionsUser, setEditingPermissionsUser] = useState<SystemUser | null>(null);
   const [tempAllowedMenus, setTempAllowedMenus] = useState<string[]>([]);
   const [changingPasswordUser, setChangingPasswordUser] = useState<SystemUser | null>(null);
   const [newPasswordInput, setNewPasswordInput] = useState('');
+
+  const paginatedUsers = useMemo(() => {
+    const start = (currentPage - 1) * 20;
+    return usersList.slice(start, start + 20);
+  }, [usersList, currentPage]);
 
   // Editing User Details State
   const [editingUser, setEditingUser] = useState<SystemUser | null>(null);
@@ -394,7 +401,7 @@ export const UserManagementView: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {usersList.map(u => {
+              {paginatedUsers.map(u => {
                 const isCurrent = currentUser?.id === u.id;
 
                 return (
@@ -508,6 +515,14 @@ export const UserManagementView: React.FC = () => {
             </tbody>
           </table>
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalItems={usersList.length}
+          pageSize={20}
+          onPageChange={setCurrentPage}
+          label="usuários"
+        />
       </div>
 
       {/* Modal: Change Password */}

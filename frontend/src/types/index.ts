@@ -181,6 +181,8 @@ export interface Client {
   passwordHash?: string;
   inviteToken?: string;
   auditHistory?: ClientAuditEntry[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface WhatsAppNotification {

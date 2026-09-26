@@ -1,9 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useOrders } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
 import { Printer, FileText, Shirt, Truck, UserCheck, ArrowLeft, Layers, ListFilter, CheckCircle2, Clock, Play, PackageCheck, Scale, CheckCircle } from 'lucide-react';
 import { getDatePresets, getLocalDateString } from '../utils/dateUtils';
-import { OrderStatus } from '../types';
+import { OrderStatus, Order } from '../types';
+import { Pagination } from '../components/common/Pagination';
 
 export const PassadorReportView: React.FC = () => {
   const { passadores, orders, insumoEntries, suppliers } = useOrders();
@@ -35,6 +36,23 @@ export const PassadorReportView: React.FC = () => {
   const [startDate, setStartDate] = useState<string>(firstDayOfMonth);
   const [endDate, setEndDate] = useState<string>(lastDayOfMonth);
   const [periodPreset, setPeriodPreset] = useState<'hoje' | 'semana' | 'mes' | 'custom'>('mes');
+
+  // Estados de paginação (20 por página para visualização em tela)
+  const [currentPageOrders, setCurrentPageOrders] = useState<number>(1);
+  const [currentPagePassadorLogs, setCurrentPagePassadorLogs] = useState<number>(1);
+  const [currentPageInsumos, setCurrentPageInsumos] = useState<number>(1);
+
+  useEffect(() => {
+    setCurrentPageOrders(1);
+  }, [startDate, endDate, lavadoStatusFilter, lavadoViewMode]);
+
+  useEffect(() => {
+    setCurrentPagePassadorLogs(1);
+  }, [selectedPassadorId, startDate, endDate]);
+
+  useEffect(() => {
+    setCurrentPageInsumos(1);
+  }, [selectedSupplierId, startDate, endDate]);
 
   // Ajusta período rápido
   const setQuickPeriod = (preset: 'hoje' | 'semana' | 'mes') => {
@@ -118,6 +136,15 @@ export const PassadorReportView: React.FC = () => {
       return true;
     });
   }, [orders, lavadoStatusFilter, startDate, endDate]);
+
+  const sortedOrders = useMemo(() => {
+    return [...filteredOrders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [filteredOrders]);
+
+  const paginatedOrders = useMemo(() => {
+    const start = (currentPageOrders - 1) * 20;
+    return sortedOrders.slice(start, start + 20);
+  }, [sortedOrders, currentPageOrders]);
 
   // Contadores por status para os botões do menu Painel
   const lavadoCounts = useMemo(() => {
@@ -250,6 +277,25 @@ export const PassadorReportView: React.FC = () => {
 
   const totalInsumosValue = displayedInsumos.reduce((sum, e) => sum + e.totalValue, 0);
 
+  const sortedPassadorLogs = useMemo(() => {
+    if (!selectedPassador) return [];
+    return [...selectedPassador.logs].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }, [selectedPassador]);
+
+  const paginatedPassadorLogs = useMemo(() => {
+    const start = (currentPagePassadorLogs - 1) * 20;
+    return sortedPassadorLogs.slice(start, start + 20);
+  }, [sortedPassadorLogs, currentPagePassadorLogs]);
+
+  const sortedInsumos = useMemo(() => {
+    return [...displayedInsumos].sort((a, b) => new Date(b.enteredAt).getTime() - new Date(a.enteredAt).getTime());
+  }, [displayedInsumos]);
+
+  const paginatedInsumos = useMemo(() => {
+    const start = (currentPageInsumos - 1) * 20;
+    return sortedInsumos.slice(start, start + 20);
+  }, [sortedInsumos, currentPageInsumos]);
+
   // Ação de Impressão Direta
   const handlePrint = () => {
     window.print();
@@ -284,6 +330,73 @@ export const PassadorReportView: React.FC = () => {
       default: return status;
     }
   };
+
+  const renderOrderRow = (order: Order) => {
+    const firstItem = order.items?.[0];
+    const clothing = firstItem?.clothingType || 'Peça';
+    const corte = order.corteOs || firstItem?.corteOs;
+    const processName = firstItem?.process || '—';
+    const entryDate = getLocalDateString(order.createdAt).split('-').reverse().slice(0, 2).join('/');
+
+    return (
+      <div key={order.id} className="grid grid-cols-12 items-center py-1 border-b border-dotted border-slate-100 hover:bg-slate-50">
+        <span className="col-span-2 truncate">
+          <strong className="text-slate-900">{order.osNumber}</strong>
+          <span className="text-[10px] text-slate-400 block">{entryDate}</span>
+        </span>
+        <span className="col-span-3 font-sans truncate pr-1" title={order.clientName}>
+          <span className="font-semibold text-slate-800">{order.clientName}</span>
+        </span>
+        <span className="col-span-2 truncate text-[10px] text-slate-600">
+          <span className="font-medium text-slate-800 block truncate">{clothing}</span>
+          {corte && <span className="text-slate-400 block truncate">CORTE: {corte}</span>}
+        </span>
+        <span className="col-span-2 truncate text-slate-700 font-sans text-[11px]">
+          {processName}
+        </span>
+        <span className="col-span-1 text-right font-bold text-slate-900">
+          {order.estimatedPieceCount || 0}
+        </span>
+        <span className="col-span-1 text-right text-slate-600 text-[10px]">
+          {(order.totalWeightKg || 0).toFixed(1)}
+        </span>
+        <span className="col-span-1 text-center">
+          <span className="text-[9px] uppercase px-1 py-0.5 rounded font-sans font-bold border border-slate-300">
+            {getOrderStatusBadge(order.status)}
+          </span>
+        </span>
+      </div>
+    );
+  };
+
+  const renderPassadorLogRow = (l: any, idx: number) => (
+    <div key={l.id || idx} className="flex justify-between items-center py-1 border-b border-dashed border-slate-200">
+      <span>
+        <strong>{l.osNumber}</strong> • {l.clientName || 'Cliente'} • {new Date(l.timestamp).toLocaleDateString('pt-BR')} às {new Date(l.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+      </span>
+      <div className="text-right font-mono font-bold text-slate-900">
+        +{l.piecesIroned} Pcs
+      </div>
+    </div>
+  );
+
+  const renderInsumoRow = (entry: any) => (
+    <div key={entry.id} className="grid grid-cols-12 items-center py-0.5 border-b border-dashed border-slate-100">
+      <span className={selectedSupplier ? 'col-span-3 font-semibold truncate' : 'col-span-4 font-semibold truncate'}>
+        {selectedSupplier 
+          ? `${new Date(entry.enteredAt).toLocaleDateString('pt-BR')} ${entry.invoiceRef ? `• NF ${entry.invoiceRef}` : ''}`
+          : entry.supplierName
+        }
+      </span>
+      <span className={selectedSupplier ? 'col-span-4 truncate' : 'col-span-4 truncate'}>{entry.productName}</span>
+      <span className="col-span-1 text-right font-bold font-mono">{entry.quantity}</span>
+      <span className="col-span-1 text-center text-slate-500">{entry.unit}</span>
+      <span className="col-span-1 text-right font-mono">{entry.unitPrice.toFixed(2)}</span>
+      <span className={selectedSupplier ? 'col-span-2 text-right font-bold font-mono' : 'col-span-1 text-right font-bold font-mono'}>
+        {entry.totalValue.toFixed(2)}
+      </span>
+    </div>
+  );
 
   // Título dinâmico do relatório
   const getReportTitle = () => {
@@ -891,57 +1004,21 @@ export const PassadorReportView: React.FC = () => {
                       <span className="col-span-1 text-center">STATUS</span>
                     </div>
 
-                    <div className="space-y-1 text-[11px] font-mono">
-                      {filteredOrders.map(order => {
-                        const firstItem = order.items?.[0];
-                        const clothing = firstItem?.clothingType || 'Peça';
-                        const corte = order.corteOs || firstItem?.corteOs;
-                        const processName = firstItem?.process || '—';
-                        const entryDate = getLocalDateString(order.createdAt).split('-').reverse().slice(0, 2).join('/');
+                    {/* Visualização em tela com paginação de 20 */}
+                    <div className="no-print space-y-1 text-[11px] font-mono">
+                      {paginatedOrders.map(order => renderOrderRow(order))}
+                      <Pagination
+                        currentPage={currentPageOrders}
+                        totalItems={filteredOrders.length}
+                        pageSize={20}
+                        onPageChange={setCurrentPageOrders}
+                        label="pedidos"
+                      />
+                    </div>
 
-                        return (
-                          <div key={order.id} className="grid grid-cols-12 items-center py-1 border-b border-dotted border-slate-100 hover:bg-slate-50">
-                            {/* Coluna 1: OS e Data */}
-                            <span className="col-span-2 truncate">
-                              <strong className="text-slate-900">{order.osNumber}</strong>
-                              <span className="text-[10px] text-slate-400 block">{entryDate}</span>
-                            </span>
-
-                            {/* Coluna 2: Cliente */}
-                            <span className="col-span-3 font-sans truncate pr-1" title={order.clientName}>
-                              <span className="font-semibold text-slate-800">{order.clientName}</span>
-                            </span>
-
-                            {/* Coluna 3: Roupa e Corte */}
-                            <span className="col-span-2 truncate text-[10px] text-slate-600">
-                              <span className="font-medium text-slate-800 block truncate">{clothing}</span>
-                              {corte && <span className="text-slate-400 block truncate">CORTE: {corte}</span>}
-                            </span>
-
-                            {/* Coluna 4: Lavado / Processo */}
-                            <span className="col-span-2 truncate text-slate-700 font-sans text-[11px]">
-                              {processName}
-                            </span>
-
-                            {/* Coluna 5: Peças */}
-                            <span className="col-span-1 text-right font-bold text-slate-900">
-                              {order.estimatedPieceCount || 0}
-                            </span>
-
-                            {/* Coluna 6: Peso Kg */}
-                            <span className="col-span-1 text-right text-slate-600 text-[10px]">
-                              {(order.totalWeightKg || 0).toFixed(1)}
-                            </span>
-
-                            {/* Coluna 7: Status */}
-                            <span className="col-span-1 text-center">
-                              <span className="text-[9px] uppercase px-1 py-0.5 rounded font-sans font-bold border border-slate-300">
-                                {getOrderStatusBadge(order.status)}
-                              </span>
-                            </span>
-                          </div>
-                        );
-                      })}
+                    {/* Impressão física com a lista completa */}
+                    <div className="print-only space-y-1 text-[11px] font-mono">
+                      {filteredOrders.map(order => renderOrderRow(order))}
                     </div>
                   </div>
                 )}
@@ -986,18 +1063,21 @@ export const PassadorReportView: React.FC = () => {
                     Nenhuma produção registrada para este colaborador no período informado.
                   </div>
                 ) : (
-                  <div className="space-y-1 text-xs">
-                    {selectedPassador.logs.map((l, idx) => (
-                      <div key={l.id || idx} className="flex justify-between items-center py-1 border-b border-dashed border-slate-200">
-                        <span>
-                          <strong>{l.osNumber}</strong> • {l.clientName || 'Cliente'} • {new Date(l.timestamp).toLocaleDateString('pt-BR')} às {new Date(l.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                        <div className="text-right font-mono font-bold text-slate-900">
-                          +{l.piecesIroned} Pcs
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <>
+                    <div className="no-print space-y-1 text-xs">
+                      {paginatedPassadorLogs.map((l, idx) => renderPassadorLogRow(l, idx))}
+                      <Pagination
+                        currentPage={currentPagePassadorLogs}
+                        totalItems={selectedPassador.logs.length}
+                        pageSize={20}
+                        onPageChange={setCurrentPagePassadorLogs}
+                        label="lotes passados"
+                      />
+                    </div>
+                    <div className="print-only space-y-1 text-xs">
+                      {selectedPassador.logs.map((l, idx) => renderPassadorLogRow(l, idx))}
+                    </div>
+                  </>
                 )}
 
                 <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px] pt-2">
@@ -1117,25 +1197,21 @@ export const PassadorReportView: React.FC = () => {
                 Nenhuma entrada de mercadoria registrada no período informado.
               </div>
             ) : (
-              <div className="space-y-1 text-xs">
-                {displayedInsumos.map(entry => (
-                  <div key={entry.id} className="grid grid-cols-12 items-center py-0.5 border-b border-dashed border-slate-100">
-                    <span className={selectedSupplier ? 'col-span-3 font-semibold truncate' : 'col-span-4 font-semibold truncate'}>
-                      {selectedSupplier 
-                        ? `${new Date(entry.enteredAt).toLocaleDateString('pt-BR')} ${entry.invoiceRef ? `• NF ${entry.invoiceRef}` : ''}`
-                        : entry.supplierName
-                      }
-                    </span>
-                    <span className={selectedSupplier ? 'col-span-4 truncate' : 'col-span-4 truncate'}>{entry.productName}</span>
-                    <span className="col-span-1 text-right font-bold font-mono">{entry.quantity}</span>
-                    <span className="col-span-1 text-center text-slate-500">{entry.unit}</span>
-                    <span className="col-span-1 text-right font-mono">{entry.unitPrice.toFixed(2)}</span>
-                    <span className={selectedSupplier ? 'col-span-2 text-right font-bold font-mono' : 'col-span-1 text-right font-bold font-mono'}>
-                      {entry.totalValue.toFixed(2)}
-                    </span>
-                  </div>
-                ))}
-              </div>
+              <>
+                <div className="no-print space-y-1 text-xs">
+                  {paginatedInsumos.map(renderInsumoRow)}
+                  <Pagination
+                    currentPage={currentPageInsumos}
+                    totalItems={displayedInsumos.length}
+                    pageSize={20}
+                    onPageChange={setCurrentPageInsumos}
+                    label="entradas"
+                  />
+                </div>
+                <div className="print-only space-y-1 text-xs">
+                  {displayedInsumos.map(renderInsumoRow)}
+                </div>
+              </>
             )}
 
             <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px] pt-2">

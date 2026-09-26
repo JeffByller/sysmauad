@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useOrders } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
 import { 
@@ -17,6 +17,7 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { OrderStatus } from '../types';
+import { Pagination } from '../components/common/Pagination';
 
 interface DashboardViewProps {
   onNavigate: (tab: string, param?: string) => void;
@@ -42,6 +43,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
   // Time Period Filter: 'dia' | 'semana' | 'mes'
   const [timePeriod, setTimePeriod] = useState<'dia' | 'semana' | 'mes'>('dia');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('todos');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [timePeriod, selectedStatusFilter]);
 
   // Filter orders by time period
   const now = new Date();
@@ -64,6 +70,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
   const finalOrders = selectedStatusFilter === 'todos'
     ? periodFilteredOrders
     : periodFilteredOrders.filter(o => o.status === selectedStatusFilter);
+
+  const sortedOrders = useMemo(() => {
+    return [...finalOrders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [finalOrders]);
+
+  const paginatedOrders = useMemo(() => {
+    const start = (currentPage - 1) * 20;
+    return sortedOrders.slice(start, start + 20);
+  }, [sortedOrders, currentPage]);
 
   // Stats calculation
   const totalOrdersCount = periodFilteredOrders.length;
@@ -333,7 +348,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
               Nenhum pedido encontrado no período ({timePeriod}) e status selecionados.
             </div>
           ) : (
-            finalOrders.map(ord => (
+            paginatedOrders.map(ord => (
               <div 
                 key={ord.id} 
                 onDoubleClick={() => onNavigate('order-detail', ord.id)}
@@ -452,6 +467,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
             ))
           )}
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalItems={finalOrders.length}
+          pageSize={20}
+          onPageChange={setCurrentPage}
+          label="pedidos"
+        />
       </div>
     </div>
   );

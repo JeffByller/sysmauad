@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { Order } from '../types';
 import { getDatePresets, getLocalDateString } from '../utils/dateUtils';
+import { Pagination } from '../components/common/Pagination';
 
 export const FinanceCaixaView: React.FC = () => {
   const { orders, clients, payMultipleInvoiceOrders, auditViewBoleto } = useOrders();
@@ -29,6 +30,10 @@ export const FinanceCaixaView: React.FC = () => {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
+
+  // Paginação simples de 20 registros por página
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const PAGE_SIZE = 20;
 
   // Estados para Auditoria & Histórico e Visualização de Boleto
   const [selectedOrderForHistory, setSelectedOrderForHistory] = useState<Order | null>(null);
@@ -41,6 +46,11 @@ export const FinanceCaixaView: React.FC = () => {
   const [startDate, setStartDate] = useState<string>(firstDayOfMonth);
   const [endDate, setEndDate] = useState<string>(lastDayOfMonth);
   const [reportStatusFilter, setReportStatusFilter] = useState<'todos' | 'aberto' | 'pago'>('todos');
+
+  // Reset da página ao alterar filtros ou busca
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [startDate, endDate, reportStatusFilter, searchTerm]);
 
   // Ajusta período rápido
   const setQuickPeriod = (preset: 'hoje' | 'semana' | 'mes') => {
@@ -110,8 +120,14 @@ export const FinanceCaixaView: React.FC = () => {
       }
 
       return true;
-    }).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [orders, startDate, endDate, reportStatusFilter, searchTerm]);
+
+  // Paginação dos 20 registros mais recentes em tela
+  const paginatedReportOrders = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return reportOrders.slice(start, start + PAGE_SIZE);
+  }, [reportOrders, currentPage]);
 
   // Identifica se todas as ordens filtradas pertencem a um mesmo cliente (para fatura personalizada)
   const filteredClient = useMemo(() => {
@@ -511,7 +527,7 @@ export const FinanceCaixaView: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                reportOrders.map(ord => {
+                paginatedReportOrders.map(ord => {
                   const isPaid = ord.paymentStatus === 'pago';
                   const isSelected = selectedOrderIdsForUnifiedPay.includes(ord.id);
                   const serviceVal = ord.totalServiceValue || 0;
@@ -648,6 +664,15 @@ export const FinanceCaixaView: React.FC = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Paginação Financeira de 20 registros mais recentes */}
+        <Pagination
+          currentPage={currentPage}
+          totalItems={reportOrders.length}
+          pageSize={PAGE_SIZE}
+          onPageChange={setCurrentPage}
+          label="faturas"
+        />
       </div>
 
       {/* ─── FOLHA DE IMPRESSÃO / PDF (Exibida exclusivamente ao imprimir) ─── */}

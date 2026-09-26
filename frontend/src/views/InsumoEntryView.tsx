@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useOrders } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
 import {
   PackagePlus, Search, Calendar, X, CheckCircle2,
   FileText, Truck, Building2
 } from 'lucide-react';
+import { Pagination } from '../components/common/Pagination';
 
 type SubTab = 'entradas' | 'relatorio';
 
@@ -14,6 +15,7 @@ export const InsumoEntryView: React.FC = () => {
 
   const [subTab, setSubTab] = useState<SubTab>('entradas');
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
   const [isEntryModalOpen, setIsEntryModalOpen] = useState(false);
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
@@ -66,10 +68,23 @@ export const InsumoEntryView: React.FC = () => {
     setIsSupplierModalOpen(false);
   };
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
   const filteredEntries = insumoEntries.filter(e => {
     const term = searchTerm.toLowerCase();
     return e.productName.toLowerCase().includes(term) || e.supplierName.toLowerCase().includes(term);
   });
+
+  const sortedEntries = useMemo(() => {
+    return [...filteredEntries].sort((a, b) => new Date(b.enteredAt).getTime() - new Date(a.enteredAt).getTime());
+  }, [filteredEntries]);
+
+  const paginatedEntries = useMemo(() => {
+    const start = (currentPage - 1) * 20;
+    return sortedEntries.slice(start, start + 20);
+  }, [sortedEntries, currentPage]);
 
   const reportEntries = insumoEntries.filter(e => {
     const d = e.enteredAt.split('T')[0];
@@ -147,7 +162,7 @@ export const InsumoEntryView: React.FC = () => {
                     <PackagePlus className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-700" />
                     <span className="block">{insumoEntries.length === 0 ? 'Nenhuma entrada registrada. Clique em "Registrar Entrada".' : 'Nenhuma entrada encontrada.'}</span>
                   </td></tr>
-                ) : filteredEntries.map(e => (
+                ) : paginatedEntries.map(e => (
                   <tr key={e.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 font-mono">
                     <td className="p-4 text-slate-500 dark:text-slate-400">{new Date(e.enteredAt).toLocaleDateString('pt-BR')}</td>
                     <td className="p-4 font-bold text-slate-900 dark:text-slate-100 font-sans">{e.productName}</td>
@@ -162,6 +177,13 @@ export const InsumoEntryView: React.FC = () => {
               </tbody>
             </table>
           </div>
+          <Pagination
+            currentPage={currentPage}
+            totalItems={filteredEntries.length}
+            pageSize={20}
+            onPageChange={setCurrentPage}
+            label="entradas"
+          />
         </div>
       )}
 

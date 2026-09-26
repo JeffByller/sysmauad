@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useClientAuth } from '../context/ClientAuthContext';
 import { useOrders } from '../context/OrderContext';
 import { Receipt, CheckCircle2, Package, LogOut, Shirt, Clock } from 'lucide-react';
 import { OrderStatus } from '../types';
+import { Pagination } from '../components/common/Pagination';
 
 interface ClientPortalViewProps {
   onLogout?: () => void;
@@ -12,6 +13,11 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onLogout }) 
   const { client, logoutClient } = useClientAuth();
   const { orders } = useOrders();
   const [activeCategoryTab, setActiveCategoryTab] = useState<'em_andamento' | 'finalizadas'>('em_andamento');
+  const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeCategoryTab]);
 
   const handleLogout = () => {
     logoutClient();
@@ -49,6 +55,15 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onLogout }) 
   const ordersFinalizadas = clientOrders.filter(o => o.status === 'pronto' || o.status === 'entregue');
 
   const displayedOrders = activeCategoryTab === 'em_andamento' ? ordersEmAndamento : ordersFinalizadas;
+
+  const sortedOrders = useMemo(() => {
+    return [...displayedOrders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [displayedOrders]);
+
+  const paginatedOrders = useMemo(() => {
+    const start = (currentPage - 1) * 20;
+    return sortedOrders.slice(start, start + 20);
+  }, [sortedOrders, currentPage]);
 
   const totalPiecesCount = clientOrders.reduce((sum, o) => sum + o.estimatedPieceCount, 0);
 
@@ -155,7 +170,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onLogout }) 
                   </td>
                 </tr>
               ) : (
-                displayedOrders.map(ord => (
+                paginatedOrders.map(ord => (
                   <tr key={ord.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                     <td className="p-3 font-bold text-slate-900 dark:text-slate-100">{ord.osNumber}</td>
                     <td className="p-3 text-slate-600 dark:text-slate-400 font-sans">{new Date(ord.createdAt).toLocaleDateString('pt-BR')}</td>
@@ -173,6 +188,14 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onLogout }) 
             </tbody>
           </table>
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalItems={displayedOrders.length}
+          pageSize={20}
+          onPageChange={setCurrentPage}
+          label="pedidos"
+        />
       </div>
     </div>
   );

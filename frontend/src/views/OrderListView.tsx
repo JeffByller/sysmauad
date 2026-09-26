@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useOrders } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
 import { 
@@ -17,6 +17,7 @@ import {
   Receipt
 } from 'lucide-react';
 import { Order, OrderStatus } from '../types';
+import { Pagination } from '../components/common/Pagination';
 
 interface OrderListViewProps {
   onNavigate: (tab: string, param?: string, printMode?: 'ambos' | 'nota' | 'receita' | 'saida') => void;
@@ -27,6 +28,10 @@ export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('todos');
+
+  // Paginação: 20 registros mais recentes por página
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const PAGE_SIZE = 20;
 
   // Estado para Fechamento de Saída / Faturamento
   const [closingSaidaOrder, setClosingSaidaOrder] = useState<Order | null>(null);
@@ -40,6 +45,11 @@ export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
   const [editReason, setEditReason] = useState<string>('');
   const [isSavingWeight, setIsSavingWeight] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Reset da página quando filtros ou busca mudam
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter]);
 
   const handleConfirmSaida = async () => {
     if (!closingSaidaOrder) return;
@@ -63,24 +73,37 @@ export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
 
   const stalledOrders = orders.filter(ord => getOrderStalledInfo(ord).isStalled);
 
-  const filteredOrders = orders.filter(ord => {
-    const matchesSearch = (ord.osNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (ord.clientName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (ord.clientPhone || '').includes(searchTerm);
-    
-    let matchesStatus = true;
-    if (statusFilter === 'todos') {
-      matchesStatus = true;
-    } else if (statusFilter === 'paradas') {
-      matchesStatus = getOrderStalledInfo(ord).isStalled;
-    } else if (statusFilter === 'relavados') {
-      matchesStatus = Boolean(ord.isRelavado);
-    } else {
-      matchesStatus = ord.status === statusFilter;
-    }
+  // Ordena sempre do mais recente para o mais antigo
+  const sortedOrders = useMemo(() => {
+    return [...orders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [orders]);
 
-    return matchesSearch && matchesStatus;
-  });
+  const filteredOrders = useMemo(() => {
+    return sortedOrders.filter(ord => {
+      const matchesSearch = (ord.osNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            (ord.clientName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            (ord.clientPhone || '').includes(searchTerm);
+      
+      let matchesStatus = true;
+      if (statusFilter === 'todos') {
+        matchesStatus = true;
+      } else if (statusFilter === 'paradas') {
+        matchesStatus = getOrderStalledInfo(ord).isStalled;
+      } else if (statusFilter === 'relavados') {
+        matchesStatus = Boolean(ord.isRelavado);
+      } else {
+        matchesStatus = ord.status === statusFilter;
+      }
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [sortedOrders, searchTerm, statusFilter]);
+
+  // Paginação dos 20 registros
+  const paginatedOrders = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredOrders.slice(start, start + PAGE_SIZE);
+  }, [filteredOrders, currentPage]);
 
   const handleOpenEditWeight = (ord: Order) => {
     setEditingOrder(ord);
@@ -235,7 +258,7 @@ export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
                   </td>
                 </tr>
               ) : (
-                filteredOrders.map(ord => {
+                paginatedOrders.map(ord => {
                   const stalledInfo = getOrderStalledInfo(ord);
                   return (
                     <tr 
@@ -377,6 +400,15 @@ export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
             </tbody>
           </table>
         </div>
+
+        {/* Paginação de Pedidos (20 mais recentes por página) */}
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filteredOrders.length}
+          pageSize={PAGE_SIZE}
+          onPageChange={setCurrentPage}
+          label="pedidos"
+        />
       </div>
 
       {/* Modal: Edição Rápida de Peso */}

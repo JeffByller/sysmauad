@@ -1,16 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useOrders } from '../context/OrderContext';
 import { FlaskConical, Plus, Trash2, ChevronDown, ChevronUp, X, CheckCircle2, Edit3, GripVertical } from 'lucide-react';
 import { ReceitaLavado, ReceitaFase, ReceitaProduto } from '../types';
+import { Pagination } from '../components/common/Pagination';
 
 export const ReceitasLavadoView: React.FC = () => {
   const { receitasLavado, addReceitaLavado, updateReceitaLavado, deleteReceitaLavado } = useOrders();
 
   const [expandedId, setExpandedId] = useState<string | null>(receitasLavado[0]?.id || null);
+  const [currentPage, setCurrentPage] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingReceita, setEditingReceita] = useState<ReceitaLavado | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
+
+  const paginatedReceitas = useMemo(() => {
+    const sorted = [...receitasLavado].sort((a, b) => {
+      const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+      const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+      return timeB - timeA;
+    });
+    const start = (currentPage - 1) * 20;
+    return sorted.slice(start, start + 20);
+  }, [receitasLavado, currentPage]);
 
   // Form state
   const [formName, setFormName] = useState('');
@@ -131,7 +143,7 @@ export const ReceitasLavadoView: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-3">
-          {receitasLavado.map((receita, recIdx) => (
+          {paginatedReceitas.map((receita, recIdx) => (
             <div key={receita.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
               <div
                 className="flex items-center justify-between p-5 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors select-none"
@@ -141,7 +153,7 @@ export const ReceitasLavadoView: React.FC = () => {
               >
                 <div className="flex items-center gap-4">
                   <div className="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-400 flex items-center justify-center font-bold text-sm">
-                    {recIdx + 1}
+                    {(currentPage - 1) * 20 + recIdx + 1}
                   </div>
                   <div>
                     <h3 className="font-bold text-slate-900 dark:text-slate-100">{receita.name}</h3>
@@ -193,6 +205,14 @@ export const ReceitasLavadoView: React.FC = () => {
               )}
             </div>
           ))}
+
+          <Pagination
+            currentPage={currentPage}
+            totalItems={receitasLavado.length}
+            pageSize={20}
+            onPageChange={setCurrentPage}
+            label="receitas"
+          />
         </div>
       )}
 

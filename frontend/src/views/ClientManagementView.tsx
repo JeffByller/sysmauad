@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 import { Client, Order, ClientMessageLog, ClientAuditEntry } from '../types';
 import { formatPhone, validatePhone, cleanPhoneDigits, formatCnpjCpf } from '../utils/phoneValidator';
+import { Pagination } from '../components/common/Pagination';
 
 type ClientModalTab = 'dados' | 'pedidos' | 'financeiro' | 'mensagens' | 'historico';
 
@@ -91,6 +92,24 @@ export const ClientManagementView: React.FC = () => {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [expandedMsgId, setExpandedMsgId] = useState<string | null>(null);
 
+  // Estados de paginação (20 registros por página)
+  const [currentPageClients, setCurrentPageClients] = useState(1);
+  const [currentOrderPage, setCurrentOrderPage] = useState(1);
+  const [currentMsgPage, setCurrentMsgPage] = useState(1);
+
+  // Resetar páginas ao alterar filtros de busca
+  useEffect(() => {
+    setCurrentPageClients(1);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    setCurrentOrderPage(1);
+  }, [orderSearchTerm, orderStatusFilter, orderDateStart, orderDateEnd, editingClient?.id]);
+
+  useEffect(() => {
+    setCurrentMsgPage(1);
+  }, [editingClient?.id, activeModalTab]);
+
   const searchDigits = searchTerm.replace(/\D/g, '');
   const filteredClients = clients.filter(c => {
     const term = searchTerm.toLowerCase();
@@ -105,6 +124,20 @@ export const ClientManagementView: React.FC = () => {
       (searchDigits && cnpjClean.includes(searchDigits))
     );
   });
+
+  const sortedClients = useMemo(() => {
+    return [...filteredClients].sort((a, b) => {
+      if (a.createdAt && b.createdAt) {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+      return 0;
+    });
+  }, [filteredClients]);
+
+  const paginatedClients = useMemo(() => {
+    const start = (currentPageClients - 1) * 20;
+    return sortedClients.slice(start, start + 20);
+  }, [sortedClients, currentPageClients]);
 
   const handleOpenAddModal = () => {
     setName('');
@@ -437,6 +470,24 @@ export const ClientManagementView: React.FC = () => {
     });
   }, [clientOrders, orderSearchTerm, orderStatusFilter, orderDateStart, orderDateEnd]);
 
+  const sortedClientOrders = useMemo(() => {
+    return [...filteredClientOrders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [filteredClientOrders]);
+
+  const paginatedClientOrders = useMemo(() => {
+    const start = (currentOrderPage - 1) * 20;
+    return sortedClientOrders.slice(start, start + 20);
+  }, [sortedClientOrders, currentOrderPage]);
+
+  const sortedClientMessages = useMemo(() => {
+    return [...clientMessages].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [clientMessages]);
+
+  const paginatedClientMessages = useMemo(() => {
+    const start = (currentMsgPage - 1) * 20;
+    return sortedClientMessages.slice(start, start + 20);
+  }, [sortedClientMessages, currentMsgPage]);
+
   // Totais financeiros do cliente (Aba Financeiro)
   const clientFinanceSummary = useMemo(() => {
     const totalOrdersCount = clientOrders.length;
@@ -521,7 +572,7 @@ export const ClientManagementView: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {filteredClients.map(c => {
+              {paginatedClients.map(c => {
                 const isBlocked = c.portalStatus === 'bloqueado';
                 return (
                   <tr 
@@ -609,6 +660,14 @@ export const ClientManagementView: React.FC = () => {
             </tbody>
           </table>
         </div>
+
+        <Pagination
+          currentPage={currentPageClients}
+          totalItems={filteredClients.length}
+          pageSize={20}
+          onPageChange={setCurrentPageClients}
+          label="clientes"
+        />
       </div>
 
       {/* ─── MODAL PRINCIPAL DO CLIENTE COM 5 ABAS (Tarefas 3, 4, 5 e 6) ──────── */}
@@ -993,7 +1052,7 @@ export const ClientManagementView: React.FC = () => {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-mono">
-                          {filteredClientOrders.map(o => {
+                          {paginatedClientOrders.map(o => {
                             const val = o.totalServiceValue || 0;
                             const discount = o.discountAmount || 0;
                             const net = Math.max(0, val - discount);
@@ -1033,6 +1092,13 @@ export const ClientManagementView: React.FC = () => {
                           })}
                         </tbody>
                       </table>
+                      <Pagination
+                        currentPage={currentOrderPage}
+                        totalItems={filteredClientOrders.length}
+                        pageSize={20}
+                        onPageChange={setCurrentOrderPage}
+                        label="pedidos"
+                      />
                     </div>
                   )}
                 </div>
@@ -1182,7 +1248,7 @@ export const ClientManagementView: React.FC = () => {
                     </div>
                   ) : (
                     <div className="space-y-3 font-sans">
-                      {clientMessages.map(msg => {
+                      {paginatedClientMessages.map(msg => {
                         const isExpanded = expandedMsgId === msg.id;
 
                         return (
@@ -1255,6 +1321,13 @@ export const ClientManagementView: React.FC = () => {
                           </div>
                         );
                       })}
+                      <Pagination
+                        currentPage={currentMsgPage}
+                        totalItems={clientMessages.length}
+                        pageSize={20}
+                        onPageChange={setCurrentMsgPage}
+                        label="mensagens"
+                      />
                     </div>
                   )}
                 </div>

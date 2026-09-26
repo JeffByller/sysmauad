@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Settings, 
   MessageSquare, 
@@ -23,6 +23,7 @@ import {
   Copy
 } from 'lucide-react';
 import { SystemSettings, BackupFile, WhatsAppStatus } from '../types';
+import { Pagination } from '../components/common/Pagination';
 
 export const SettingsView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'whatsapp' | 'reports' | 'backups'>('whatsapp');
@@ -71,6 +72,13 @@ export const SettingsView: React.FC = () => {
   const [backups, setBackups] = useState<BackupFile[]>([]);
   const [loadingBackups, setLoadingBackups] = useState(false);
   const [generatingBackup, setGeneratingBackup] = useState(false);
+  const [backupPage, setBackupPage] = useState(1);
+
+  const paginatedBackups = useMemo(() => {
+    const sorted = [...backups].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const start = (backupPage - 1) * 20;
+    return sorted.slice(start, start + 20);
+  }, [backups, backupPage]);
 
   // Report Test State
   const [testingReport, setTestingReport] = useState(false);
@@ -1146,7 +1154,7 @@ export const SettingsView: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {backups.map(b => (
+                    {paginatedBackups.map(b => (
                       <tr key={b.filename} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
                         <td className="p-3.5 font-mono font-medium text-slate-900 dark:text-slate-100">
                           {b.filename}
@@ -1182,6 +1190,15 @@ export const SettingsView: React.FC = () => {
                     ))}
                   </tbody>
                 </table>
+                <div className="p-4 border-t border-slate-100 dark:border-slate-800">
+                  <Pagination
+                    currentPage={backupPage}
+                    totalItems={backups.length}
+                    pageSize={20}
+                    onPageChange={setBackupPage}
+                    label="backups"
+                  />
+                </div>
               </div>
             )}
           </div>
