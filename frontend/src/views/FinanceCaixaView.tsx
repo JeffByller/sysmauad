@@ -169,10 +169,11 @@ export const FinanceCaixaView: React.FC = () => {
   const [unifiedPaymentMethod, setUnifiedPaymentMethod] = useState<string>('pix');
   const [unifiedReceiverName, setUnifiedReceiverName] = useState<string>('');
   const [unifiedNotes, setUnifiedNotes] = useState<string>('');
+  const [showPrintConfirm, setShowPrintConfirm] = useState(false);
 
-  // Ao alterar filtros ou busca, seleciona por padrão todas as abertas visíveis
+  // Ao alterar filtros ou busca, limpa seleções (não seleciona todos por padrão)
   useEffect(() => {
-    setSelectedOrderIdsForUnifiedPay(reportOpenOrders.map(o => o.id));
+    setSelectedOrderIdsForUnifiedPay([]);
   }, [startDate, endDate, reportStatusFilter, searchTerm]);
 
   const selectedOrdersToPay = reportOpenOrders.filter(o => selectedOrderIdsForUnifiedPay.includes(o.id));
@@ -248,11 +249,12 @@ export const FinanceCaixaView: React.FC = () => {
     );
 
     setFeedbackMsg(
-      `Baixa confirmada com sucesso! ${ordersToExecute.length} OSs quitadas no valor total de ${unifiedFinalPayAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} (${unifiedPaymentMethod.toUpperCase()}). Recebido por: ${receiver}.`
+      `Baixa confirmada! ${ordersToExecute.length} OS(s) quitadas — ${unifiedFinalPayAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} (${unifiedPaymentMethod.toUpperCase()}). Recebido por: ${receiver}.`
     );
     setIsUnifiedPayModalOpen(false);
     setSelectedOrderIdsForUnifiedPay([]);
-    setTimeout(() => setFeedbackMsg(null), 5000);
+    setShowPrintConfirm(true);
+    setTimeout(() => setFeedbackMsg(null), 8000);
   };
 
   const handlePrint = () => {
@@ -287,6 +289,39 @@ export const FinanceCaixaView: React.FC = () => {
           <span>{feedbackMsg}</span>
         </div>
       )}
+
+      {/* Modal Confirmação de Impressão Pós-Baixa */}
+      {showPrintConfirm && (
+        <div className="no-print fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 w-full max-w-sm mx-4 space-y-4 animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 rounded-xl">
+                <Printer className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Baixa realizada com sucesso!</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Deseja imprimir o comprovante agora?</p>
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setShowPrintConfirm(false)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
+              >
+                Não, obrigado
+              </button>
+              <button
+                onClick={() => { setShowPrintConfirm(false); window.print(); }}
+                className="px-4 py-2 text-xs font-bold bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl transition-colors flex items-center gap-1.5 shadow-sm"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                Imprimir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {/* ─── CARDS DE MÉTRICAS GERAIS (Oculto na impressão) ───────────────── */}
       <div className="no-print grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -532,7 +567,7 @@ export const FinanceCaixaView: React.FC = () => {
                     <tr
                       key={ord.id}
                       className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${
-                        !isPaid && isSelected ? 'bg-emerald-50/40 dark:bg-emerald-950/20' : ''
+                        !isPaid && isSelected ? 'bg-emerald-100 dark:bg-emerald-900/30 border-l-2 border-l-emerald-500' : ''
                       }`}
                     >
                       {reportOpenOrders.length > 0 && (

@@ -135,8 +135,8 @@ export const AppContent: React.FC = () => {
           closeMarkReadyModal();
           return;
         }
-        const subTabs = ['new-order', 'order-print', 'order-detail', 'passador-mobile'];
-        if (subTabs.includes(currentTab)) {
+        const publicTabs = ['login', 'client-login', 'client-signup', 'client-portal', 'dashboard'];
+        if (!publicTabs.includes(currentTab)) {
           handleNavigate('dashboard');
         }
       }
