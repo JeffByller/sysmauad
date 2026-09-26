@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { ALL_MENU_KEYS } from '../mock/initialData';
-import { Users, ShieldCheck, CheckCircle2, UserPlus, Eye, EyeOff, Lock, Key, Check, X, Edit3, Phone, Trash2 } from 'lucide-react';
+import { Users, ShieldCheck, CheckCircle2, UserPlus, Eye, EyeOff, Lock, Key, Check, X, Edit3, Phone, UserX, UserCheck } from 'lucide-react';
 import { SystemUser } from '../types';
 import { Pagination } from '../components/common/Pagination';
 
@@ -12,7 +12,6 @@ export const UserManagementView: React.FC = () => {
     updateUser,
     updateUserPermissions, 
     updateUserPassword,
-    deleteUser,
     toggleUserActive,
     user: currentUser 
   } = useAuth();
@@ -101,10 +100,18 @@ export const UserManagementView: React.FC = () => {
     setTimeout(() => setFeedback(null), 4000);
   };
 
-  const handleDeleteUser = async (targetUser: SystemUser) => {
-    if (window.confirm(`Tem certeza que deseja excluir o usuário "${targetUser.name}" (@${targetUser.username})?`)) {
-      await deleteUser(targetUser.id);
-      setFeedback(`Usuário "${targetUser.name}" excluído com sucesso!`);
+  const handleToggleUserActive = async (targetUser: SystemUser) => {
+    if (targetUser.id === 'super-admin-root') return;
+
+    if (targetUser.active) {
+      if (window.confirm(`Deseja inativar o usuário "${targetUser.name}" (@${targetUser.username})?\n\nO acesso ao sistema será suspenso, mas todo o histórico de produção e relatórios será preservado com segurança.`)) {
+        await toggleUserActive(targetUser.id);
+        setFeedback(`Usuário "${targetUser.name}" inativado com sucesso!`);
+        setTimeout(() => setFeedback(null), 4000);
+      }
+    } else {
+      await toggleUserActive(targetUser.id);
+      setFeedback(`Usuário "${targetUser.name}" reativado com sucesso!`);
       setTimeout(() => setFeedback(null), 4000);
     }
   };
@@ -331,7 +338,7 @@ export const UserManagementView: React.FC = () => {
                 >
                   <option value="operador">Operador de Balcão</option>
                   <option value="financeiro">Gestor Financeiro</option>
-                  <option value="passador">Passador de Roupa</option>
+                  <option value="passador">Passador</option>
                   <option value="admin">Administrador Geral</option>
                 </select>
               </div>
@@ -423,14 +430,14 @@ export const UserManagementView: React.FC = () => {
                         </div>
                       )}
                     </td>
-                    <td className="p-4">
+                    <td className="p-4 whitespace-nowrap">
                       <span className={`px-2.5 py-1 rounded-full font-semibold uppercase text-[10px] tracking-wider border ${
                         u.role === 'admin' ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800' :
                         u.role === 'financeiro' ? 'bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800' :
                         u.role === 'passador' ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' :
                         'bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300 border border-sky-200 dark:border-sky-800'
                       }`}>
-                        {u.role === 'passador' ? 'Passador de Roupa' : u.role}
+                        {u.role === 'passador' ? 'Passador' : u.role === 'admin' ? 'Admin' : u.role === 'financeiro' ? 'Financeiro' : 'Operador'}
                       </span>
                     </td>
                     <td className="p-4 font-sans">
@@ -453,13 +460,16 @@ export const UserManagementView: React.FC = () => {
                     </td>
                     <td className="p-4 text-center">
                       <button
-                        onClick={() => toggleUserActive(u.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleUserActive(u);
+                        }}
                         className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase transition-colors border ${
                           u.active
                             ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-100'
                             : 'bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 border-red-300 dark:border-red-800 hover:bg-red-100'
                         }`}
-                        title="Clique para alternar status do usuário"
+                        title="Clique para inativar ou reativar usuário"
                       >
                         {u.active ? 'Ativo' : 'Inativo'}
                       </button>
@@ -499,13 +509,26 @@ export const UserManagementView: React.FC = () => {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleDeleteUser(u);
+                            handleToggleUserActive(u);
                           }}
-                          className="px-2.5 py-1.5 bg-red-50 dark:bg-red-950/60 hover:bg-red-100 dark:hover:bg-red-900/60 text-red-600 dark:text-red-400 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1 border border-red-200 dark:border-red-850 shadow-sm"
-                          title="Excluir Usuário"
+                          className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1 border shadow-sm ${
+                            u.active
+                              ? 'bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                              : 'bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                          }`}
+                          title={u.active ? 'Inativar Usuário (preserva histórico de produção)' : 'Reativar Usuário'}
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          <span>Excluir</span>
+                          {u.active ? (
+                            <>
+                              <UserX className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                              <span>Inativar</span>
+                            </>
+                          ) : (
+                            <>
+                              <UserCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                              <span>Ativar</span>
+                            </>
+                          )}
                         </button>
                       </div>
                     </td>
@@ -720,7 +743,7 @@ export const UserManagementView: React.FC = () => {
                 >
                   <option value="operador">Operador de Balcão</option>
                   <option value="financeiro">Gestor Financeiro</option>
-                  <option value="passador">Passador de Roupa</option>
+                  <option value="passador">Passador</option>
                   <option value="admin">Administrador Geral</option>
                 </select>
                 {editRole === 'passador' && (

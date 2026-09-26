@@ -14,7 +14,8 @@ import {
   Supplier, 
   ReceitaLavado,
   ClientMessageLog,
-  PaymentHistoryEntry
+  PaymentHistoryEntry,
+  SystemSettings
 } from '../types';
 import { useAuth } from './AuthContext';
 
@@ -29,6 +30,8 @@ interface OrderContextType {
   insumoEntries: InsumoEntry[];
   suppliers: Supplier[];
   receitasLavado: ReceitaLavado[];
+  systemSettings: SystemSettings | null;
+  stalledOrderAlertDays: number;
   closeWhatsAppModal: () => void;
   openMarkReadyModal: (order: Order) => void;
   closeMarkReadyModal: () => void;
@@ -66,6 +69,7 @@ interface OrderContextType {
   addReceitaLavado: (receita: Omit<ReceitaLavado, 'id' | 'createdAt' | 'updatedAt'>) => ReceitaLavado;
   updateReceitaLavado: (id: string, updated: Partial<Omit<ReceitaLavado, 'id' | 'createdAt'>>) => void;
   deleteReceitaLavado: (id: string) => void;
+  updateSystemSettings: (newSettings: Partial<SystemSettings>) => Promise<SystemSettings | null>;
   refreshData: () => Promise<void>;
 }
 
@@ -83,9 +87,14 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [insumoEntries, setInsumoEntries] = useState<InsumoEntry[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [receitasLavado, setReceitasLavado] = useState<ReceitaLavado[]>([]);
+  const [systemSettings, setSystemSettings] = useState<SystemSettings | null>(null);
 
   const [whatsAppModalData, setWhatsAppModalData] = useState<WhatsAppNotification | null>(null);
   const [markReadyOrder, setMarkReadyOrder] = useState<Order | null>(null);
+
+  const stalledOrderAlertDays = systemSettings?.stalledOrderAlertDays !== undefined && systemSettings?.stalledOrderAlertDays !== null
+    ? Number(systemSettings.stalledOrderAlertDays)
+    : 3;
 
   // Função central para carregar dados do banco PostgreSQL
   const refreshData = async () => {
@@ -98,7 +107,8 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         garmentRes,
         suppliersRes,
         insumosRes,
-        receitasRes
+        receitasRes,
+        settingsRes
       ] = await Promise.all([
         fetch('/api/orders').catch(() => null),
         fetch('/api/passadores').catch(() => null),
@@ -107,7 +117,8 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         fetch('/api/garment-catalog').catch(() => null),
         fetch('/api/suppliers').catch(() => null),
         fetch('/api/insumo-entries').catch(() => null),
-        fetch('/api/receitas-lavado').catch(() => null)
+        fetch('/api/receitas-lavado').catch(() => null),
+        fetch('/api/settings').catch(() => null)
       ]);
 
       if (ordersRes?.ok) {
@@ -142,9 +153,31 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const data = await receitasRes.json();
         if (Array.isArray(data)) setReceitasLavado(data);
       }
+      if (settingsRes?.ok) {
+        const data = await settingsRes.json();
+        if (data && typeof data === 'object') setSystemSettings(data);
+      }
     } catch (err) {
       console.error('[OrderContext] Erro ao carregar dados do PostgreSQL:', err);
     }
+  };
+
+  const updateSystemSettings = async (newSettings: Partial<SystemSettings>): Promise<SystemSettings | null> => {
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newSettings)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSystemSettings(data);
+        return data;
+      }
+    } catch (err) {
+      console.error('[OrderContext] Erro ao salvar configurações:', err);
+    }
+    return null;
   };
 
   // Carrega todos os dados do banco no carregamento inicial e limpa qualquer vestígio de localStorage
@@ -1220,6 +1253,9 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       addReceitaLavado,
       updateReceitaLavado,
       deleteReceitaLavado,
+      systemSettings,
+      stalledOrderAlertDays,
+      updateSystemSettings,
       refreshData,
     }}>
       {children}

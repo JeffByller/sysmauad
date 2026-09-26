@@ -193,27 +193,11 @@ export const GarmentCatalogView: React.FC = () => {
         </div>
 
         <button
-          onClick={() => {
-            if (isFormOpen) {
-              setIsFormOpen(false);
-              setEditingItem(null);
-            } else {
-              handleOpenAdd();
-            }
-          }}
+          onClick={handleOpenAdd}
           className="px-4 py-2.5 bg-sky-700 hover:bg-sky-800 text-white text-xs font-semibold rounded-xl transition-colors shadow-sm flex items-center gap-2 shrink-0"
         >
-          {isFormOpen ? (
-            <>
-              <X className="w-4 h-4" />
-              <span>Fechar Formulário</span>
-            </>
-          ) : (
-            <>
-              <PlusCircle className="w-4 h-4" />
-              <span>Cadastrar Nova Peça</span>
-            </>
-          )}
+          <PlusCircle className="w-4 h-4" />
+          <span>Cadastrar Nova Peça</span>
         </button>
       </div>
 
@@ -225,158 +209,161 @@ export const GarmentCatalogView: React.FC = () => {
         </div>
       )}
 
-      {/* Registration Form (Add / Edit) */}
+      {/* Modal de Cadastro / Edição de Peça */}
       {isFormOpen && (
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-md space-y-5 animate-in fade-in duration-200 transition-colors">
-          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider flex items-center gap-2">
-              <Tag className="w-4 h-4 text-sky-600 dark:text-sky-400" />
-              {editingItem ? `Editar: ${editingItem.clothingType}` : 'Cadastrar Nova Peça no Catálogo'}
-            </h2>
-            <button 
-              type="button" 
-              onClick={() => { setIsFormOpen(false); setEditingItem(null); }}
-              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          {errorMsg && (
-            <div className="p-3.5 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/60 rounded-xl text-xs font-semibold text-red-700 dark:text-red-300 flex items-center gap-2.5">
-              <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" />
-              <span>{errorMsg}</span>
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-2xl p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl space-y-5 my-8 transition-colors">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider flex items-center gap-2">
+                <Tag className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                {editingItem ? `Editar: ${editingItem.clothingType}` : 'Cadastrar Nova Peça no Catálogo'}
+              </h2>
+              <button 
+                type="button" 
+                onClick={() => { setIsFormOpen(false); setEditingItem(null); }}
+                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                title="Fechar"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-          )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {/* Tipo de Peça */}
-              <div>
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
-                  Tipo de Peça / Roupa *
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ex: Calça Wide Leg, Bermuda Jeans..."
-                  value={clothingType}
-                  onChange={e => { setClothingType(e.target.value); if (errorMsg) setErrorMsg(null); }}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  autoFocus
-                  required
-                />
+            {errorMsg && (
+              <div className="p-3.5 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/60 rounded-xl text-xs font-semibold text-red-700 dark:text-red-300 flex items-center gap-2.5">
+                <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" />
+                <span>{errorMsg}</span>
               </div>
+            )}
 
-              {/* Processo de Lavado */}
-              <div>
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
-                  Processo de Lavado *
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ex: Amaciado, Hiper Destroi, Tingimento..."
-                  value={processName}
-                  onChange={e => { setProcessName(e.target.value); if (errorMsg) setErrorMsg(null); }}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  required
-                />
-              </div>
-
-              {/* Valor Unitário com Máscara Moeda Brasileira */}
-              <div>
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
-                  Valor Unitário por Peça *
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3.5 top-2.5 text-xs font-bold text-slate-500 dark:text-slate-400 font-mono">
-                    R$
-                  </span>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Tipo de Peça */}
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
+                    Tipo de Peça / Roupa <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="text"
-                    inputMode="decimal"
-                    placeholder="0,00"
-                    value={unitPriceInput}
-                    onChange={handlePriceChange}
-                    onBlur={handlePriceBlur}
-                    className="w-full pl-11 pr-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-mono font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    placeholder="Ex: Calça Wide Leg, Bermuda Jeans..."
+                    value={clothingType}
+                    onChange={e => { setClothingType(e.target.value); if (errorMsg) setErrorMsg(null); }}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    autoFocus
                     required
                   />
                 </div>
-                <span className="text-[11px] text-slate-400 mt-1 block">
-                  Ex: Digite <strong>3,50</strong> ou <strong>3.50</strong>
-                </span>
-              </div>
 
-              {/* Peso de Referência */}
-              <div>
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
-                  Peso de Referência (1 Peça) *
-                </label>
-                <div className="relative">
+                {/* Processo de Lavado */}
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
+                    Processo de Lavado <span className="text-red-500">*</span>
+                  </label>
                   <input
-                    type="number"
-                    step="1"
-                    min="1"
-                    placeholder="300"
-                    value={refWeightInput}
-                    onChange={e => { setRefWeightInput(e.target.value); if (errorMsg) setErrorMsg(null); }}
-                    className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-mono font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    type="text"
+                    placeholder="Ex: Amaciado, Hiper Destroi, Tingimento..."
+                    value={processName}
+                    onChange={e => { setProcessName(e.target.value); if (errorMsg) setErrorMsg(null); }}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
                     required
                   />
-                  <span className="absolute right-3.5 top-2.5 text-xs font-mono font-bold text-slate-400">
-                    g
+                </div>
+
+                {/* Valor Unitário com Máscara Moeda Brasileira */}
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
+                    Valor Unitário por Peça <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-2.5 text-xs font-bold text-slate-500 dark:text-slate-400 font-mono">
+                      R$
+                    </span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="0,00"
+                      value={unitPriceInput}
+                      onChange={handlePriceChange}
+                      onBlur={handlePriceBlur}
+                      className="w-full pl-11 pr-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-mono font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      required
+                    />
+                  </div>
+                  <span className="text-[11px] text-slate-400 mt-1 block">
+                    Ex: Digite <strong>3,50</strong> ou <strong>3.50</strong>
                   </span>
                 </div>
-                <span className="text-[11px] text-slate-400 mt-1 block">
-                  Peso médio em gramas para a balança
-                </span>
+
+                {/* Peso de Referência */}
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
+                    Peso de Referência (1 Peça) <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="1"
+                      min="1"
+                      placeholder="300"
+                      value={refWeightInput}
+                      onChange={e => { setRefWeightInput(e.target.value); if (errorMsg) setErrorMsg(null); }}
+                      className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-mono font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      required
+                    />
+                    <span className="absolute right-3.5 top-2.5 text-xs font-mono font-bold text-slate-400">
+                      g
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-slate-400 mt-1 block">
+                    Peso médio em gramas para a balança
+                  </span>
+                </div>
+
+                {/* Categoria */}
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
+                    Categoria
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Calças, Bermudas, Jaquetas..."
+                    value={category}
+                    onChange={e => setCategory(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  />
+                </div>
+
+                {/* Observações */}
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
+                    Observações / Notas
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Detalhes adicionais de lavagem ou acabamento..."
+                    value={notes}
+                    onChange={e => setNotes(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  />
+                </div>
               </div>
 
-              {/* Categoria */}
-              <div>
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
-                  Categoria
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ex: Calças, Bermudas, Jaquetas..."
-                  value={category}
-                  onChange={e => setCategory(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                />
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => { setIsFormOpen(false); setEditingItem(null); }}
+                  className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-sky-700 hover:bg-sky-800 text-white text-xs font-semibold rounded-xl transition-colors shadow-sm"
+                >
+                  {editingItem ? 'Salvar Alterações' : 'Salvar no Catálogo'}
+                </button>
               </div>
-
-              {/* Observações */}
-              <div>
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
-                  Observações / Notas
-                </label>
-                <input
-                  type="text"
-                  placeholder="Detalhes adicionais de lavagem ou acabamento..."
-                  value={notes}
-                  onChange={e => setNotes(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-              <button
-                type="button"
-                onClick={() => { setIsFormOpen(false); setEditingItem(null); }}
-                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                className="px-5 py-2 bg-sky-700 hover:bg-sky-800 text-white text-xs font-semibold rounded-xl transition-colors shadow-sm"
-              >
-                {editingItem ? 'Salvar Alterações' : 'Salvar no Catálogo'}
-              </button>
-            </div>
-          </form>
+            </form>
+          </div>
         </div>
       )}
 

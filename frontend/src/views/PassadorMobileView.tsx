@@ -163,7 +163,7 @@ export const PassadorMobileView: React.FC<PassadorMobileViewProps> = ({ onOpenSc
             onChange={e => setSelectedPassadorId(e.target.value)}
             className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
           >
-            {passadores.map(p => (
+            {passadores.filter(p => p.active !== false).map(p => (
               <option key={p.id} value={p.id}>
                 {p.name} ({p.totalPiecesIroned} pçs total)
               </option>

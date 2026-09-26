@@ -10,7 +10,7 @@ RUN npm run build
 
 FROM node:20-alpine AS runner
 
-RUN apk add --no-cache tzdata
+RUN apk add --no-cache tzdata postgresql16-client || apk add --no-cache tzdata postgresql-client
 
 WORKDIR /app
 

@@ -1,10 +1,9 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useOrders } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
-import { Printer, FileText, Shirt, Truck, UserCheck, ArrowLeft, Layers, ListFilter, CheckCircle2, Clock, Play, PackageCheck, Scale, CheckCircle } from 'lucide-react';
+import { Printer, FileText, Shirt, Truck, UserCheck, Layers, ListFilter, CheckCircle2, Clock, Play, PackageCheck, Scale, CheckCircle } from 'lucide-react';
 import { getDatePresets, getLocalDateString } from '../utils/dateUtils';
 import { OrderStatus, Order } from '../types';
-import { Pagination } from '../components/common/Pagination';
 
 export const PassadorReportView: React.FC = () => {
   const { passadores, orders, insumoEntries, suppliers } = useOrders();
@@ -36,23 +35,6 @@ export const PassadorReportView: React.FC = () => {
   const [startDate, setStartDate] = useState<string>(firstDayOfMonth);
   const [endDate, setEndDate] = useState<string>(lastDayOfMonth);
   const [periodPreset, setPeriodPreset] = useState<'hoje' | 'semana' | 'mes' | 'custom'>('mes');
-
-  // Estados de paginação (20 por página para visualização em tela)
-  const [currentPageOrders, setCurrentPageOrders] = useState<number>(1);
-  const [currentPagePassadorLogs, setCurrentPagePassadorLogs] = useState<number>(1);
-  const [currentPageInsumos, setCurrentPageInsumos] = useState<number>(1);
-
-  useEffect(() => {
-    setCurrentPageOrders(1);
-  }, [startDate, endDate, lavadoStatusFilter, lavadoViewMode]);
-
-  useEffect(() => {
-    setCurrentPagePassadorLogs(1);
-  }, [selectedPassadorId, startDate, endDate]);
-
-  useEffect(() => {
-    setCurrentPageInsumos(1);
-  }, [selectedSupplierId, startDate, endDate]);
 
   // Ajusta período rápido
   const setQuickPeriod = (preset: 'hoje' | 'semana' | 'mes') => {
@@ -140,11 +122,6 @@ export const PassadorReportView: React.FC = () => {
   const sortedOrders = useMemo(() => {
     return [...filteredOrders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [filteredOrders]);
-
-  const paginatedOrders = useMemo(() => {
-    const start = (currentPageOrders - 1) * 20;
-    return sortedOrders.slice(start, start + 20);
-  }, [sortedOrders, currentPageOrders]);
 
   // Contadores por status para os botões do menu Painel
   const lavadoCounts = useMemo(() => {
@@ -282,19 +259,9 @@ export const PassadorReportView: React.FC = () => {
     return [...selectedPassador.logs].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   }, [selectedPassador]);
 
-  const paginatedPassadorLogs = useMemo(() => {
-    const start = (currentPagePassadorLogs - 1) * 20;
-    return sortedPassadorLogs.slice(start, start + 20);
-  }, [sortedPassadorLogs, currentPagePassadorLogs]);
-
   const sortedInsumos = useMemo(() => {
     return [...displayedInsumos].sort((a, b) => new Date(b.enteredAt).getTime() - new Date(a.enteredAt).getTime());
   }, [displayedInsumos]);
-
-  const paginatedInsumos = useMemo(() => {
-    const start = (currentPageInsumos - 1) * 20;
-    return sortedInsumos.slice(start, start + 20);
-  }, [sortedInsumos, currentPageInsumos]);
 
   // Ação de Impressão Direta
   const handlePrint = () => {
@@ -412,7 +379,7 @@ export const PassadorReportView: React.FC = () => {
     }
     if (reportType === 'passadores') {
       if (selectedPassador) {
-        return `EXTRATO INDIVIDUAL DE PASSADORIA: ${selectedPassador.name.toUpperCase()}`;
+        return `PRODUÇÃO POR PASSADOR • ${selectedPassador.name.toUpperCase()}`;
       }
       return 'RELATÓRIO GERAL DE PRODUÇÃO DE PASSADORIA';
     }
@@ -738,126 +705,122 @@ export const PassadorReportView: React.FC = () => {
           </div>
         )}
 
-        {/* OPÇÃO DE IMPRIMIR POR UNIDADE: PASSADOR INDIVIDUAL & MOSTRAR VALORES */}
+        {/* OPÇÃO DE FILTRAR POR PASSADOR: TODOS OU INDIVIDUAL & MOSTRAR VALORES */}
         {reportType === 'passadores' && (
           <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="flex items-center gap-2">
-                <span className="text-slate-500 dark:text-slate-400 font-bold uppercase text-[11px] flex items-center gap-1">
-                  <UserCheck className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
-                  Imprimir por Unidade:
-                </span>
-                <select
-                  value={selectedPassadorId}
-                  onChange={e => setSelectedPassadorId(e.target.value)}
-                  className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-sky-500"
-                >
-                  <option value="all">TODOS OS PASSADORES (GERAL)</option>
-                  {visiblePassadores.map(p => (
-                    <option key={p.id} value={p.id}>
-                      INDIVIDUAL: {p.name.toUpperCase()}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-slate-500 dark:text-slate-400 font-bold uppercase text-[11px] flex items-center gap-1 mr-1">
+                <UserCheck className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                Passador:
+              </span>
 
-              {/* Opção "Mostrar valores" com Sim / Não (padrão Não) e campo de valor */}
-              <div className="flex flex-wrap items-center gap-3 bg-slate-50 dark:bg-slate-800/60 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
-                <span className="text-slate-700 dark:text-slate-300 font-bold text-xs">
-                  Mostrar valores:
-                </span>
-                <div className="flex items-center gap-3">
-                  <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    <input
-                      type="radio"
-                      name="showValuesRadio"
-                      checked={!showValues}
-                      onChange={() => setShowValues(false)}
-                      className="text-sky-600 focus:ring-sky-500 h-3.5 w-3.5"
-                    />
-                    Não
-                  </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    <input
-                      type="radio"
-                      name="showValuesRadio"
-                      checked={showValues}
-                      onChange={() => setShowValues(true)}
-                      className="text-sky-600 focus:ring-sky-500 h-3.5 w-3.5"
-                    />
-                    Sim
-                  </label>
-                </div>
-
-                {showValues && (
-                  <div className="flex items-center gap-1.5 ml-1 pl-3 border-l border-slate-200 dark:border-slate-700 font-mono">
-                    <span className="text-xs text-slate-500 font-medium">Valor: R$</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0.00"
-                      value={passadorRateInput}
-                      onChange={e => setPassadorRateInput(parseFloat(e.target.value) || 0)}
-                      className="w-20 px-2 py-0.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-sky-500"
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {selectedPassadorId !== 'all' ? (
               <button
                 type="button"
                 onClick={() => setSelectedPassadorId('all')}
-                className="text-xs text-sky-600 dark:text-sky-400 hover:underline font-bold flex items-center gap-1"
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
+                  selectedPassadorId === 'all'
+                    ? 'bg-slate-900 text-white dark:bg-sky-700 dark:text-white shadow-sm'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                }`}
               >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Voltar ao Relatório Geral (Todos)</span>
+                Todos
               </button>
-            ) : (
-              <span className="text-[11px] text-slate-400 dark:text-slate-500 italic">
-                Selecione um passador específico no seletor acima para emitir o extrato individual.
+
+              {visiblePassadores.map(p => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setSelectedPassadorId(p.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
+                    selectedPassadorId === p.id
+                      ? 'bg-slate-900 text-white dark:bg-sky-700 dark:text-white shadow-sm'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  {p.name}
+                </button>
+              ))}
+            </div>
+
+            {/* Opção "Mostrar valores" com Sim / Não (padrão Não) e campo de valor */}
+            <div className="flex flex-wrap items-center gap-3 bg-slate-50 dark:bg-slate-800/60 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
+              <span className="text-slate-700 dark:text-slate-300 font-bold text-xs">
+                Mostrar valores:
               </span>
-            )}
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  <input
+                    type="radio"
+                    name="showValuesRadio"
+                    checked={!showValues}
+                    onChange={() => setShowValues(false)}
+                    className="text-sky-600 focus:ring-sky-500 h-3.5 w-3.5"
+                  />
+                  Não
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  <input
+                    type="radio"
+                    name="showValuesRadio"
+                    checked={showValues}
+                    onChange={() => setShowValues(true)}
+                    className="text-sky-600 focus:ring-sky-500 h-3.5 w-3.5"
+                  />
+                  Sim
+                </label>
+              </div>
+
+              {showValues && (
+                <div className="flex items-center gap-1.5 ml-1 pl-3 border-l border-slate-200 dark:border-slate-700 font-mono">
+                  <span className="text-xs text-slate-500 font-medium">Valor: R$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.00"
+                    value={passadorRateInput}
+                    onChange={e => setPassadorRateInput(parseFloat(e.target.value) || 0)}
+                    className="w-20 px-2 py-0.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-sky-500"
+                  />
+                </div>
+              )}
+            </div>
           </div>
         )}
 
         {/* OPÇÃO DE IMPRIMIR POR UNIDADE: FORNECEDOR INDIVIDUAL */}
         {reportType === 'fornecedores' && (
           <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
-            <div className="flex items-center gap-2">
-              <span className="text-slate-500 dark:text-slate-400 font-bold uppercase text-[11px] flex items-center gap-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-slate-500 dark:text-slate-400 font-bold uppercase text-[11px] flex items-center gap-1 mr-1">
                 <Truck className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
-                Imprimir por Fornecedor:
+                Fornecedor:
               </span>
-              <select
-                value={selectedSupplierId}
-                onChange={e => setSelectedSupplierId(e.target.value)}
-                className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-sky-500"
-              >
-                <option value="all">TODOS OS FORNECEDORES (GERAL)</option>
-                {uniqueSuppliers.map(s => (
-                  <option key={s.id || s.name} value={s.id || s.name}>
-                    INDIVIDUAL: {s.name.toUpperCase()}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {selectedSupplierId !== 'all' ? (
               <button
                 type="button"
                 onClick={() => setSelectedSupplierId('all')}
-                className="text-xs text-sky-600 dark:text-sky-400 hover:underline font-bold flex items-center gap-1"
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
+                  selectedSupplierId === 'all'
+                    ? 'bg-slate-900 text-white dark:bg-sky-700 dark:text-white shadow-sm'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                }`}
               >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Voltar ao Relatório Geral (Todos)</span>
+                Todos
               </button>
-            ) : (
-              <span className="text-[11px] text-slate-400 dark:text-slate-500 italic">
-                Selecione um fornecedor para emitir o extrato individual de entradas.
-              </span>
-            )}
+              {uniqueSuppliers.map(s => (
+                <button
+                  key={s.id || s.name}
+                  type="button"
+                  onClick={() => setSelectedSupplierId(s.id || s.name)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
+                    selectedSupplierId === (s.id || s.name)
+                      ? 'bg-slate-900 text-white dark:bg-sky-700 dark:text-white shadow-sm'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  {s.name}
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -886,8 +849,8 @@ export const PassadorReportView: React.FC = () => {
 
         {/* Parâmetros do Relatório */}
         <div className="text-[11px] space-y-0.5">
-          <div><strong>PERIODO DE APURACAO:</strong> {startDate.split('-').reverse().join('/')} a {endDate.split('-').reverse().join('/')}</div>
-          <div><strong>OPERADOR RESPONSAVEL:</strong> {user?.name || 'Super Admin'}</div>
+          <div><strong>PERÍODO DE APURAÇÃO:</strong> {startDate.split('-').reverse().join('/')} a {endDate.split('-').reverse().join('/')}</div>
+          <div><strong>OPERADOR RESPONSÁVEL:</strong> {user?.name || 'Super Admin'}</div>
           {reportType === 'lavados' && (
             <>
               <div><strong>FILTRO OPERACIONAL:</strong> {getStatusFilterLabel(lavadoStatusFilter)}</div>
@@ -896,12 +859,12 @@ export const PassadorReportView: React.FC = () => {
           )}
           {reportType === 'passadores' && selectedPassador && (
             <div>
-              <strong>UNIDADE / PASSADOR:</strong> {selectedPassador.name.toUpperCase()} {selectedPassador.phone ? `• Tel: ${selectedPassador.phone}` : ''}
+              <strong>PASSADOR:</strong> {selectedPassador.name.toUpperCase()}{selectedPassador.phone ? ` • Tel: ${selectedPassador.phone}` : ''}
             </div>
           )}
           {reportType === 'fornecedores' && selectedSupplier && (
             <div>
-              <strong>UNIDADE / FORNECEDOR:</strong> {selectedSupplier.name.toUpperCase()} {selectedSupplier.cnpj ? `• CNPJ: ${selectedSupplier.cnpj}` : ''}
+              <strong>FORNECEDOR:</strong> {selectedSupplier.name.toUpperCase()}{selectedSupplier.cnpj ? ` • CNPJ: ${selectedSupplier.cnpj}` : ''}
             </div>
           )}
         </div>
@@ -1004,21 +967,9 @@ export const PassadorReportView: React.FC = () => {
                       <span className="col-span-1 text-center">STATUS</span>
                     </div>
 
-                    {/* Visualização em tela com paginação de 20 */}
-                    <div className="no-print space-y-1 text-[11px] font-mono">
-                      {paginatedOrders.map(order => renderOrderRow(order))}
-                      <Pagination
-                        currentPage={currentPageOrders}
-                        totalItems={filteredOrders.length}
-                        pageSize={20}
-                        onPageChange={setCurrentPageOrders}
-                        label="pedidos"
-                      />
-                    </div>
-
-                    {/* Impressão física com a lista completa */}
-                    <div className="print-only space-y-1 text-[11px] font-mono">
-                      {filteredOrders.map(order => renderOrderRow(order))}
+                    {/* Listagem completa contínua */}
+                    <div className="space-y-1 text-[11px] font-mono">
+                      {sortedOrders.map(order => renderOrderRow(order))}
                     </div>
                   </div>
                 )}
@@ -1031,9 +982,9 @@ export const PassadorReportView: React.FC = () => {
                 <div className="flex flex-col sm:flex-row justify-between items-baseline gap-2 font-bold text-xs pt-1">
                   <span>TOTAL GERAL APURADO ({getStatusFilterLabel(lavadoStatusFilter)}):</span>
                   <div className="flex items-center gap-6 font-mono text-sm">
-                    <span>{filteredOrders.length} lotes</span>
+                    <span>Total de Lotes: {filteredOrders.length} lotes</span>
                     <span>{totalLavadoKg.toFixed(2)} kg</span>
-                    <span className="text-base text-slate-900 font-black">{totalLavadoPieces.toLocaleString('pt-BR')} Pcs</span>
+                    <span className="text-base text-slate-900 font-black">Qtd Total Peças: {totalLavadoPieces.toLocaleString('pt-BR')} Pcs</span>
                   </div>
                 </div>
               </>
@@ -1063,21 +1014,9 @@ export const PassadorReportView: React.FC = () => {
                     Nenhuma produção registrada para este colaborador no período informado.
                   </div>
                 ) : (
-                  <>
-                    <div className="no-print space-y-1 text-xs">
-                      {paginatedPassadorLogs.map((l, idx) => renderPassadorLogRow(l, idx))}
-                      <Pagination
-                        currentPage={currentPagePassadorLogs}
-                        totalItems={selectedPassador.logs.length}
-                        pageSize={20}
-                        onPageChange={setCurrentPagePassadorLogs}
-                        label="lotes passados"
-                      />
-                    </div>
-                    <div className="print-only space-y-1 text-xs">
-                      {selectedPassador.logs.map((l, idx) => renderPassadorLogRow(l, idx))}
-                    </div>
-                  </>
+                  <div className="space-y-1 text-xs">
+                    {sortedPassadorLogs.map((l, idx) => renderPassadorLogRow(l, idx))}
+                  </div>
                 )}
 
                 <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px] pt-2">
@@ -1086,13 +1025,21 @@ export const PassadorReportView: React.FC = () => {
 
                 <div className="space-y-1 pt-1 font-mono text-xs">
                   <div className="flex justify-between">
-                    <span>Total de Lotes Passados:</span>
+                    <span>Total de Lotes:</span>
                     <span>{selectedPassador.logs.length} lotes</span>
                   </div>
                   <div className="flex justify-between font-bold text-sm text-slate-900 pt-1 border-t border-slate-300">
-                    <span>Qtd Total Peças Passadas ({selectedPassador.name}):</span>
+                    <span>Qtd Total Peças:</span>
                     <span className="text-base font-black">{selectedPassador.totalPiecesInPeriod.toLocaleString('pt-BR')} Pcs</span>
                   </div>
+                  {showValues && (
+                    <div className="flex justify-between font-bold text-sm text-emerald-800 pt-1 border-t border-dotted border-slate-200">
+                      <span>Total a Pagar ({Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(passadorRateInput)}/pç):</span>
+                      <span className="text-base font-black">
+                        {Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedPassador.totalPiecesInPeriod * passadorRateInput)}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
@@ -1151,10 +1098,10 @@ export const PassadorReportView: React.FC = () => {
                 </div>
 
                 <div className="flex flex-col sm:flex-row justify-between items-baseline gap-2 font-bold text-sm pt-1">
-                  <span>TOTAL GERAL PASSADORIA (TODOS):</span>
+                  <span>TOTAL GERAL PASSADORIA:</span>
                   <div className="flex items-center gap-6 font-mono text-sm">
-                    <span>{passadorReports.reduce((s, p) => s + p.logs.length, 0)} lotes</span>
-                    <span className="text-base text-slate-900 font-bold">{totalPassadorPieces.toLocaleString('pt-BR')} Pcs</span>
+                    <span>Total de Lotes: {passadorReports.reduce((s, p) => s + p.logs.length, 0)} lotes</span>
+                    <span className="text-base text-slate-900 font-bold">Qtd Total Peças: {totalPassadorPieces.toLocaleString('pt-BR')} Pcs</span>
                     {showValues && (
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-slate-500 font-normal">
@@ -1197,21 +1144,9 @@ export const PassadorReportView: React.FC = () => {
                 Nenhuma entrada de mercadoria registrada no período informado.
               </div>
             ) : (
-              <>
-                <div className="no-print space-y-1 text-xs">
-                  {paginatedInsumos.map(renderInsumoRow)}
-                  <Pagination
-                    currentPage={currentPageInsumos}
-                    totalItems={displayedInsumos.length}
-                    pageSize={20}
-                    onPageChange={setCurrentPageInsumos}
-                    label="entradas"
-                  />
-                </div>
-                <div className="print-only space-y-1 text-xs">
-                  {displayedInsumos.map(renderInsumoRow)}
-                </div>
-              </>
+              <div className="space-y-1 text-xs">
+                {sortedInsumos.map(renderInsumoRow)}
+              </div>
             )}
 
             <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px] pt-2">
@@ -1219,7 +1154,7 @@ export const PassadorReportView: React.FC = () => {
             </div>
 
             <div className="flex justify-between font-bold text-sm pt-1">
-              <span>{selectedSupplier ? `Total Comprado (${selectedSupplier.name}):` : 'Total a Pagar Fornecedores:'}</span>
+              <span>{selectedSupplier ? 'Total de Entradas:' : 'Total a Pagar Fornecedores:'}</span>
               <span className="font-mono text-base">
                 {totalInsumosValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
               </span>

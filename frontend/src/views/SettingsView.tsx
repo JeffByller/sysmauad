@@ -20,12 +20,19 @@ import {
   Check, 
   X,
   Radio,
-  Copy
+  Copy,
+  Lock,
+  Key,
+  AlertCircle,
+  Shield,
+  RotateCcw
 } from 'lucide-react';
 import { SystemSettings, BackupFile, WhatsAppStatus } from '../types';
 import { Pagination } from '../components/common/Pagination';
+import { useOrders } from '../context/OrderContext';
 
 export const SettingsView: React.FC = () => {
+  const { updateSystemSettings, refreshData } = useOrders();
   const [activeTab, setActiveTab] = useState<'whatsapp' | 'reports' | 'backups'>('whatsapp');
   
   // Settings State
@@ -73,6 +80,21 @@ export const SettingsView: React.FC = () => {
   const [loadingBackups, setLoadingBackups] = useState(false);
   const [generatingBackup, setGeneratingBackup] = useState(false);
   const [backupPage, setBackupPage] = useState(1);
+
+  // Estados para Download Protegido por Senha
+  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
+  const [downloadTargetFile, setDownloadTargetFile] = useState<string | null>(null);
+  const [downloadPassword, setDownloadPassword] = useState('');
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  // Estados para Restauração Protegida de Banco
+  const [isRestoreModalOpen, setIsRestoreModalOpen] = useState(false);
+  const [restoreTargetFile, setRestoreTargetFile] = useState<string | null>(null);
+  const [restorePassword, setRestorePassword] = useState('');
+  const [restoreConfirmCode, setRestoreConfirmCode] = useState('');
+  const [restoreError, setRestoreError] = useState<string | null>(null);
+  const [isRestoring, setIsRestoring] = useState(false);
 
   const paginatedBackups = useMemo(() => {
     const sorted = [...backups].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -211,13 +233,8 @@ export const SettingsView: React.FC = () => {
     if (e) e.preventDefault();
     setSavingSettings(true);
     try {
-      const res = await fetch('/api/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings)
-      });
-      if (res.ok) {
-        const saved = await res.json();
+      const saved = await updateSystemSettings(settings);
+      if (saved) {
         setSettings(saved);
         showToast('success', 'Parâmetros de configuração salvos com sucesso!');
       } else {
@@ -280,7 +297,7 @@ export const SettingsView: React.FC = () => {
     try {
       const res = await fetch('/api/backups/generate', { method: 'POST' });
       if (res.ok) {
-        showToast('success', 'Novo backup gerado com sucesso!');
+        showToast('success', 'Novo backup nativo PostgreSQL gerado e criptografado com sucesso!');
         await fetchBackups();
       } else {
         showToast('error', 'Erro ao gerar backup.');
@@ -289,6 +306,116 @@ export const SettingsView: React.FC = () => {
       showToast('error', 'Erro ao comunicar com o servidor.');
     } finally {
       setGeneratingBackup(false);
+    }
+  };
+
+  // Abrir modal de download protegido
+  const handleOpenDownloadModal = (filename: string) => {
+    setDownloadTargetFile(filename);
+    setDownloadPassword('');
+    setDownloadError(null);
+    setIsDownloadModalOpen(true);
+  };
+
+  // Confirmar download descriptografado via senha
+  const handleConfirmDownload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!downloadTargetFile || !downloadPassword.trim()) {
+      setDownloadError('Informe a senha de segurança.');
+      return;
+    }
+
+    setIsDownloading(true);
+    setDownloadError(null);
+
+    try {
+      const res = await fetch(`/api/backups/${encodeURIComponent(downloadTargetFile)}/download`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: downloadPassword.trim() })
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        setDownloadError(errJson.error || 'Senha incorreta ou acesso negado.');
+        setIsDownloading(false);
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = downloadTargetFile.replace(/\.enc$/, '');
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      setIsDownloadModalOpen(false);
+      showToast('success', 'Download liberado e concluído com sucesso!');
+    } catch (err: any) {
+      setDownloadError(err.message || 'Erro de rede ao processar download.');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  // Abrir modal de restauração protegida
+  const handleOpenRestoreModal = (filename: string) => {
+    setRestoreTargetFile(filename);
+    setRestorePassword('');
+    setRestoreConfirmCode('');
+    setRestoreError(null);
+    setIsRestoreModalOpen(true);
+  };
+
+  // Confirmar restauração do banco
+  const handleConfirmRestore = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!restoreTargetFile) return;
+
+    if (!restorePassword.trim()) {
+      setRestoreError('Informe a senha de administrador.');
+      return;
+    }
+
+    if (restoreConfirmCode.trim().toUpperCase() !== 'RESTAURAR') {
+      setRestoreError('Digite a palavra "RESTAURAR" no campo de confirmação.');
+      return;
+    }
+
+    setIsRestoring(true);
+    setRestoreError(null);
+
+    try {
+      const res = await fetch(`/api/backups/${encodeURIComponent(restoreTargetFile)}/restore`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          password: restorePassword.trim(),
+          confirmCode: restoreConfirmCode.trim().toUpperCase()
+        })
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setRestoreError(data.error || 'Falha na restauração do backup.');
+        setIsRestoring(false);
+        return;
+      }
+
+      setIsRestoreModalOpen(false);
+      showToast('success', 'Banco de dados restaurado com sucesso! Atualizando sistema...');
+      setTimeout(() => {
+        refreshData();
+        window.location.reload();
+      }, 2000);
+    } catch (err: any) {
+      setRestoreError(err.message || 'Erro de rede durante a restauração.');
+    } finally {
+      setIsRestoring(false);
     }
   };
 
@@ -1325,6 +1452,26 @@ export const SettingsView: React.FC = () => {
             </form>
           </div>
 
+          {/* Banner de Segurança do Backup Nativo */}
+          <div className="p-4 bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800 rounded-2xl flex items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-sky-100 dark:bg-sky-900/60 text-sky-700 dark:text-sky-300 rounded-xl shrink-0">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <strong className="text-sky-950 dark:text-sky-200 font-bold block">
+                  Backups Criptografados com Dump Nativo PostgreSQL (.sql.enc)
+                </strong>
+                <span className="text-sky-800 dark:text-sky-400 text-[11px]">
+                  Criptografia militar AES-256-GCM. O download e a restauração exigem autenticação por senha do administrador.
+                </span>
+              </div>
+            </div>
+            <span className="px-2.5 py-1 bg-sky-200 dark:bg-sky-900 text-sky-900 dark:text-sky-200 text-[10px] font-bold font-mono rounded-lg shrink-0">
+              AES-256-GCM
+            </span>
+          </div>
+
           {/* Tabela de Backups Disponíveis para Download */}
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
             <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
@@ -1375,29 +1522,42 @@ export const SettingsView: React.FC = () => {
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {paginatedBackups.map(b => (
                       <tr key={b.filename} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
-                        <td className="p-3.5 font-mono font-medium text-slate-900 dark:text-slate-100">
-                          {b.filename}
+                        <td className="p-3.5 font-mono font-medium text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                          <Lock className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+                          <span>{b.filename}</span>
                         </td>
-                        <td className="p-3.5 text-slate-600 dark:text-slate-400">
+                        <td className="p-3.5 text-slate-600 dark:text-slate-400 font-mono">
                           {new Date(b.createdAt).toLocaleString('pt-BR')}
                         </td>
                         <td className="p-3.5 font-mono text-slate-700 dark:text-slate-300">
                           {b.sizeFormatted}
                         </td>
                         <td className="p-3.5 text-right space-x-2">
-                          {/* Botão Baixar Backup */}
-                          <a
-                            href={b.downloadUrl}
-                            download={b.filename}
+                          {/* Botão Baixar Backup Protegido por Senha */}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDownloadModal(b.filename)}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg shadow-sm transition-colors text-xs"
-                            title="Baixar arquivo de backup no seu computador"
+                            title="Baixar arquivo de backup descriptografado com autenticação por senha"
                           >
                             <Download className="w-3.5 h-3.5" />
-                            <span>Baixar Backup</span>
-                          </a>
+                            <span>Baixar</span>
+                          </button>
+
+                          {/* Botão Restaurar Backup */}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenRestoreModal(b.filename)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg shadow-sm transition-colors text-xs"
+                            title="Restaurar este backup no banco de dados"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            <span>Restaurar</span>
+                          </button>
 
                           {/* Botão Excluir */}
                           <button
+                            type="button"
                             onClick={() => handleDeleteBackup(b.filename)}
                             className="inline-flex items-center p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors"
                             title="Excluir este arquivo de backup"
@@ -1421,6 +1581,189 @@ export const SettingsView: React.FC = () => {
               </div>
             )}
           </div>
+
+          {/* Modal de Download Protegido por Senha */}
+          {isDownloadModalOpen && (
+            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+              <div className="bg-white dark:bg-slate-900 w-full max-w-md p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl space-y-5 transition-colors">
+                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    Download Seguro de Backup
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setIsDownloadModalOpen(false)}
+                    className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="text-xs text-slate-600 dark:text-slate-400 space-y-2">
+                  <p>
+                    O arquivo de backup é armazenado com criptografia militar AES-256. Para descriptografar e baixar o dump SQL, informe a sua <strong>senha de administrador</strong>.
+                  </p>
+                  <div className="p-2.5 bg-slate-50 dark:bg-slate-800 rounded-lg font-mono text-[11px] text-slate-800 dark:text-slate-200 truncate">
+                    {downloadTargetFile}
+                  </div>
+                </div>
+
+                {downloadError && (
+                  <div className="p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/60 rounded-xl text-xs font-semibold text-red-700 dark:text-red-300 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                    <span>{downloadError}</span>
+                  </div>
+                )}
+
+                <form onSubmit={handleConfirmDownload} className="space-y-4">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
+                      Senha de Administrador <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="password"
+                      autoFocus
+                      required
+                      placeholder="Digite a senha de administrador..."
+                      value={downloadPassword}
+                      onChange={e => { setDownloadPassword(e.target.value); if (downloadError) setDownloadError(null); }}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setIsDownloadModalOpen(false)}
+                      className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isDownloading}
+                      className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-colors shadow-sm flex items-center gap-2"
+                    >
+                      {isDownloading ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>Descriptografando...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-3.5 h-3.5" />
+                          <span>Desbloquear & Baixar</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* Modal de Restauração Protegida de Backup */}
+          {isRestoreModalOpen && (
+            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+              <div className="bg-white dark:bg-slate-900 w-full max-w-lg p-6 rounded-2xl border border-amber-300 dark:border-amber-700 shadow-2xl space-y-5 transition-colors">
+                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <h3 className="text-sm font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                    Restauração de Backup do Banco
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setIsRestoreModalOpen(false)}
+                    className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl text-xs space-y-2 text-amber-950 dark:text-amber-200">
+                  <strong className="font-bold block flex items-center gap-1.5">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    Regra de Segurança para Restauração:
+                  </strong>
+                  <p className="text-[11px] text-amber-800 dark:text-amber-300">
+                    A restauração de backup recria as tabelas e dados do banco PostgreSQL a partir do arquivo selecionado. Utilize esta função preferencialmente quando o ambiente estiver vazio/zerado para recuperar dados completos.
+                  </p>
+                  <div className="font-mono text-[10px] p-2 bg-amber-100/60 dark:bg-amber-900/40 rounded truncate">
+                    Arquivo: {restoreTargetFile}
+                  </div>
+                </div>
+
+                {restoreError && (
+                  <div className="p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/60 rounded-xl text-xs font-semibold text-red-700 dark:text-red-300 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                    <span>{restoreError}</span>
+                  </div>
+                )}
+
+                <form onSubmit={handleConfirmRestore} className="space-y-4">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
+                      Senha de Administrador <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="password"
+                      autoFocus
+                      required
+                      placeholder="Digite a senha de administrador..."
+                      value={restorePassword}
+                      onChange={e => { setRestorePassword(e.target.value); if (restoreError) setRestoreError(null); }}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
+                      Confirmação de Segurança <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Digite a palavra RESTAURAR..."
+                      value={restoreConfirmCode}
+                      onChange={e => { setRestoreConfirmCode(e.target.value); if (restoreError) setRestoreError(null); }}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono font-bold"
+                    />
+                    <span className="text-[10px] text-slate-400 mt-1 block">
+                      Digite exatamente <strong>RESTAURAR</strong> para autorizar a operação.
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setIsRestoreModalOpen(false)}
+                      className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isRestoring}
+                      className="px-5 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-colors shadow-sm flex items-center gap-2"
+                    >
+                      {isRestoring ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>Restaurando Banco...</span>
+                        </>
+                      ) : (
+                        <>
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span>Confirmar Restauração</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

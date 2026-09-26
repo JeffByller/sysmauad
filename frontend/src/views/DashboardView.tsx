@@ -25,17 +25,18 @@ interface DashboardViewProps {
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpenScanner }) => {
-  const { orders, stockItems, updateOrderStatus } = useOrders();
+  const { orders, stockItems, updateOrderStatus, stalledOrderAlertDays } = useOrders();
   const { user } = useAuth();
 
-  // Helper para verificar se a OS está parada (sem movimentação >= 3 dias e não entregue)
+  // Helper para verificar se a OS está parada (sem movimentação >= stalledOrderAlertDays e não entregue)
   const getOrderStalledInfo = (ord: any) => {
     if (ord.status === 'entregue') return { isStalled: false, days: 0 };
     const lastActivity = (ord.history && ord.history.length > 0)
       ? ord.history[ord.history.length - 1].timestamp
       : (ord.updatedAt || ord.createdAt || new Date().toISOString());
     const diffDays = Math.floor((Date.now() - new Date(lastActivity).getTime()) / (1000 * 60 * 60 * 24));
-    return { isStalled: diffDays >= 3, days: diffDays };
+    const alertThreshold = stalledOrderAlertDays > 0 ? stalledOrderAlertDays : 3;
+    return { isStalled: diffDays >= alertThreshold, days: diffDays };
   };
 
   const stalledOrdersCount = orders.filter(o => getOrderStalledInfo(o).isStalled).length;
@@ -164,7 +165,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
             <div>
               <div className="flex items-center gap-2">
                 <h4 className="font-bold text-xs uppercase tracking-wide">
-                  Alerta Operacional: {stalledOrdersCount} Ordem(ns) de Serviço paradas há mais de 3 dias!
+                  Alerta Operacional: {stalledOrdersCount} Ordem(ns) de Serviço paradas há {stalledOrderAlertDays || 3} {stalledOrderAlertDays === 1 ? 'dia ou mais' : 'dias ou mais'}!
                 </h4>
                 <span className="px-2 py-0.5 bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-100 text-[10px] font-bold rounded-md">
                   Sem movimentação
@@ -250,7 +251,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
 
         {/* Stalled Orders Card */}
         <div
-          onClick={() => onNavigate('orders')}
+          onClick={() => onNavigate('orders', 'paradas')}
           className={`p-5 rounded-xl border shadow-sm cursor-pointer transition-colors ${
             stalledOrdersCount > 0 
               ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 hover:bg-amber-100/80 dark:hover:bg-amber-900/60' 
@@ -258,7 +259,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
           }`}
         >
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-amber-900 dark:text-amber-400">OS Paradas (≥3d)</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-amber-900 dark:text-amber-400">OS Paradas (≥{stalledOrderAlertDays || 3}d)</span>
             <AlertTriangle className={`w-4 h-4 ${stalledOrdersCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400'}`} />
           </div>
           <span className="text-3xl font-bold font-mono text-slate-900 dark:text-slate-100">{stalledOrdersCount}</span>

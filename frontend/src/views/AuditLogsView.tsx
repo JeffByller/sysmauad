@@ -144,34 +144,34 @@ export const AuditLogsView: React.FC = () => {
     setTimeout(() => setCopiedDetail(false), 2000);
   };
 
-  // Helper de badges visuais por nível
+  // Helper de badges visuais por nível — usa cores que funcionam em ambos os temas
   const renderLevelBadge = (level: string) => {
     switch (level) {
       case 'security':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase bg-rose-500/15 text-rose-400 border border-rose-500/30">
-            <ShieldAlert className="w-3 h-3 text-rose-500" />
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase bg-rose-100 dark:bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-300 dark:border-rose-500/30">
+            <ShieldAlert className="w-3 h-3 text-rose-600 dark:text-rose-500" />
             Segurança
           </span>
         );
       case 'error':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-red-500/15 text-red-400 border border-red-500/30">
-            <AlertCircle className="w-3 h-3 text-red-500" />
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-400 border border-red-300 dark:border-red-500/30">
+            <AlertCircle className="w-3 h-3 text-red-600 dark:text-red-500" />
             Erro
           </span>
         );
       case 'warn':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-amber-500/15 text-amber-400 border border-amber-500/30">
-            <AlertTriangle className="w-3 h-3 text-amber-500" />
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-500/30">
+            <AlertTriangle className="w-3 h-3 text-amber-600 dark:text-amber-500" />
             Alerta
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium uppercase bg-sky-500/15 text-sky-400 border border-sky-500/30">
-            <Info className="w-3 h-3 text-sky-400" />
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium uppercase bg-sky-100 dark:bg-sky-500/15 text-sky-700 dark:text-sky-400 border border-sky-300 dark:border-sky-500/30">
+            <Info className="w-3 h-3 text-sky-600 dark:text-sky-400" />
             Info
           </span>
         );
@@ -185,11 +185,11 @@ export const AuditLogsView: React.FC = () => {
   if (!isAuthorized) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-16 text-center">
-        <div className="w-16 h-16 bg-red-900/30 border border-red-700/50 rounded-2xl flex items-center justify-center mx-auto text-red-400 mb-4">
+        <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700/50 rounded-2xl flex items-center justify-center mx-auto text-red-500 dark:text-red-400 mb-4">
           <ShieldAlert className="w-8 h-8" />
         </div>
-        <h2 className="text-xl font-bold text-white mb-2">Acesso Restrito ao Super Administrador</h2>
-        <p className="text-sm text-slate-400 max-w-md mx-auto">
+        <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Acesso Restrito ao Super Administrador</h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
           O módulo de logs de auditoria e segurança contém dados confidenciais do sistema e é restrito exclusivamente ao perfil Super Admin.
         </p>
       </div>
@@ -199,18 +199,18 @@ export const AuditLogsView: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 py-6 space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm transition-colors">
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 bg-sky-950 border border-sky-700/50 rounded-xl flex items-center justify-center text-sky-400">
+            <div className="w-10 h-10 bg-sky-100 dark:bg-sky-950 border border-sky-300 dark:border-sky-700/50 rounded-xl flex items-center justify-center text-sky-600 dark:text-sky-400">
               <ShieldAlert className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-lg sm:text-xl font-bold text-white tracking-tight">
-                Auditoria & Logs do Sistema
+              <h1 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight">
+                Auditoria &amp; Logs do Sistema
               </h1>
-              <p className="text-xs text-slate-400">
-                Rastreabilidade de processos, ações por usuário e proteção contra intrusões & força bruta
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Rastreabilidade de processos, ações por usuário e proteção contra intrusões &amp; força bruta
               </p>
             </div>
           </div>
@@ -222,13 +222,13 @@ export const AuditLogsView: React.FC = () => {
           <button
             onClick={() => setAutoRefresh(!autoRefresh)}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
-              autoRefresh 
-                ? 'bg-emerald-950/80 border-emerald-600 text-emerald-300 shadow-sm' 
-                : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800'
+              autoRefresh
+                ? 'bg-emerald-100 dark:bg-emerald-950/80 border-emerald-400 dark:border-emerald-600 text-emerald-700 dark:text-emerald-300 shadow-sm'
+                : 'bg-slate-100 dark:bg-slate-800/80 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800'
             }`}
             title="Atualizar automaticamente a cada 15 segundos"
           >
-            <Activity className={`w-3.5 h-3.5 ${autoRefresh ? 'animate-spin text-emerald-400' : ''}`} />
+            <Activity className={`w-3.5 h-3.5 ${autoRefresh ? 'animate-spin text-emerald-500 dark:text-emerald-400' : ''}`} />
             <span>{autoRefresh ? 'Ao Vivo (15s)' : 'Ao Vivo: Off'}</span>
           </button>
 
@@ -236,10 +236,10 @@ export const AuditLogsView: React.FC = () => {
           <button
             onClick={() => fetchLogs()}
             disabled={isLoading}
-            className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-xl text-xs font-semibold transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold transition-colors disabled:opacity-50"
             title="Recarregar logs"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-sky-400' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-sky-500 dark:text-sky-400' : ''}`} />
             <span>Atualizar</span>
           </button>
 
@@ -247,7 +247,7 @@ export const AuditLogsView: React.FC = () => {
           <button
             onClick={handleExportJSON}
             disabled={logs.length === 0}
-            className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-xl text-xs font-semibold transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold transition-colors disabled:opacity-50"
             title="Exportar logs em JSON"
           >
             <Download className="w-3.5 h-3.5" />
@@ -257,7 +257,7 @@ export const AuditLogsView: React.FC = () => {
           {/* Purge Logs */}
           <button
             onClick={() => setIsPurgeModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800 text-rose-300 rounded-xl text-xs font-semibold transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-300 dark:border-rose-800 text-rose-600 dark:text-rose-300 rounded-xl text-xs font-semibold transition-colors"
             title="Limpar logs antigos para economia de espaço"
           >
             <Trash2 className="w-3.5 h-3.5" />
@@ -269,83 +269,83 @@ export const AuditLogsView: React.FC = () => {
       {/* KPI Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Total Logs */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between transition-colors">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
             <span className="text-xs font-semibold">Total de Registros</span>
-            <Layers className="w-4 h-4 text-sky-400" />
+            <Layers className="w-4 h-4 text-sky-500 dark:text-sky-400" />
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black text-white font-mono">{stats?.total ?? totalCount}</span>
+            <span className="text-2xl font-black text-slate-900 dark:text-white font-mono">{stats?.total ?? totalCount}</span>
             <span className="text-[10px] text-slate-400">eventos</span>
           </div>
-          <span className="text-[10px] text-emerald-400 mt-2 flex items-center gap-1 font-medium">
-            Armazenamento leve & indexado
+          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-2 flex items-center gap-1 font-medium">
+            Armazenamento leve &amp; indexado
           </span>
         </div>
 
         {/* Security Alerts / Brute Force */}
-        <div className={`rounded-2xl p-4 flex flex-col justify-between border ${
-          (stats?.security ?? 0) > 0 
-            ? 'bg-rose-950/30 border-rose-800/80 shadow-rose-950/30 shadow-lg' 
-            : 'bg-slate-900 border-slate-800'
+        <div className={`rounded-2xl p-4 flex flex-col justify-between border transition-colors ${
+          (stats?.security ?? 0) > 0
+            ? 'bg-rose-50 dark:bg-rose-950/30 border-rose-300 dark:border-rose-800/80 shadow-rose-100 dark:shadow-rose-950/30 shadow-lg'
+            : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
         }`}>
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-semibold">Ameaças & Força Bruta</span>
-            <ShieldAlert className={`w-4 h-4 ${(stats?.security ?? 0) > 0 ? 'text-rose-400 animate-pulse' : 'text-slate-500'}`} />
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
+            <span className="text-xs font-semibold">Ameaças &amp; Força Bruta</span>
+            <ShieldAlert className={`w-4 h-4 ${(stats?.security ?? 0) > 0 ? 'text-rose-500 dark:text-rose-400 animate-pulse' : 'text-slate-400 dark:text-slate-500'}`} />
           </div>
           <div className="flex items-baseline gap-2">
-            <span className={`text-2xl font-black font-mono ${(stats?.security ?? 0) > 0 ? 'text-rose-400' : 'text-white'}`}>
+            <span className={`text-2xl font-black font-mono ${(stats?.security ?? 0) > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`}>
               {stats?.security ?? 0}
             </span>
             <span className="text-[10px] text-slate-400">bloqueios</span>
           </div>
-          <span className="text-[10px] text-rose-300 mt-2 font-medium">
+          <span className="text-[10px] text-rose-500 dark:text-rose-300 mt-2 font-medium">
             {stats?.securityToday ?? 0} tentativas hoje
           </span>
         </div>
 
         {/* Process Errors */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between transition-colors">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
             <span className="text-xs font-semibold">Erros de Processos</span>
-            <AlertCircle className="w-4 h-4 text-red-400" />
+            <AlertCircle className="w-4 h-4 text-red-500 dark:text-red-400" />
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black text-red-400 font-mono">{stats?.errors ?? 0}</span>
+            <span className="text-2xl font-black text-red-600 dark:text-red-400 font-mono">{stats?.errors ?? 0}</span>
             <span className="text-[10px] text-slate-400">falhas</span>
           </div>
-          <span className="text-[10px] text-red-300 mt-2 font-medium">
+          <span className="text-[10px] text-red-500 dark:text-red-300 mt-2 font-medium">
             {stats?.errorsToday ?? 0} erros hoje
           </span>
         </div>
 
         {/* Operational Actions */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between transition-colors">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
             <span className="text-xs font-semibold">Ações de Usuários</span>
-            <User className="w-4 h-4 text-emerald-400" />
+            <User className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black text-white font-mono">{stats?.info ?? 0}</span>
+            <span className="text-2xl font-black text-slate-900 dark:text-white font-mono">{stats?.info ?? 0}</span>
             <span className="text-[10px] text-slate-400">ações rastreadas</span>
           </div>
-          <span className="text-[10px] text-slate-400 mt-2 font-medium">
+          <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-2 font-medium">
             {stats?.warnings ?? 0} alertas registrados
           </span>
         </div>
       </div>
 
       {/* Filter Bar */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 space-y-3 transition-colors">
         <div className="flex flex-col md:flex-row items-center justify-between gap-3">
           {/* Level Filter Pills */}
           <div className="flex flex-wrap items-center gap-1.5 w-full md:w-auto">
             <button
               onClick={() => { setSelectedLevel('all'); setCurrentPage(1); }}
               className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
-                selectedLevel === 'all' 
-                  ? 'bg-sky-600 text-white shadow-sm' 
-                  : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
+                selectedLevel === 'all'
+                  ? 'bg-sky-600 text-white shadow-sm'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700'
               }`}
             >
               Todos
@@ -353,9 +353,9 @@ export const AuditLogsView: React.FC = () => {
             <button
               onClick={() => { setSelectedLevel('security'); setCurrentPage(1); }}
               className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
-                selectedLevel === 'security' 
-                  ? 'bg-rose-700 text-white shadow-sm' 
-                  : 'bg-slate-800 text-rose-400 hover:bg-rose-950/40'
+                selectedLevel === 'security'
+                  ? 'bg-rose-700 text-white shadow-sm'
+                  : 'bg-slate-100 dark:bg-slate-800 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-950/40'
               }`}
             >
               <ShieldAlert className="w-3.5 h-3.5" />
@@ -364,9 +364,9 @@ export const AuditLogsView: React.FC = () => {
             <button
               onClick={() => { setSelectedLevel('error'); setCurrentPage(1); }}
               className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
-                selectedLevel === 'error' 
-                  ? 'bg-red-700 text-white shadow-sm' 
-                  : 'bg-slate-800 text-red-400 hover:bg-red-950/40'
+                selectedLevel === 'error'
+                  ? 'bg-red-700 text-white shadow-sm'
+                  : 'bg-slate-100 dark:bg-slate-800 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/40'
               }`}
             >
               <AlertCircle className="w-3.5 h-3.5" />
@@ -375,9 +375,9 @@ export const AuditLogsView: React.FC = () => {
             <button
               onClick={() => { setSelectedLevel('warn'); setCurrentPage(1); }}
               className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
-                selectedLevel === 'warn' 
-                  ? 'bg-amber-700 text-white shadow-sm' 
-                  : 'bg-slate-800 text-amber-400 hover:bg-amber-950/40'
+                selectedLevel === 'warn'
+                  ? 'bg-amber-700 text-white shadow-sm'
+                  : 'bg-slate-100 dark:bg-slate-800 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-950/40'
               }`}
             >
               <AlertTriangle className="w-3.5 h-3.5" />
@@ -386,9 +386,9 @@ export const AuditLogsView: React.FC = () => {
             <button
               onClick={() => { setSelectedLevel('info'); setCurrentPage(1); }}
               className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
-                selectedLevel === 'info' 
-                  ? 'bg-sky-700 text-white shadow-sm' 
-                  : 'bg-slate-800 text-sky-400 hover:bg-sky-950/40'
+                selectedLevel === 'info'
+                  ? 'bg-sky-700 text-white shadow-sm'
+                  : 'bg-slate-100 dark:bg-slate-800 text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-950/40'
               }`}
             >
               <Info className="w-3.5 h-3.5" />
@@ -402,17 +402,17 @@ export const AuditLogsView: React.FC = () => {
             <select
               value={selectedCategory}
               onChange={e => { setSelectedCategory(e.target.value); setCurrentPage(1); }}
-              className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-200 font-medium focus:outline-none focus:ring-2 focus:ring-sky-500 w-full sm:w-auto"
+              className="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-800 dark:text-slate-200 font-medium focus:outline-none focus:ring-2 focus:ring-sky-500 w-full sm:w-auto transition-colors"
             >
               <option value="all">Todas as Categorias</option>
               <option value="auth">Autenticação do Sistema</option>
               <option value="client_portal">Central do Assinante</option>
-              <option value="security">Segurança & Força Bruta</option>
+              <option value="security">Segurança &amp; Força Bruta</option>
               <option value="orders">Ordens de Serviço (OS)</option>
               <option value="stock">Estoque Químico</option>
               <option value="finance">Financeiro / Caixa</option>
               <option value="users">Gestão de Usuários</option>
-              <option value="system">Sistema & Automação</option>
+              <option value="system">Sistema &amp; Automação</option>
               <option value="api">API / Backend</option>
             </select>
           </div>
@@ -428,12 +428,12 @@ export const AuditLogsView: React.FC = () => {
             value={searchTerm}
             onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
             placeholder="Filtrar por ação, operador, IP ou conteúdo dos detalhes..."
-            className="w-full pl-10 pr-4 py-2 bg-slate-800/80 border border-slate-700 rounded-xl text-xs text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500"
+            className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 transition-colors"
           />
           {searchTerm && (
             <button
               onClick={() => { setSearchTerm(''); setCurrentPage(1); }}
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-white"
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-700 dark:hover:text-white"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -442,26 +442,26 @@ export const AuditLogsView: React.FC = () => {
       </div>
 
       {/* Logs Table */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm transition-colors">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-slate-800 bg-slate-950/60 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+              <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 <th className="py-3 px-4">Data / Hora</th>
                 <th className="py-3 px-3">Nível</th>
                 <th className="py-3 px-3">Usuário / Origem</th>
-                <th className="py-3 px-3">Categoria & Ação</th>
+                <th className="py-3 px-3">Categoria &amp; Ação</th>
                 <th className="py-3 px-4">Resumo dos Detalhes</th>
                 <th className="py-3 px-3 text-right">Ação</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60 text-xs">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
               {logs.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-12 text-center text-slate-400">
-                    <Layers className="w-8 h-8 mx-auto text-slate-600 mb-2" />
-                    <p className="font-semibold text-sm text-slate-300">Nenhum registro encontrado</p>
-                    <p className="text-xs text-slate-500 mt-1">Ajuste os filtros ou verifique se há ações recentes.</p>
+                    <Layers className="w-8 h-8 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
+                    <p className="font-semibold text-sm text-slate-500 dark:text-slate-300">Nenhum registro encontrado</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Ajuste os filtros ou verifique se há ações recentes.</p>
                   </td>
                 </tr>
               ) : (
@@ -472,20 +472,25 @@ export const AuditLogsView: React.FC = () => {
                     year: 'numeric',
                     hour: '2-digit',
                     minute: '2-digit',
-                    second: '2-digit'
+                    second: '2-digit',
+                    timeZone: 'America/Sao_Paulo'
                   });
 
                   return (
-                    <tr 
-                      key={log.id} 
-                      className={`hover:bg-slate-800/50 transition-colors ${
-                        log.level === 'security' ? 'bg-rose-950/10' : log.level === 'error' ? 'bg-red-950/10' : ''
+                    <tr
+                      key={log.id}
+                      className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${
+                        log.level === 'security'
+                          ? 'bg-rose-50/60 dark:bg-rose-950/10'
+                          : log.level === 'error'
+                          ? 'bg-red-50/50 dark:bg-red-950/10'
+                          : ''
                       }`}
                     >
                       {/* Timestamp */}
                       <td className="py-3 px-4 whitespace-nowrap">
-                        <div className="flex items-center gap-1.5 font-mono text-[11px] text-slate-300">
-                          <Calendar className="w-3 h-3 text-slate-500 shrink-0" />
+                        <div className="flex items-center gap-1.5 font-mono text-[11px] text-slate-500 dark:text-slate-300">
+                          <Calendar className="w-3 h-3 text-slate-400 dark:text-slate-500 shrink-0" />
                           <span>{dateFormatted}</span>
                         </div>
                       </td>
@@ -497,12 +502,12 @@ export const AuditLogsView: React.FC = () => {
 
                       {/* User & IP */}
                       <td className="py-3 px-3">
-                        <div className="font-semibold text-slate-200 truncate max-w-[140px]">
+                        <div className="font-semibold text-slate-800 dark:text-slate-200 truncate max-w-[140px]">
                           {log.userName || 'Sistema / Anônimo'}
                         </div>
                         {log.ipAddress && (
                           <div className="flex items-center gap-1 text-[10px] text-slate-400 font-mono mt-0.5">
-                            <Globe className="w-2.5 h-2.5 text-slate-500 shrink-0" />
+                            <Globe className="w-2.5 h-2.5 text-slate-400 dark:text-slate-500 shrink-0" />
                             <span>{log.ipAddress.replace(/^::ffff:/, '')}</span>
                           </div>
                         )}
@@ -510,17 +515,17 @@ export const AuditLogsView: React.FC = () => {
 
                       {/* Category & Action */}
                       <td className="py-3 px-3">
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700 uppercase font-mono mr-1.5">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 uppercase font-mono mr-1.5">
                           {log.category}
                         </span>
-                        <span className="font-medium text-slate-200">
+                        <span className="font-medium text-slate-700 dark:text-slate-200">
                           {log.action}
                         </span>
                       </td>
 
                       {/* Details Summary */}
                       <td className="py-3 px-4">
-                        <p className="text-slate-300 truncate max-w-[300px] text-[11px]">
+                        <p className="text-slate-500 dark:text-slate-300 truncate max-w-[300px] text-[11px]">
                           {log.details?.reason || log.details?.message || log.details?.process || JSON.stringify(log.details)}
                         </p>
                       </td>
@@ -529,7 +534,7 @@ export const AuditLogsView: React.FC = () => {
                       <td className="py-3 px-3 text-right whitespace-nowrap">
                         <button
                           onClick={() => setSelectedLog(log)}
-                          className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-sky-400 rounded-lg text-xs font-semibold inline-flex items-center gap-1 transition-colors"
+                          className="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-sky-600 dark:text-sky-400 rounded-lg text-xs font-semibold inline-flex items-center gap-1 transition-colors"
                           title="Inspecionar detalhes completos"
                         >
                           <Eye className="w-3.5 h-3.5" />
@@ -557,61 +562,61 @@ export const AuditLogsView: React.FC = () => {
       {/* MODAL: DETALHES COMPLETOS DO LOG */}
       {selectedLog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
-            <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-800">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col transition-colors">
+            <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
               <div className="flex items-center gap-2">
                 {renderLevelBadge(selectedLog.level)}
-                <h3 className="text-base font-bold text-white font-mono">
+                <h3 className="text-base font-bold text-slate-900 dark:text-white font-mono">
                   {selectedLog.action}
                 </h3>
               </div>
               <button
                 onClick={() => setSelectedLog(null)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
+                className="text-slate-400 hover:text-slate-700 dark:hover:text-white p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 text-xs text-slate-300 bg-slate-950/60 p-3.5 rounded-xl border border-slate-800/80">
+            <div className="grid grid-cols-2 gap-3 text-xs text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-950/60 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800/80">
               <div>
-                <span className="text-slate-500 block text-[10px] uppercase font-bold">ID do Log</span>
-                <span className="font-mono text-slate-200">{selectedLog.id}</span>
+                <span className="text-slate-400 block text-[10px] uppercase font-bold">ID do Log</span>
+                <span className="font-mono text-slate-800 dark:text-slate-200">{selectedLog.id}</span>
               </div>
               <div>
-                <span className="text-slate-500 block text-[10px] uppercase font-bold">Horário</span>
-                <span className="font-mono text-slate-200">
-                  {new Date(selectedLog.timestamp).toLocaleString('pt-BR')}
+                <span className="text-slate-400 block text-[10px] uppercase font-bold">Horário</span>
+                <span className="font-mono text-slate-800 dark:text-slate-200">
+                  {new Date(selectedLog.timestamp).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
                 </span>
               </div>
               <div>
-                <span className="text-slate-500 block text-[10px] uppercase font-bold">Usuário / Operador</span>
-                <span className="text-white font-semibold">{selectedLog.userName || 'Sistema / Anônimo'}</span>
+                <span className="text-slate-400 block text-[10px] uppercase font-bold">Usuário / Operador</span>
+                <span className="text-slate-900 dark:text-white font-semibold">{selectedLog.userName || 'Sistema / Anônimo'}</span>
               </div>
               <div>
-                <span className="text-slate-500 block text-[10px] uppercase font-bold">Endereço IP</span>
-                <span className="font-mono text-slate-200">{selectedLog.ipAddress || 'Não registrado'}</span>
+                <span className="text-slate-400 block text-[10px] uppercase font-bold">Endereço IP</span>
+                <span className="font-mono text-slate-800 dark:text-slate-200">{selectedLog.ipAddress || 'Não registrado'}</span>
               </div>
               <div className="col-span-2">
-                <span className="text-slate-500 block text-[10px] uppercase font-bold">User-Agent / Navegador</span>
-                <span className="text-[11px] text-slate-400 font-mono break-all">{selectedLog.userAgent || 'Não informado'}</span>
+                <span className="text-slate-400 block text-[10px] uppercase font-bold">User-Agent / Navegador</span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono break-all">{selectedLog.userAgent || 'Não informado'}</span>
               </div>
             </div>
 
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   Conteúdo Estruturado (JSON)
                 </span>
                 <button
                   onClick={handleCopyLogDetails}
-                  className="flex items-center gap-1 text-xs text-sky-400 hover:text-sky-300 font-semibold"
+                  className="flex items-center gap-1 text-xs text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 font-semibold"
                 >
-                  {copiedDetail ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copiedDetail ? <Check className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                   <span>{copiedDetail ? 'Copiado!' : 'Copiar Tudo'}</span>
                 </button>
               </div>
-              <div className="flex-1 bg-black/60 border border-slate-800 rounded-xl p-3.5 overflow-auto text-xs font-mono text-slate-200 max-h-64">
+              <div className="flex-1 bg-slate-950 dark:bg-black/60 border border-slate-300 dark:border-slate-800 rounded-xl p-3.5 overflow-auto text-xs font-mono text-slate-100 max-h-64">
                 <pre className="whitespace-pre-wrap break-all">
                   {JSON.stringify(selectedLog.details, null, 2)}
                 </pre>
@@ -621,7 +626,7 @@ export const AuditLogsView: React.FC = () => {
             <div className="pt-2 flex justify-end">
               <button
                 onClick={() => setSelectedLog(null)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold transition-colors"
+                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-white rounded-xl text-xs font-semibold transition-colors"
               >
                 Fechar
               </button>
@@ -633,35 +638,35 @@ export const AuditLogsView: React.FC = () => {
       {/* MODAL: LIMPEZA DE LOGS ANTIGOS */}
       {isPurgeModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
-            <div className="flex items-center gap-3 text-rose-400">
-              <div className="w-10 h-10 rounded-xl bg-rose-950/60 border border-rose-800 flex items-center justify-center">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 transition-colors">
+            <div className="flex items-center gap-3 text-rose-500 dark:text-rose-400">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-800 flex items-center justify-center">
                 <Trash2 className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-white">Limpeza de Logs Antigos</h3>
-                <p className="text-xs text-slate-400">Política de retenção de armazenamento</p>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Limpeza de Logs Antigos</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Política de retenção de armazenamento</p>
               </div>
             </div>
 
-            <p className="text-xs text-slate-300 leading-relaxed">
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
               Para otimizar o armazenamento do servidor e manter consultas rápidas, você pode purgar registros anteriores a um determinado período.
             </p>
 
             {purgeSuccessMsg && (
-              <div className="p-3 bg-emerald-950/40 border border-emerald-800 rounded-xl text-xs font-semibold text-emerald-300">
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 rounded-xl text-xs font-semibold text-emerald-700 dark:text-emerald-300">
                 {purgeSuccessMsg}
               </div>
             )}
 
             <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
                 Excluir registros mais antigos que:
               </label>
               <select
                 value={retentionDays}
                 onChange={e => setRetentionDays(Number(e.target.value))}
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white font-semibold focus:outline-none focus:ring-2 focus:ring-rose-500"
+                className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-white font-semibold focus:outline-none focus:ring-2 focus:ring-rose-500 transition-colors"
               >
                 <option value={7}>Mais antigos que 7 dias</option>
                 <option value={15}>Mais antigos que 15 dias</option>
@@ -671,11 +676,11 @@ export const AuditLogsView: React.FC = () => {
               </select>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
               <button
                 onClick={() => setIsPurgeModalOpen(false)}
                 disabled={isPurging}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition-colors"
+                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold transition-colors"
               >
                 Cancelar
               </button>

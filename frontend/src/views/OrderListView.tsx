@@ -24,7 +24,7 @@ interface OrderListViewProps {
 }
 
 export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
-  const { orders, updateOrderStatus, updateOrderWeight } = useOrders();
+  const { orders, updateOrderStatus, updateOrderWeight, stalledOrderAlertDays } = useOrders();
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('todos');
@@ -61,14 +61,15 @@ export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  // Helper para verificar se a OS está parada (sem movimentação >= 3 dias e não entregue)
+  // Helper para verificar se a OS está parada (sem movimentação >= stalledOrderAlertDays e não entregue)
   const getOrderStalledInfo = (ord: Order) => {
     if (ord.status === 'entregue') return { isStalled: false, days: 0 };
     const lastActivity = (ord.history && ord.history.length > 0)
       ? ord.history[ord.history.length - 1].timestamp
       : (ord.updatedAt || ord.createdAt || new Date().toISOString());
     const diffDays = Math.floor((Date.now() - new Date(lastActivity).getTime()) / (1000 * 60 * 60 * 24));
-    return { isStalled: diffDays >= 3, days: diffDays };
+    const alertThreshold = stalledOrderAlertDays > 0 ? stalledOrderAlertDays : 3;
+    return { isStalled: diffDays >= alertThreshold, days: diffDays };
   };
 
   const stalledOrders = orders.filter(ord => getOrderStalledInfo(ord).isStalled);
@@ -168,7 +169,7 @@ export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
             </div>
             <div>
               <h4 className="font-bold text-xs uppercase tracking-wide">
-                Atenção: {stalledOrders.length} Ordem(ns) de Serviço sem movimentação há 3 dias ou mais!
+                Atenção: {stalledOrders.length} Ordem(ns) de Serviço sem movimentação há {stalledOrderAlertDays || 3} {stalledOrderAlertDays === 1 ? 'dia ou mais' : 'dias ou mais'}!
               </h4>
               <p className="text-[11px] text-amber-800 dark:text-amber-300">
                 Estas OS estão ativas mas não tiveram avanço recente. Verifique a produção ou contate o cliente.
@@ -224,7 +225,7 @@ export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
               className="px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
             >
               <option value="todos">Todos os Status</option>
-              <option value="paradas">⚠️ OS Paradas (≥ 3 dias)</option>
+              <option value="paradas">⚠️ OS Paradas (≥ {stalledOrderAlertDays || 3} {stalledOrderAlertDays === 1 ? 'dia' : 'dias'})</option>
               <option value="relavados">🔄 Relavados (R$ 0,00)</option>
               <option value="recebido">1. Pedido Feito</option>
               <option value="em_andamento">2. Em Andamento</option>

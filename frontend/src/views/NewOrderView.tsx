@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useOrders } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
-import { Scale, Calculator, Printer, FlaskConical, User, UserPlus, AlertTriangle, Tag, CheckCircle2, ArrowRight, RotateCcw, Plus, Trash2, Sparkles, DollarSign, X } from 'lucide-react';
+import { Scale, Calculator, Printer, FlaskConical, User, AlertTriangle, Tag, CheckCircle2, ArrowRight, RotateCcw, Plus, Trash2, Sparkles, DollarSign, X, Search, ChevronDown } from 'lucide-react';
 import { Order, OrderItem } from '../types';
 
 interface NewOrderViewProps {
@@ -28,6 +28,9 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
 
   // Todos os campos iniciam completamente vazios ao abrir o Novo Pedido
   const [selectedClientId, setSelectedClientId] = useState<string>('');
+  const [clientSearchTerm, setClientSearchTerm] = useState<string>('');
+  const [isClientDropdownOpen, setIsClientDropdownOpen] = useState<boolean>(false);
+  const clientDropdownRef = useRef<HTMLDivElement>(null);
   const [selectedCatalogId, setSelectedCatalogId] = useState<string>('');
 
   const [clothingType, setClothingType] = useState<string>('');
@@ -46,6 +49,27 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
   const [notes, setNotes] = useState<string>('');
 
   const selectedClient = clients.find(c => c.id === selectedClientId) || null;
+
+  // Fechar dropdown de cliente ao clicar fora
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (clientDropdownRef.current && !clientDropdownRef.current.contains(event.target as Node)) {
+        setIsClientDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filteredClients = useMemo(() => {
+    if (!clientSearchTerm.trim()) return clients;
+    const term = clientSearchTerm.toLowerCase();
+    return clients.filter(c => 
+      c.name.toLowerCase().includes(term) ||
+      (c.companyName && c.companyName.toLowerCase().includes(term)) ||
+      (c.phone && c.phone.toLowerCase().includes(term))
+    );
+  }, [clients, clientSearchTerm]);
 
   // Handle Catalog Selection Change: Puxa os dados definidos na Tabela de Peças
   const handleCatalogChange = (catId: string) => {
@@ -228,6 +252,8 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
 
   const handleResetForm = () => {
     setSelectedClientId('');
+    setClientSearchTerm('');
+    setIsClientDropdownOpen(false);
     setSelectedCatalogId('');
     setClothingType('');
     setCorteOs('');
@@ -357,9 +383,9 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
       <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between transition-colors">
         <div>
           <span className="text-xs font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 block mb-1">
-            Entrada de Lote de Roupas
+            Entrada de Roupas
           </span>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Novo Pedido / Pesagem</h1>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Novo Pedido</h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">
             Selecione o cliente e a peça cadastrada. O processo de lavado é automático e as dosagens dão baixa direta no estoque.
           </p>
@@ -374,7 +400,7 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
         <div className="bg-white dark:bg-slate-900 p-5 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors space-y-3 font-sans">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 font-mono">
-              Finalidade da Entrada / Lote
+              Tipo de Entrada
             </span>
             {isRelavado ? (
               <span className="px-2.5 py-0.5 bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 rounded-full text-xs font-bold uppercase flex items-center gap-1">
@@ -402,7 +428,7 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
                 <Scale className="w-4 h-4" />
               </div>
               <div>
-                <strong className="text-xs font-bold block">1. Entrada Padrão (Normal)</strong>
+                <strong className="text-xs font-bold block">1. Lote novo com cobrança</strong>
                 <span className="text-[11px] text-slate-500 dark:text-slate-400">
                   Lote novo com cobrança e faturamento pelo valor unitário da tabela de peças.
                 </span>
@@ -451,36 +477,98 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
             <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider flex items-center gap-2">
               <User className="w-4 h-4 text-sky-600 dark:text-sky-400" />
-              1. Seleção do Cliente
+              1. Selecione o cliente
             </h2>
-
-            <button
-              type="button"
-              onClick={onNavigateToClients}
-              className="text-xs text-sky-700 dark:text-sky-400 hover:underline flex items-center gap-1 font-semibold"
-            >
-              <UserPlus className="w-3.5 h-3.5" />
-              Cadastrar Novo Cliente
-            </button>
           </div>
 
-          <div>
+          <div ref={clientDropdownRef} className="relative">
             <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
-              Cliente *
+              Cliente <span className="text-red-500">*</span>
             </label>
-            <select
-              value={selectedClientId}
-              onChange={e => setSelectedClientId(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
-              required
-            >
-              <option value="">-- Selecione o Cliente --</option>
-              {clients.map(c => (
-                <option key={c.id} value={c.id}>
-                  {c.name} {c.companyName && c.companyName !== c.name ? `— ${c.companyName}` : ''} ({c.phone})
-                </option>
-              ))}
-            </select>
+
+            {selectedClient ? (
+              <div className="flex items-center justify-between p-3.5 bg-sky-50/60 dark:bg-sky-950/40 border border-sky-300 dark:border-sky-800 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-sky-600 text-white flex items-center justify-center font-bold text-sm">
+                    {selectedClient.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                      {selectedClient.name} {selectedClient.companyName && selectedClient.companyName !== selectedClient.name ? `— ${selectedClient.companyName}` : ''}
+                    </div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">
+                      {selectedClient.phone} {selectedClient.address ? `• ${selectedClient.address}` : ''}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedClientId('');
+                    setClientSearchTerm('');
+                    setIsClientDropdownOpen(true);
+                  }}
+                  className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                  title="Trocar Cliente"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="relative">
+                <div className="relative">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                  <input
+                    type="text"
+                    value={clientSearchTerm}
+                    onChange={e => {
+                      setClientSearchTerm(e.target.value);
+                      setIsClientDropdownOpen(true);
+                    }}
+                    onFocus={() => setIsClientDropdownOpen(true)}
+                    placeholder="Buscar cliente por nome, empresa ou telefone..."
+                    className="w-full pl-10 pr-10 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    required={!selectedClientId}
+                  />
+                  <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3.5 top-3 pointer-events-none" />
+                </div>
+
+                {isClientDropdownOpen && (
+                  <div className="absolute z-20 top-full left-0 right-0 mt-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl max-h-60 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                    {filteredClients.length === 0 ? (
+                      <div className="p-4 text-center text-xs text-slate-400">
+                        Nenhum cliente encontrado com "{clientSearchTerm}".
+                      </div>
+                    ) : (
+                      filteredClients.map(c => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedClientId(c.id);
+                            setClientSearchTerm('');
+                            setIsClientDropdownOpen(false);
+                          }}
+                          className="w-full text-left p-3 hover:bg-sky-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-between gap-2"
+                        >
+                          <div>
+                            <div className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                              {c.name} {c.companyName && c.companyName !== c.name ? `— ${c.companyName}` : ''}
+                            </div>
+                            <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                              {c.phone} {c.address ? `• ${c.address}` : ''}
+                            </div>
+                          </div>
+                          <span className="text-[10px] font-semibold text-sky-700 dark:text-sky-400 uppercase">
+                            Selecionar
+                          </span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -497,7 +585,7 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="sm:col-span-2 lg:col-span-4">
               <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
-                Selecione a Peça *
+                Selecione a Peça <span className="text-red-500">*</span>
               </label>
               <select
                 value={selectedCatalogId}
@@ -516,7 +604,7 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
 
             <div>
               <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">
-                Nome da Peça / Roupa
+                Peça
               </label>
               <input
                 type="text"
@@ -542,7 +630,7 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
 
             <div>
               <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">
-                Processo de Lavado (Receita) *
+                Processo de Lavado (Receita) <span className="text-red-500">*</span>
               </label>
               <select
                 value={processType}
@@ -564,7 +652,7 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
 
             <div>
               <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">
-                Valor do Lavado (R$ / pç) *
+                Valor do Lavado (R$ / pç) <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">R$</span>
@@ -590,7 +678,7 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
                   Serviços Diferenciados (Opcional — Combinados na mesma O.S.)
                 </h3>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Adicione acabamentos como <strong>Destroyed, Pistolado, Bigode Laser</strong>, etc., que somarão ao valor do lavado na nota.
+                  Adicione acabamentos como <strong>Destroyed, Pistolado, Bigode Laser</strong>.
                 </p>
               </div>
 
@@ -721,7 +809,7 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
             {/* Input: Quantidade de Peças */}
             <div className="bg-slate-50 dark:bg-slate-800/60 p-5 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
               <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block">
-                Quantidade de Peças *
+                Quantidade de Peças <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <input
@@ -742,7 +830,7 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
             {/* Input: Peso por Peça */}
             <div className="bg-slate-50 dark:bg-slate-800/60 p-5 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
               <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block">
-                Peso por Peça *
+                Peso por Peça <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <input
@@ -945,11 +1033,7 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ onOrderCreated, onNa
             />
           </div>
 
-          <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
-            <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-              Nota impressa em formato **meia folha A4 (A5)**
-            </span>
-
+          <div className="flex items-center justify-end pt-4 border-t border-slate-100 dark:border-slate-800">
             <button
               type="submit"
               className="px-6 py-3 bg-sky-700 hover:bg-sky-800 text-white font-semibold rounded-xl text-sm transition-colors shadow-md flex items-center gap-2"

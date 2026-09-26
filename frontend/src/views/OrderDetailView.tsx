@@ -32,7 +32,16 @@ interface OrderDetailViewProps {
 }
 
 export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBack, onNavigatePrint }) => {
-  const { getOrderById, getOrderByOS, updateOrderStatus, updateOrderWeight, updateOrderServices, createOrder, calculateChemicals } = useOrders();
+  const { 
+    getOrderById, 
+    getOrderByOS, 
+    updateOrderStatus, 
+    updateOrderWeight, 
+    updateOrderServices, 
+    createOrder, 
+    calculateChemicals,
+    stalledOrderAlertDays
+  } = useOrders();
   const { user } = useAuth();
   const order = getOrderById(orderId) || getOrderByOS(orderId);
 
@@ -63,12 +72,13 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
   const [isCreatingRelavado, setIsCreatingRelavado] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Cálculo de OS Parada (> 3 dias sem movimentação)
+  // Cálculo de OS Parada (>= stalledOrderAlertDays sem movimentação)
   const lastActivity = (order?.history && order.history.length > 0)
     ? order.history[order.history.length - 1].timestamp
     : (order?.updatedAt || order?.createdAt || new Date().toISOString());
   const diffDays = Math.floor((Date.now() - new Date(lastActivity).getTime()) / (1000 * 60 * 60 * 24));
-  const isStalled = order && order.status !== 'entregue' && diffDays >= 3;
+  const alertThreshold = stalledOrderAlertDays > 0 ? stalledOrderAlertDays : 3;
+  const isStalled = order && order.status !== 'entregue' && diffDays >= alertThreshold;
 
   const handleOpenEditWeight = () => {
     if (!order) return;
