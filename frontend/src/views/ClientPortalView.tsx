@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useClientAuth } from '../context/ClientAuthContext';
 import { useOrders } from '../context/OrderContext';
-import { Receipt, CheckCircle2, Package, LogOut, Shirt, Clock } from 'lucide-react';
+import { Receipt, CheckCircle2, Package, LogOut, Shirt, Clock, Eye, EyeOff } from 'lucide-react';
 import { OrderStatus } from '../types';
 import { Pagination } from '../components/common/Pagination';
 
@@ -14,6 +14,14 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onLogout }) 
   const { orders } = useOrders();
   const [activeCategoryTab, setActiveCategoryTab] = useState<'em_andamento' | 'finalizadas'>('em_andamento');
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Controle de privacidade de valores (oculto por padrão)
+  const [showValues, setShowValues] = useState<boolean>(false);
+
+  const formatMoney = (val?: number, fallback = 'R$ •••••'): string => {
+    if (!showValues) return fallback;
+    return (val || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  };
 
   useEffect(() => {
     setCurrentPage(1);
@@ -55,6 +63,10 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onLogout }) 
   const ordersFinalizadas = clientOrders.filter(o => o.status === 'pronto' || o.status === 'entregue');
 
   const displayedOrders = activeCategoryTab === 'em_andamento' ? ordersEmAndamento : ordersFinalizadas;
+
+  const totalFinalizadasValue = useMemo(() => {
+    return ordersFinalizadas.reduce((sum, o) => sum + (o.totalServiceValue || 0), 0);
+  }, [ordersFinalizadas]);
 
   const sortedOrders = useMemo(() => {
     return [...displayedOrders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -140,14 +152,32 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onLogout }) 
 
       {/* Real-time Order Progress Tracking */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 space-y-4 transition-colors">
-        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
           <div>
             <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
               {activeCategoryTab === 'em_andamento' ? 'Ordens de Serviço Em Andamento' : 'Ordens de Serviço Finalizadas'}
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">Status em tempo real das suas roupas no galpão de produção</p>
           </div>
-          <span className="text-xs text-slate-400 font-mono">Modo Consultativo</span>
+
+          <div className="flex items-center gap-3">
+            {activeCategoryTab === 'finalizadas' && (
+              <button
+                type="button"
+                onClick={() => setShowValues(prev => !prev)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border shadow-xs select-none active:scale-95 ${
+                  showValues
+                    ? 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700'
+                    : 'bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                }`}
+                title={showValues ? 'Ocultar valores' : 'Exibir valores'}
+              >
+                {showValues ? <EyeOff className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" /> : <Eye className="w-3.5 h-3.5" />}
+                <span>{showValues ? 'Ocultar Valores' : 'Ver Valores'}</span>
+              </button>
+            )}
+            <span className="text-xs text-slate-400 font-mono">Modo Consultativo</span>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -159,13 +189,16 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onLogout }) 
                 <th className="p-3">Processo / Lavado</th>
                 <th className="p-3">Peças Estimadas</th>
                 <th className="p-3">Passadoria</th>
+                {activeCategoryTab === 'finalizadas' && (
+                  <th className="p-3 text-right">Valor da OS</th>
+                )}
                 <th className="p-3">Status Atual</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-mono">
               {displayedOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-slate-400 font-sans">
+                  <td colSpan={activeCategoryTab === 'finalizadas' ? 7 : 6} className="p-8 text-center text-slate-400 font-sans">
                     Nenhum pedido nesta categoria ({activeCategoryTab === 'em_andamento' ? 'Em Andamento' : 'Finalizadas'}).
                   </td>
                 </tr>
@@ -181,13 +214,47 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onLogout }) 
                     <td className="p-3 text-slate-600 dark:text-slate-400 font-sans">
                       {ord.totalIronedPieces} de {ord.estimatedPieceCount} pçs
                     </td>
+                    {activeCategoryTab === 'finalizadas' && (
+                      <td className="p-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                        {formatMoney(ord.totalServiceValue)}
+                      </td>
+                    )}
                     <td className="p-3 font-sans">{getStatusBadge(ord.status)}</td>
                   </tr>
                 ))
               )}
             </tbody>
+            {activeCategoryTab === 'finalizadas' && displayedOrders.length > 0 && (
+              <tfoot className="bg-slate-50 dark:bg-slate-800/80 font-mono border-t-2 border-slate-200 dark:border-slate-700">
+                <tr>
+                  <td colSpan={5} className="p-3 text-right font-sans font-bold text-slate-700 dark:text-slate-300">
+                    Total:
+                  </td>
+                  <td className="p-3 text-right font-extrabold text-emerald-600 dark:text-emerald-400 text-sm">
+                    {formatMoney(totalFinalizadasValue)}
+                  </td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
+
+        {/* Resumo visual do Total das Ordens Finalizadas */}
+        {activeCategoryTab === 'finalizadas' && ordersFinalizadas.length > 0 && (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 bg-emerald-50/60 dark:bg-emerald-950/30 rounded-xl border border-emerald-200 dark:border-emerald-800/60 gap-2 font-sans">
+            <div className="flex items-center gap-2 text-xs text-emerald-800 dark:text-emerald-300 font-medium">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>Total de <strong>{ordersFinalizadas.length}</strong> ordem(ns) finalizada(s)</span>
+            </div>
+            <div className="flex items-center gap-2 sm:text-right font-mono">
+              <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-sans">Total:</span>
+              <span className="text-base font-extrabold text-emerald-700 dark:text-emerald-400">
+                {formatMoney(totalFinalizadasValue)}
+              </span>
+            </div>
+          </div>
+        )}
 
         <Pagination
           currentPage={currentPage}
@@ -200,3 +267,4 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onLogout }) 
     </div>
   );
 };
+

@@ -287,11 +287,8 @@ export const FinanceCaixaView: React.FC = () => {
       {/* Header (Oculto na impressão) */}
       <div className="no-print bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-colors">
         <div>
-          <span className="text-xs font-mono uppercase tracking-wider text-sky-600 dark:text-sky-400 block mb-1 font-bold">
-            Módulo Financeiro • Extrato & Controle de Faturas
-          </span>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
-            Gestão Financeira & Faturamento de Serviços
+            Gestão Financeira
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             Acompanhe ordens em aberto e quitadas, filtre por qualquer cliente ou período, imprima extratos e faturas consolidadas e dê baixa unificada.
