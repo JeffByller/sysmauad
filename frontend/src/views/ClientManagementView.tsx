@@ -946,20 +946,6 @@ export const ClientManagementView: React.FC = () => {
                       className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-sky-500 resize-none"
                     />
                   </div>
-
-                  <div className="flex items-center justify-between pt-4 border-t border-slate-200 dark:border-slate-800">
-                    <span className="text-[11px] text-slate-400 flex items-center gap-1">
-                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-                      Todas as alterações feitas ficam permanentemente salvas na aba de Auditoria.
-                    </span>
-                    <button
-                      type="submit"
-                      className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-colors flex items-center gap-2"
-                    >
-                      <Check className="w-4 h-4" />
-                      Salvar
-                    </button>
-                  </div>
                 </form>
               )}
 
