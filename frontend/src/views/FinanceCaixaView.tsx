@@ -54,11 +54,29 @@ export const FinanceCaixaView: React.FC = () => {
   const [startDate, setStartDate] = useState<string>(firstDayOfMonth);
   const [endDate, setEndDate] = useState<string>(lastDayOfMonth);
   const [reportStatusFilter, setReportStatusFilter] = useState<'todos' | 'aberto' | 'pago'>('todos');
+  const [dateBaseFilter, setDateBaseFilter] = useState<'todas' | 'baixa' | 'os'>('todas');
 
   // Reset da página ao alterar filtros ou busca
   useEffect(() => {
     setCurrentPage(1);
-  }, [startDate, endDate, reportStatusFilter, searchTerm]);
+  }, [startDate, endDate, dateBaseFilter, reportStatusFilter, searchTerm]);
+
+  // Extrai data da baixa/pagamento com máxima precisão
+  const getOrderPaymentDate = (ord: Order): string => {
+    if (ord.paidAt) return getLocalDateString(ord.paidAt);
+    if (ord.paymentHistory && ord.paymentHistory.length > 0) {
+      const lastPay = ord.paymentHistory[0];
+      if (lastPay.paidAt) return getLocalDateString(lastPay.paidAt);
+    }
+    if (Array.isArray(ord.history)) {
+      const payEvt = ord.history.slice().reverse().find(h => 
+        (h.note || '').toLowerCase().includes('baixa financeira') || 
+        (h.note || '').toLowerCase().includes('pagamento recebido')
+      );
+      if (payEvt && payEvt.timestamp) return getLocalDateString(payEvt.timestamp);
+    }
+    return ord.paymentStatus === 'pago' ? getLocalDateString(ord.createdAt) : '';
+  };
 
   // Fecha modais do financeiro ao pressionar ESC
   useEffect(() => {
@@ -120,7 +138,20 @@ export const FinanceCaixaView: React.FC = () => {
   const reportOrders = useMemo(() => {
     return orders.filter(ord => {
       const orderDate = getLocalDateString(ord.createdAt);
-      const inDateRange = (!startDate || orderDate >= startDate) && (!endDate || orderDate <= endDate);
+      const payDate = getOrderPaymentDate(ord);
+
+      const inOrderDateRange = (!startDate || orderDate >= startDate) && (!endDate || orderDate <= endDate);
+      const inPayDateRange = payDate ? ((!startDate || payDate >= startDate) && (!endDate || payDate <= endDate)) : false;
+
+      let inDateRange = false;
+      if (dateBaseFilter === 'os') {
+        inDateRange = inOrderDateRange;
+      } else if (dateBaseFilter === 'baixa') {
+        inDateRange = inPayDateRange;
+      } else { // 'todas'
+        inDateRange = inOrderDateRange || inPayDateRange;
+      }
+
       if (!inDateRange) return false;
 
       // Filtro de Status
@@ -141,7 +172,7 @@ export const FinanceCaixaView: React.FC = () => {
 
       return true;
     }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [orders, startDate, endDate, reportStatusFilter, searchTerm]);
+  }, [orders, startDate, endDate, dateBaseFilter, reportStatusFilter, searchTerm]);
 
   // Paginação dos 20 registros mais recentes em tela
   const paginatedReportOrders = useMemo(() => {
@@ -173,14 +204,73 @@ export const FinanceCaixaView: React.FC = () => {
   }, [reportOrders, uniqueClients]);
 
   // ─── TOTAIS GERAIS DO PERÍODO FILTRADO ──────────────────────────────────────
-  const reportOpenOrders = reportOrders.filter(o => (o.paymentStatus || 'aberto') === 'aberto');
-  const reportPaidOrders = reportOrders.filter(o => o.paymentStatus === 'pago');
-  const reportTotalGross = reportOrders.reduce((sum, o) => sum + (o.totalServiceValue || 0), 0);
-  const reportTotalOpen = reportOpenOrders.reduce((sum, o) => sum + (o.totalServiceValue || 0), 0);
-  const reportTotalPaid = reportPaidOrders.reduce((sum, o) => sum + (o.finalPaidAmount || o.totalServiceValue || 0), 0);
-  const reportTotalDiscount = reportPaidOrders.reduce((sum, o) => sum + (o.discountAmount || 0), 0);
-  const reportTotalPieces = reportOrders.reduce((sum, o) => sum + (o.estimatedPieceCount || 0), 0);
-  const reportTotalWeight = reportOrders.reduce((sum, o) => sum + (o.totalWeightKg || 0), 0);
+  const reportOpenOrders = useMemo(() => reportOrders.filter(o => (o.paymentStatus || 'aberto') === 'aberto'), [reportOrders]);
+  const reportPaidOrders = useMemo(() => reportOrders.filter(o => o.paymentStatus === 'pago'), [reportOrders]);
+
+  // Total a Receber: soma das ordens em aberto filtradas
+  const reportTotalOpen = useMemo(() => reportOpenOrders.reduce((sum, o) => sum + (o.totalServiceValue || 0), 0), [reportOpenOrders]);
+
+  // Faturamento Bruto: soma das ordens do período (base OS ou listadas)
+  const reportTotalGross = useMemo(() => {
+    if (dateBaseFilter === 'baixa') {
+      return reportOrders.reduce((sum, o) => sum + (o.totalServiceValue || 0), 0);
+    }
+    return orders
+      .filter(o => {
+        const d = getLocalDateString(o.createdAt);
+        return (!startDate || d >= startDate) && (!endDate || d <= endDate);
+      })
+      .reduce((sum, o) => sum + (o.totalServiceValue || 0), 0);
+  }, [orders, reportOrders, startDate, endDate, dateBaseFilter]);
+
+  // Total Recebido no Caixa: soma de todas as baixas ocorridas no intervalo [startDate, endDate]
+  const reportTotalPaid = useMemo(() => {
+    let total = 0;
+    orders.forEach(ord => {
+      if (ord.paymentHistory && ord.paymentHistory.length > 0) {
+        ord.paymentHistory.forEach(pay => {
+          const pDate = getLocalDateString(pay.paidAt);
+          const inRange = (!startDate || pDate >= startDate) && (!endDate || pDate <= endDate);
+          if (inRange && pay.action !== 'estorno') {
+            total += Number(pay.finalPaidAmount ?? pay.amountPaid ?? 0);
+          }
+        });
+      } else if (ord.paymentStatus === 'pago') {
+        const pDate = getOrderPaymentDate(ord);
+        const inRange = (!startDate || pDate >= startDate) && (!endDate || pDate <= endDate);
+        if (inRange) {
+          total += Number(ord.finalPaidAmount || ord.totalServiceValue || 0);
+        }
+      }
+    });
+    return total;
+  }, [orders, startDate, endDate]);
+
+  // Descontos concedidos no período
+  const reportTotalDiscount = useMemo(() => {
+    let total = 0;
+    orders.forEach(ord => {
+      if (ord.paymentHistory && ord.paymentHistory.length > 0) {
+        ord.paymentHistory.forEach(pay => {
+          const pDate = getLocalDateString(pay.paidAt);
+          const inRange = (!startDate || pDate >= startDate) && (!endDate || pDate <= endDate);
+          if (inRange && pay.action !== 'estorno') {
+            total += Number(pay.discountAmount || 0);
+          }
+        });
+      } else if (ord.paymentStatus === 'pago' && ord.discountAmount) {
+        const pDate = getOrderPaymentDate(ord);
+        const inRange = (!startDate || pDate >= startDate) && (!endDate || pDate <= endDate);
+        if (inRange) {
+          total += Number(ord.discountAmount || 0);
+        }
+      }
+    });
+    return total;
+  }, [orders, startDate, endDate]);
+
+  const reportTotalPieces = useMemo(() => reportOrders.reduce((sum, o) => sum + (o.estimatedPieceCount || 0), 0), [reportOrders]);
+  const reportTotalWeight = useMemo(() => reportOrders.reduce((sum, o) => sum + (o.totalWeightKg || 0), 0), [reportOrders]);
 
   // ─── SELEÇÃO PARA BAIXA EM TODOS / UNIFICADA ────────────────────────────────
   const [selectedOrderIdsForUnifiedPay, setSelectedOrderIdsForUnifiedPay] = useState<string[]>([]);
@@ -367,7 +457,7 @@ export const FinanceCaixaView: React.FC = () => {
 
 
       {/* ─── CARDS DE MÉTRICAS GERAIS (Oculto na impressão) ───────────────── */}
-      <div className="no-print grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="no-print grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* Card 1: A Receber */}
         <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
@@ -409,20 +499,6 @@ export const FinanceCaixaView: React.FC = () => {
             Abatimentos registrados
           </span>
         </div>
-
-        {/* Card 4: Faturamento Total */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">Faturamento Bruto</span>
-            <Receipt className="w-4 h-4 text-slate-500" />
-          </div>
-          <span className="text-2xl font-bold text-slate-900 dark:text-slate-100 font-mono block">
-            {formatMoney(reportTotalGross)}
-          </span>
-          <span className="text-[11px] text-slate-400 font-mono mt-1 block">
-            {reportTotalPieces.toLocaleString('pt-BR')} peças ({reportTotalWeight.toFixed(1)} kg)
-          </span>
-        </div>
       </div>
 
       {/* ─── PAINEL PRINCIPAL: FILTRO CONSOLIDADO E TABELA ───────────────── */}
@@ -452,19 +528,37 @@ export const FinanceCaixaView: React.FC = () => {
               )}
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="text-slate-500 dark:text-slate-400 text-xs font-semibold whitespace-nowrap">
-                Status:
-              </span>
-              <select
-                value={reportStatusFilter}
-                onChange={e => setReportStatusFilter(e.target.value as any)}
-                className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-sm"
-              >
-                <option value="todos">Todas as Faturas ({orders.length})</option>
-                <option value="aberto">Apenas Aberto ({orders.filter(o => (o.paymentStatus || 'aberto') === 'aberto').length})</option>
-                <option value="pago">Apenas Pagas ({orders.filter(o => o.paymentStatus === 'pago').length})</option>
-              </select>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-500 dark:text-slate-400 text-xs font-semibold whitespace-nowrap">
+                  Base de Data:
+                </span>
+                <select
+                  value={dateBaseFilter}
+                  onChange={e => setDateBaseFilter(e.target.value as any)}
+                  className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-sm"
+                  title="Define se o período avalia a data de emissão da OS, a data da baixa/pagamento ou ambas"
+                >
+                  <option value="todas">OS ou Baixa no período</option>
+                  <option value="baixa">Data da Baixa (Fluxo de Caixa)</option>
+                  <option value="os">Data da OS (Emissão)</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-500 dark:text-slate-400 text-xs font-semibold whitespace-nowrap">
+                  Status:
+                </span>
+                <select
+                  value={reportStatusFilter}
+                  onChange={e => setReportStatusFilter(e.target.value as any)}
+                  className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-sm"
+                >
+                  <option value="todos">Todas as Faturas ({orders.length})</option>
+                  <option value="aberto">Apenas Aberto ({orders.filter(o => (o.paymentStatus || 'aberto') === 'aberto').length})</option>
+                  <option value="pago">Apenas Pagas ({orders.filter(o => o.paymentStatus === 'pago').length})</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -694,8 +788,12 @@ export const FinanceCaixaView: React.FC = () => {
                             <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold block uppercase">
                               {ord.paymentMethod || 'QUITADO'}
                             </span>
-                            <span className="text-[10px] text-slate-400 font-mono">
-                              {ord.paidAt ? new Date(ord.paidAt).toLocaleDateString('pt-BR') : 'Baixado'}
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono block">
+                              {ord.paidAt
+                                ? `Baixa: ${new Date(ord.paidAt).toLocaleDateString('pt-BR')}`
+                                : getOrderPaymentDate(ord)
+                                  ? `Baixa: ${new Date(getOrderPaymentDate(ord) + 'T12:00:00').toLocaleDateString('pt-BR')}`
+                                  : 'Baixado'}
                             </span>
                           </div>
                         ) : (

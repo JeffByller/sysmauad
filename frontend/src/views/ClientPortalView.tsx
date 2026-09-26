@@ -224,19 +224,6 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ onLogout }) 
                 ))
               )}
             </tbody>
-            {activeCategoryTab === 'finalizadas' && displayedOrders.length > 0 && (
-              <tfoot className="bg-slate-50 dark:bg-slate-800/80 font-mono border-t-2 border-slate-200 dark:border-slate-700">
-                <tr>
-                  <td colSpan={5} className="p-3 text-right font-sans font-bold text-slate-700 dark:text-slate-300">
-                    Total:
-                  </td>
-                  <td className="p-3 text-right font-extrabold text-emerald-600 dark:text-emerald-400 text-sm">
-                    {formatMoney(totalFinalizadasValue)}
-                  </td>
-                  <td></td>
-                </tr>
-              </tfoot>
-            )}
           </table>
         </div>
 

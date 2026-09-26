@@ -535,6 +535,17 @@ async function generateSystemReportText(settings: SystemSettings): Promise<strin
   // Data de hoje no formato YYYY-MM-DD (fuso horário de Brasília)
   const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(now);
 
+  const getLocalDate = (val?: string | Date | null): string => {
+    if (!val) return '';
+    const d = new Date(val);
+    if (isNaN(d.getTime())) {
+      return String(val).split('T')[0];
+    }
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(d);
+  };
+
+  const fmtMoney = (v: number) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
   const freqLabel = settings.reportFrequency === 'semanal' 
     ? 'Semanal' 
     : settings.reportFrequency === 'mensal' 
@@ -554,37 +565,37 @@ async function generateSystemReportText(settings: SystemSettings): Promise<strin
   const ordersRes = await query('SELECT * FROM sysmauad.orders ORDER BY created_at ASC');
   const allOrders = ordersRes.rows;
 
-  // Filtra ordens de serviço criadas hoje
+  // Ordens de serviço criadas hoje
   const ordersToday = allOrders.filter((o: any) => {
-    const d = o.created_at ? o.created_at.slice(0, 10) : '';
-    return d === todayStr;
+    return getLocalDate(o.created_at) === todayStr;
+  });
+
+  // Ordens atualmente PRONTAS (A entregar / aguardando retirada)
+  const ordersProntosAEntregar = allOrders.filter((o: any) => o.status === 'pronto');
+
+  // Ordens que foram ENTREGUES hoje (excluindo relavados e notas de pagamento)
+  const ordersEntreguesHoje = allOrders.filter((o: any) => {
+    if (o.status !== 'entregue') return false;
+    if (o.is_relavado) return false;
+    const history = Array.isArray(o.history) ? o.history : [];
+    const delivEvt = history.slice().reverse().find((h: any) => {
+      const note = (h.note || '').toLowerCase();
+      const isDeliveryAction = note.includes('entregue') || note.includes('saída registrada') || h.status === 'entregue';
+      const isNonDeliveryNote = note.includes('baixa') || note.includes('pagamento') || note.includes('passadoria') || note.includes('boleto');
+      return isDeliveryAction && !isNonDeliveryNote;
+    });
+    if (delivEvt && delivEvt.timestamp) {
+      return getLocalDate(delivEvt.timestamp) === todayStr;
+    }
+    return getLocalDate(o.updated_at || o.created_at) === todayStr;
   });
 
   // 1. Relatório de Produção e Lavados
   if (selected.includes('producao')) {
-    const totalOrders = ordersToday.length;
-    let recebidos = 0;
-    let emAndamento = 0;
-    let prontos = 0;
-    let entregues = 0;
-    let totalKg = 0;
-    let totalPecas = 0;
-
-    for (const o of ordersToday) {
-      if (o.status === 'recebido') recebidos++;
-      else if (o.status === 'em_andamento') emAndamento++;
-      else if (o.status === 'pronto') prontos++;
-      else if (o.status === 'entregue') entregues++;
-
-      totalKg += Number(o.total_weight_kg || 0);
-      totalPecas += Number(o.estimated_piece_count || 0);
-    }
-
     msg += `\n*PRODUÇÃO E LAVADOS*\n`;
-    msg += `• Pedidos no dia: *${totalOrders}*\n`;
-    msg += `• Status: *${emAndamento}* em andamento | *${recebidos}* recebidos | *${prontos}* prontos | *${entregues}* entregues\n`;
-    msg += `• Carga processada: *${totalKg.toFixed(1)} Kg*\n`;
-    msg += `• Volume estimado: *${totalPecas} peças*\n`;
+    msg += `• Pedidos feitos hoje: *${ordersToday.length}*\n`;
+    msg += `• Pedidos prontos (a entregar): *${ordersProntosAEntregar.length}*\n`;
+    msg += `• Pedidos entregues hoje: *${ordersEntreguesHoje.length}*\n`;
   }
 
   // 2. Relatório de Passadoria (apenas passadas efetuadas hoje)
@@ -606,7 +617,7 @@ async function generateSystemReportText(settings: SystemSettings): Promise<strin
     for (const o of allOrders) {
       const logs = Array.isArray(o.ironing_logs) ? o.ironing_logs : [];
       for (const log of logs) {
-        const logDate = log.timestamp ? log.timestamp.slice(0, 10) : '';
+        const logDate = getLocalDate(log.timestamp);
         if (logDate === todayStr) {
           const count = Number(log.piecesIroned || 0);
           totalIronedToday += count;
@@ -635,7 +646,7 @@ async function generateSystemReportText(settings: SystemSettings): Promise<strin
     msg += `\n*PASSADORIA E ACABAMENTO*\n`;
     msg += `• Peças passadas hoje: *${totalIronedToday} peças*`;
     if (settings.includeFinancialValues) {
-      msg += ` (R$ ${totalIronedValueToday.toFixed(2)})`;
+      msg += ` (${fmtMoney(totalIronedValueToday)})`;
     }
     msg += `\n`;
 
@@ -647,7 +658,7 @@ async function generateSystemReportText(settings: SystemSettings): Promise<strin
           const val = p.pieces * p.rate;
           msg += `   - ${p.name}: *${p.pieces}* peças`;
           if (settings.includeFinancialValues) {
-            msg += ` (R$ ${val.toFixed(2)})`;
+            msg += ` (${fmtMoney(val)})`;
           }
           msg += `\n`;
         }
@@ -655,29 +666,32 @@ async function generateSystemReportText(settings: SystemSettings): Promise<strin
     }
   }
 
-  // 3. Relatório Financeiro (pedidos do dia de hoje)
+  // 3. Relatório Financeiro
   if (selected.includes('financeiro') && settings.includeFinancialValues) {
-    let totalFaturado = 0;
-    let totalPago = 0;
-    let totalAberto = 0;
+    const totalFeitosHoje = ordersToday.reduce((sum: number, o: any) => sum + Number(o.total_service_value || 0), 0);
+    const totalEntreguesHoje = ordersEntreguesHoje.reduce((sum: number, o: any) => sum + Number(o.total_service_value || 0), 0);
 
-    for (const row of ordersToday) {
-      const val = Number(row.total_service_value || 0);
-      totalFaturado += val;
-      if (row.payment_status === 'pago') {
-        totalPago += val;
-      } else {
-        totalAberto += val;
+    let totalRecebidoHoje = 0;
+    for (const o of allOrders) {
+      if (Array.isArray(o.payment_history) && o.payment_history.length > 0) {
+        for (const pay of o.payment_history) {
+          const payDate = getLocalDate(pay.paidAt || pay.timestamp);
+          if (payDate === todayStr && pay.action !== 'estorno') {
+            totalRecebidoHoje += Number(pay.finalPaidAmount ?? pay.amountPaid ?? 0);
+          }
+        }
+      } else if (o.payment_status === 'pago') {
+        const paidDate = o.paid_at ? getLocalDate(o.paid_at) : getLocalDate(o.created_at);
+        if (paidDate === todayStr) {
+          totalRecebidoHoje += Number(o.final_paid_amount ?? o.total_service_value ?? 0);
+        }
       }
     }
 
-    const ticketMedio = ordersToday.length > 0 ? (totalFaturado / ordersToday.length) : 0;
-
     msg += `\n*FINANCEIRO / CAIXA*\n`;
-    msg += `• Faturamento hoje: *R$ ${totalFaturado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}*\n`;
-    msg += `• Recebido hoje: *R$ ${totalPago.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}*\n`;
-    msg += `• A receber hoje: *R$ ${totalAberto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}*\n`;
-    msg += `• Ticket médio hoje: *R$ ${ticketMedio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}*\n`;
+    msg += `• Pedidos feitos hoje: *${ordersToday.length}* (${fmtMoney(totalFeitosHoje)})\n`;
+    msg += `• Pedidos entregues hoje: *${ordersEntreguesHoje.length}* (${fmtMoney(totalEntreguesHoje)})\n`;
+    msg += `• Total recebido hoje: *${fmtMoney(totalRecebidoHoje)}*\n`;
   }
 
   let footer = settings.reportFooterText;
@@ -2795,6 +2809,32 @@ app.post('/whatsapp/send-message', async (req: Request, res: Response) => {
       return res.status(500).json({ error: errorDetails || 'Falha ao enviar mensagem via WhatsApp' });
     }
     res.json({ success: true, result });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/whatsapp/preview-report', async (_req: Request, res: Response) => {
+  try {
+    const settingsRow = await query('SELECT * FROM sysmauad.system_settings WHERE id = $1', ['default']);
+    if (settingsRow.rows.length === 0) {
+      return res.status(404).json({ error: 'Configurações não encontradas.' });
+    }
+    const settings = mapSettings(settingsRow.rows[0]);
+    const reportText = await generateSystemReportText(settings);
+    res.json({ preview: reportText });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/whatsapp/preview-report', async (req: Request, res: Response) => {
+  try {
+    const settingsRow = await query('SELECT * FROM sysmauad.system_settings WHERE id = $1', ['default']);
+    const currentSettings = settingsRow.rows.length > 0 ? mapSettings(settingsRow.rows[0]) : ({} as any);
+    const mergedSettings = { ...currentSettings, ...(req.body || {}) };
+    const reportText = await generateSystemReportText(mergedSettings);
+    res.json({ preview: reportText });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

@@ -435,16 +435,34 @@ export const SettingsView: React.FC = () => {
     }
   };
 
+  const fetchReportPreview = async (customSettings?: SystemSettings) => {
+    try {
+      const res = await fetch('/api/whatsapp/preview-report', {
+        method: customSettings ? 'POST' : 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        body: customSettings ? JSON.stringify(customSettings) : undefined
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.preview) setReportPreview(data.preview);
+      }
+    } catch (e) {
+      // fallback
+    }
+  };
+
   // Efeito para carregar dados iniciais
   useEffect(() => {
     fetchSettings();
     fetchWhatsAppStatus();
     fetchBackups();
+    fetchReportPreview();
   }, []);
 
   // Polling para status do WhatsApp se estiver desconectado e na aba whatsapp
   useEffect(() => {
     if (activeTab !== 'whatsapp') return;
+    fetchReportPreview(settings);
     const interval = setInterval(() => {
       fetchWhatsAppStatus();
     }, 5000);
@@ -1131,20 +1149,19 @@ export const SettingsView: React.FC = () => {
                       {settings.selectedReports?.includes('producao') && (
                         <>
                           {'\n\n'}*PRODUÇÃO E LAVADOS*
-                          {'\n'}• Pedidos no dia: *4*
-                          {'\n'}• Status: *2* em andamento | *1* recebido | *1* pronto | *0* entregue
-                          {'\n'}• Carga processada: *180.5 Kg*
-                          {'\n'}• Volume estimado: *610 peças*
+                          {'\n'}• Pedidos feitos hoje: *0*
+                          {'\n'}• Pedidos prontos (a entregar): *0*
+                          {'\n'}• Pedidos entregues hoje: *0*
                         </>
                       )}
                       {settings.selectedReports?.includes('passadoria') && (
                         <>
                           {'\n\n'}*PASSADORIA E ACABAMENTO*
-                          {'\n'}• Peças passadas hoje: *150 peças* (R$ 22,50)
+                          {'\n'}• Peças passadas hoje: *0 peças* (R$ 0,00)
                           {settings.includeOperatorBreakdown && (
                             <>
                               {'\n'}• Detalhado por passador:
-                              {'\n'}   - Passador Teste: *150* peças (R$ 22,50)
+                              {'\n'}   - Passador: *0* peças (R$ 0,00)
                             </>
                           )}
                         </>
@@ -1152,10 +1169,9 @@ export const SettingsView: React.FC = () => {
                       {settings.selectedReports?.includes('financeiro') && settings.includeFinancialValues && (
                         <>
                           {'\n\n'}*FINANCEIRO / CAIXA*
-                          {'\n'}• Faturamento hoje: *R$ 2.450,00*
-                          {'\n'}• Recebido hoje: *R$ 1.800,00*
-                          {'\n'}• A receber hoje: *R$ 650,00*
-                          {'\n'}• Ticket médio hoje: *R$ 612,50*
+                          {'\n'}• Pedidos feitos hoje: *0* (R$ 0,00)
+                          {'\n'}• Pedidos entregues hoje: *0* (R$ 0,00)
+                          {'\n'}• Total recebido hoje: *R$ 0,00*
                         </>
                       )}
                       {'\n\n'}----------------------------------------
