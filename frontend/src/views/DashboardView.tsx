@@ -3,7 +3,6 @@ import { useOrders } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
 import { 
   PlusCircle, 
-  QrCode, 
   Clock, 
   Scale, 
   Shirt, 
@@ -11,7 +10,6 @@ import {
   MessageSquare, 
   Printer, 
   CalendarDays,
-  Package,
   Play,
   PackageCheck,
   RotateCcw
@@ -132,22 +130,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
           >
             <PlusCircle className="w-4 h-4" />
             Novo Pedido
-          </button>
-
-          <button
-            onClick={onOpenScanner}
-            className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold rounded-xl text-xs transition-colors shadow-sm flex items-center gap-2"
-          >
-            <QrCode className="w-4 h-4" />
-            Bipar Passagem
-          </button>
-
-          <button
-            onClick={() => onNavigate('stock')}
-            className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold rounded-xl text-xs transition-colors shadow-sm flex items-center gap-2 border border-slate-700"
-          >
-            <Package className="w-4 h-4" />
-            Estoque Insumos
           </button>
         </div>
       </div>

@@ -937,9 +937,8 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
             <table className="w-full text-left border-collapse font-mono text-xs">
               <thead>
                 <tr className="bg-slate-900 text-white uppercase text-[10px] tracking-wider">
-                  <th className="p-2 border-r border-slate-700 w-2/5">NOME DO PASSADOR(A)</th>
-                  <th className="p-2 border-r border-slate-700 w-1/4 text-center">QTD PASSADA (PÇS)</th>
-                  <th className="p-2 w-1/3 text-center">ASSINATURA / RUBRICA</th>
+                  <th className="p-2 border-r border-slate-700 w-3/5">NOME DO PASSADOR(A)</th>
+                  <th className="p-2 w-2/5 text-center">QTD PASSADA (PÇS)</th>
                 </tr>
               </thead>
               <tbody className="divide-y border-slate-900">
@@ -949,19 +948,16 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
                       <td className="p-2 font-bold uppercase text-slate-900 border-r border-slate-300 align-middle">
                         {p.name}
                       </td>
-                      <td className="p-2 border-r border-slate-300 align-middle text-center">
-                        <div className="w-28 h-8 border border-slate-400 mx-auto rounded flex items-center justify-end px-2 bg-slate-50 text-slate-400 text-[10px]">
+                      <td className="p-2 align-middle text-center">
+                        <div className="w-32 h-8 border border-slate-400 mx-auto rounded flex items-center justify-end px-2 bg-slate-50 text-slate-400 text-[10px]">
                           [ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ] pçs
                         </div>
-                      </td>
-                      <td className="p-2 align-bottom text-center">
-                        <div className="border-b border-slate-400 w-4/5 mx-auto mb-1"></div>
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={3} className="p-4 text-center text-slate-500 italic">
+                    <td colSpan={2} className="p-4 text-center text-slate-500 italic">
                       Nenhum passador ativo cadastrado no sistema.
                     </td>
                   </tr>
@@ -986,19 +982,13 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
             </div>
           </div>
 
-          {/* Rodapé com Assinatura de Supervisão e QR Code */}
-          <div className="pt-6 grid grid-cols-12 items-end gap-4 text-center font-mono text-[10px] uppercase">
-            <div className="col-span-5">
-              <div className="border-b border-black w-4/5 mx-auto mb-1"></div>
-              <div className="font-bold">SUPERVISÃO / CONFERÊNCIA DE QUALIDADE</div>
+          {/* Rodapé com QR Code */}
+          <div className="pt-4 flex justify-between items-end font-mono text-[10px] uppercase">
+            <div className="text-slate-500 text-[9px]">
+              Documento interno de controle de produção • MAUAD LAVANDERIA
             </div>
 
-            <div className="col-span-5">
-              <div className="border-b border-black w-4/5 mx-auto mb-1"></div>
-              <div className="font-bold">RESPONSÁVEL PELA EXPEDIÇÃO</div>
-            </div>
-
-            <div className="col-span-2 flex flex-col items-end justify-center text-[9px] text-slate-600">
+            <div className="flex flex-col items-end justify-center text-[9px] text-slate-600">
               <div className="p-0.5 border border-black bg-white inline-block mb-0.5">
                 <QRCodeSVG value={order.osNumber || pureOsNumber} size={42} />
               </div>

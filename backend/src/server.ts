@@ -773,6 +773,19 @@ app.post('/users', async (req: Request, res: Response) => {
       [id, name.trim(), cleanUser, String(password).trim(), phone ? String(phone).trim() : null, role || 'operador', JSON.stringify(menus), isActive]
     );
 
+    // Se o usuário criado for um passador, sincroniza automaticamente na tabela sysmauad.passadores
+    if ((role || 'operador') === 'passador') {
+      await query(
+        `INSERT INTO sysmauad.passadores (id, name, phone, total_pieces_ironed, rate_per_piece, active)
+         VALUES ($1, $2, $3, 0, 0.15, $4)
+         ON CONFLICT (id) DO UPDATE SET
+           name = EXCLUDED.name,
+           phone = EXCLUDED.phone,
+           active = EXCLUDED.active`,
+        [id, name.trim(), phone ? String(phone).trim() : null, isActive]
+      );
+    }
+
     res.status(201).json({ success: true, user: mapUser(insert.rows[0]) });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
@@ -816,6 +829,20 @@ app.put('/users/:id', async (req: Request, res: Response) => {
        RETURNING *`,
       [updatedName, cleanUsername, updatedPhone, updatedRole, JSON.stringify(updatedMenus), updatedActive, updatedPass, id]
     );
+
+    // Se o usuário for passador, sincroniza os dados na tabela sysmauad.passadores
+    if (updatedRole === 'passador') {
+      await query(
+        `INSERT INTO sysmauad.passadores (id, name, phone, total_pieces_ironed, rate_per_piece, active)
+         VALUES ($1, $2, $3, 0, 0.15, $4)
+         ON CONFLICT (id) DO UPDATE SET
+           name = EXCLUDED.name,
+           phone = EXCLUDED.phone,
+           active = EXCLUDED.active,
+           updated_at = NOW()`,
+        [id, updatedName, updatedPhone, updatedActive]
+      );
+    }
 
     res.json({ success: true, user: mapUser(result.rows[0]) });
   } catch (err: any) {

@@ -202,232 +202,459 @@ export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
       )}
 
       {/* Header & Controls */}
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 transition-colors">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 transition-colors">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Lista de Pedidos</h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Gerencie e filtre todas as ordens de serviço em andamento</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Lista de Pedidos</h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Gerencie e acompanhe todas as ordens de serviço da produção</p>
           </div>
 
           <button
             onClick={() => onNavigate('new-order')}
-            className="px-4 py-2 bg-sky-700 hover:bg-sky-800 text-white rounded-xl text-xs font-semibold transition-colors shadow-sm"
+            className="w-full sm:w-auto px-4 py-2.5 bg-sky-700 hover:bg-sky-800 text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center justify-center gap-2"
           >
-            + Novo Pedido
+            <span className="text-base leading-none">+</span> Novo Pedido
           </button>
         </div>
 
-        {/* Search & Status Filter Row */}
-        <div className="flex flex-col sm:flex-row gap-3 pt-2">
-          {/* Search Box */}
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-            <input
-              type="text"
-              placeholder="Buscar por OS, Nome do Cliente ou Telefone..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium"
-            />
+        {/* Search & Quick Status Filters Bar */}
+        <div className="space-y-3 pt-1">
+          <div className="flex flex-col md:flex-row gap-2.5">
+            {/* Search Input */}
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+              <input
+                type="text"
+                placeholder="Buscar por OS, cliente ou telefone..."
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium"
+              />
+            </div>
+
+            {/* Dropdown de Filtros para Mobile / Telas Menores */}
+            <div className="flex items-center gap-2 md:hidden">
+              <Filter className="w-4 h-4 text-slate-400 shrink-0" />
+              <select
+                value={statusFilter}
+                onChange={e => setStatusFilter(e.target.value)}
+                className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
+              >
+                <option value="todos">Todos os Status</option>
+                <option value="paradas">⚠️ OS Paradas ({stalledOrders.length})</option>
+                <option value="recebido">1. Pedido Feito</option>
+                <option value="em_andamento">2. Em Andamento</option>
+                <option value="pronto">3. Pronto</option>
+                <option value="entregue">4. Entregue</option>
+                <option value="relavados">🔄 Relavados</option>
+                <option value="a_definir">🔶 À Definir</option>
+              </select>
+            </div>
           </div>
 
-          {/* Status Dropdown */}
-          <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-slate-400" />
-            <select
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value)}
-              className="px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
+          {/* Quick Filter Pills (Visível em Desktop e Tablet) */}
+          <div className="hidden md:flex flex-wrap items-center gap-1.5 pt-1 text-xs">
+            <button
+              onClick={() => setStatusFilter('todos')}
+              className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${
+                statusFilter === 'todos'
+                  ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 shadow-xs'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
             >
-              <option value="todos">Todos os Status</option>
-              <option value="paradas">⚠️ OS Paradas (≥ {stalledOrderAlertDays || 3} {stalledOrderAlertDays === 1 ? 'dia' : 'dias'})</option>
-              <option value="relavados">🔄 Relavados (R$ 0,00)</option>
-              <option value="a_definir">🔶 À Definir (Aguardando Definição)</option>
-              <option value="recebido">1. Pedido Feito</option>
-              <option value="em_andamento">2. Em Andamento</option>
-              <option value="pronto">3. Pronto</option>
-              <option value="entregue">4. Entregue</option>
-            </select>
+              Todos ({orders.length})
+            </button>
+            <button
+              onClick={() => setStatusFilter('recebido')}
+              className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${
+                statusFilter === 'recebido'
+                  ? 'bg-sky-700 text-white shadow-xs'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+            >
+              1. Pedido Feito
+            </button>
+            <button
+              onClick={() => setStatusFilter('em_andamento')}
+              className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${
+                statusFilter === 'em_andamento'
+                  ? 'bg-sky-600 text-white shadow-xs'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+            >
+              2. Em Andamento
+            </button>
+            <button
+              onClick={() => setStatusFilter('pronto')}
+              className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${
+                statusFilter === 'pronto'
+                  ? 'bg-emerald-700 text-white shadow-xs'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+            >
+              3. Pronto
+            </button>
+            <button
+              onClick={() => setStatusFilter('entregue')}
+              className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${
+                statusFilter === 'entregue'
+                  ? 'bg-indigo-700 text-white shadow-xs'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+            >
+              4. Entregue
+            </button>
+
+            {stalledOrders.length > 0 && (
+              <button
+                onClick={() => setStatusFilter('paradas')}
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${
+                  statusFilter === 'paradas'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 hover:bg-amber-200'
+                }`}
+              >
+                ⚠️ OS Paradas ({stalledOrders.length})
+              </button>
+            )}
+
+            <button
+              onClick={() => setStatusFilter('relavados')}
+              className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${
+                statusFilter === 'relavados'
+                  ? 'bg-purple-700 text-white shadow-xs'
+                  : 'bg-slate-100 dark:bg-slate-800 text-purple-700 dark:text-purple-400'
+              }`}
+            >
+              🔄 Relavados
+            </button>
+
+            <button
+              onClick={() => setStatusFilter('a_definir')}
+              className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${
+                statusFilter === 'a_definir'
+                  ? 'bg-orange-600 text-white shadow-xs'
+                  : 'bg-slate-100 dark:bg-slate-800 text-orange-700 dark:text-orange-400'
+              }`}
+            >
+              🔶 À Definir
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Orders Table */}
+      {/* Orders List Content */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition-colors">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800">
-              <tr>
-                <th className="p-4">Número OS</th>
-                <th className="p-4">Cliente</th>
-                <th className="p-4">Pesagem</th>
-                <th className="p-4">Peças Estimadas</th>
-                <th className="p-4">Passadoria</th>
-                <th className="p-4">Status</th>
-                <th className="p-4 text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {filteredOrders.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="p-8 text-center text-slate-500 font-sans">
-                    Nenhum pedido encontrado.
-                  </td>
-                </tr>
-              ) : (
-                paginatedOrders.map(ord => {
-                  const stalledInfo = getOrderStalledInfo(ord);
-                  return (
-                    <tr 
-                      key={ord.id} 
-                      onDoubleClick={() => ord.isADefinir ? onNavigate('define-order', ord.id) : onNavigate('order-detail', ord.id)}
-                      className={`hover:bg-slate-100/80 dark:hover:bg-slate-800/70 transition-colors font-mono cursor-pointer select-none ${
-                        stalledInfo.isStalled ? 'bg-amber-50/40 dark:bg-amber-950/20' : ''
-                      }`}
-                      title={ord.isADefinir ? "Duplo clique para definir lavado e serviços desta O.S." : "Duplo clique para abrir e ver este pedido"}
-                    >
-                      <td className="p-4">
-                        <div className="flex flex-col gap-1 items-start">
-                          <span className="font-bold text-slate-900 dark:text-slate-100">{ord.osNumber}</span>
-                          <div className="flex flex-wrap gap-1">
-                            {ord.isRelavado && (
-                              <span className="px-1.5 py-0.5 bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 rounded text-[10px] font-bold uppercase border border-purple-200 dark:border-purple-800 flex items-center gap-0.5">
-                                <RotateCcw className="w-2.5 h-2.5" />
-                                Relavado
-                              </span>
+        
+        {filteredOrders.length === 0 ? (
+          <div className="p-10 text-center text-slate-500 font-sans space-y-2">
+            <p className="text-sm font-semibold">Nenhum pedido encontrado com os filtros aplicados.</p>
+            <p className="text-xs text-slate-400">Tente buscar por outro termo ou selecione "Todos os Status".</p>
+          </div>
+        ) : (
+          <>
+            {/* ─── DESKTOP TABLE VIEW (MD+) ───────────────────────────── */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800 uppercase tracking-wider text-[10px]">
+                  <tr>
+                    <th className="p-3.5 pl-5">Número OS</th>
+                    <th className="p-3.5">Cliente</th>
+                    <th className="p-3.5">Pesagem</th>
+                    <th className="p-3.5">Peças</th>
+                    <th className="p-3.5">Passadoria</th>
+                    <th className="p-3.5">Status</th>
+                    <th className="p-3.5 pr-5 text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {paginatedOrders.map(ord => {
+                    const stalledInfo = getOrderStalledInfo(ord);
+                    return (
+                      <tr 
+                        key={ord.id} 
+                        onDoubleClick={() => ord.isADefinir ? onNavigate('define-order', ord.id) : onNavigate('order-detail', ord.id)}
+                        className={`hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors font-mono cursor-pointer select-none ${
+                          stalledInfo.isStalled ? 'bg-amber-50/40 dark:bg-amber-950/20' : ''
+                        }`}
+                        title={ord.isADefinir ? "Duplo clique para definir lavado e serviços desta O.S." : "Duplo clique para abrir e ver este pedido"}
+                      >
+                        <td className="p-3.5 pl-5">
+                          <div className="flex flex-col gap-1 items-start">
+                            <span className="font-bold text-slate-900 dark:text-slate-100 text-xs sm:text-sm">{ord.osNumber}</span>
+                            <div className="flex flex-wrap gap-1">
+                              {ord.isRelavado && (
+                                <span className="px-1.5 py-0.5 bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 rounded text-[9px] font-bold uppercase border border-purple-200 dark:border-purple-800 flex items-center gap-0.5">
+                                  <RotateCcw className="w-2.5 h-2.5" />
+                                  Relavado
+                                </span>
+                              )}
+                              {ord.isADefinir && (
+                                <span className="px-1.5 py-0.5 bg-orange-100 dark:bg-orange-950 text-orange-700 dark:text-orange-300 rounded text-[9px] font-bold uppercase border border-orange-200 dark:border-orange-800 flex items-center gap-0.5">
+                                  <HelpCircle className="w-2.5 h-2.5" />
+                                  À Definir
+                                </span>
+                              )}
+                              {stalledInfo.isStalled && (
+                                <span className="px-1.5 py-0.5 bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 rounded text-[9px] font-bold border border-amber-200 dark:border-amber-800 flex items-center gap-0.5">
+                                  <AlertTriangle className="w-2.5 h-2.5" />
+                                  Parada {stalledInfo.days}d
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-3.5 font-sans">
+                          <strong className="text-slate-900 dark:text-slate-100 block text-xs">{ord.clientName}</strong>
+                          <span className="text-slate-400 text-[11px] font-mono">{ord.clientPhone}</span>
+                        </td>
+                        <td className="p-3.5 text-slate-800 dark:text-slate-200">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-xs">{ord.totalWeightKg} kg</span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenEditWeight(ord);
+                              }}
+                              className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 rounded transition-colors"
+                              title="Editar peso da pesagem"
+                            >
+                              <Scale className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <span className="text-[10px] text-slate-400 block">Ref: {ord.refPieceWeightGrams}g</span>
+                        </td>
+                        <td className="p-3.5 font-bold text-sky-700 dark:text-sky-400 text-xs">{ord.estimatedPieceCount} pçs</td>
+                        <td className="p-3.5 text-slate-700 dark:text-slate-300 font-sans text-xs">
+                          {ord.totalIronedPieces} / {ord.estimatedPieceCount} pçs
+                        </td>
+                        <td className="p-3.5 font-sans" onClick={e => e.stopPropagation()}>
+                          <div className="flex items-center gap-1.5">
+                            <select
+                              value={ord.status}
+                              onChange={e => updateOrderStatus(ord.id, e.target.value as OrderStatus, user?.name || 'Operador', `Status alterado manualmente para ${e.target.value}`)}
+                              className="px-2 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-sky-500 cursor-pointer"
+                              title="Alterar status do pedido diretamente"
+                            >
+                              <option value="recebido">1. Pedido Feito</option>
+                              <option value="em_andamento">2. Em Andamento</option>
+                              <option value="pronto">3. Pronto</option>
+                              <option value="entregue">4. Entregue</option>
+                            </select>
+                          </div>
+                        </td>
+                        <td className="p-3.5 pr-5 text-right font-sans">
+                          <div className="flex items-center justify-end gap-1.5" onClick={e => e.stopPropagation()}>
+                            <button
+                              onClick={() => ord.isADefinir ? onNavigate('define-order', ord.id) : onNavigate('order-detail', ord.id)}
+                              className={`px-2.5 py-1 rounded-lg font-semibold text-xs transition-colors border ${
+                                ord.isADefinir
+                                  ? 'bg-amber-600 hover:bg-amber-700 text-white border-amber-600 shadow-xs'
+                                  : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border-transparent dark:border-slate-700'
+                              }`}
+                              title={ord.isADefinir ? "Definir Lavado e Serviços desta O.S." : "Ver detalhes do pedido"}
+                            >
+                              {ord.isADefinir ? 'Definir' : 'Ver'}
+                            </button>
+                            <button
+                              onClick={() => onNavigate('order-print', ord.id)}
+                              className="p-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg transition-colors border border-transparent dark:border-slate-700"
+                              title="Imprimir Nota de Entrada / Receita do Lavado"
+                            >
+                              <Printer className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => onNavigate('order-print', ord.id, 'saida')}
+                              className="p-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg transition-colors border border-transparent dark:border-slate-700"
+                              title="Imprimir Comprovante de Saída / Faturamento"
+                            >
+                              <Receipt className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                            </button>
+
+                            {/* Botões contextuais de avanço de status */}
+                            {ord.status === 'recebido' && (
+                              <button
+                                onClick={() => updateOrderStatus(ord.id, 'em_andamento', user?.name || 'Operador', 'Iniciada a lavagem.')}
+                                className="px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-bold text-xs transition-colors flex items-center gap-1 shadow-xs"
+                                title="Iniciar Produção"
+                              >
+                                <Play className="w-3 h-3 fill-current" />
+                                Iniciar
+                              </button>
                             )}
-                            {ord.isADefinir && (
-                              <span className="px-1.5 py-0.5 bg-orange-100 dark:bg-orange-950 text-orange-700 dark:text-orange-300 rounded text-[10px] font-bold uppercase border border-orange-200 dark:border-orange-800 flex items-center gap-0.5">
-                                <HelpCircle className="w-2.5 h-2.5" />
-                                À Definir
-                              </span>
+
+                            {ord.status === 'em_andamento' && (
+                              <button
+                                onClick={() => updateOrderStatus(ord.id, 'pronto', user?.name || 'Operador')}
+                                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs transition-colors flex items-center gap-1 shadow-xs"
+                                title="Concluir Lavado e Notificar Cliente"
+                              >
+                                <MessageSquare className="w-3 h-3" />
+                                Pronto
+                              </button>
                             )}
-                            {stalledInfo.isStalled && (
-                              <span className="px-1.5 py-0.5 bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 rounded text-[10px] font-bold border border-amber-200 dark:border-amber-800 flex items-center gap-0.5">
-                                <AlertTriangle className="w-2.5 h-2.5" />
-                                Parada {stalledInfo.days}d
-                              </span>
+
+                            {ord.status === 'pronto' && (
+                              <button
+                                onClick={() => setClosingSaidaOrder(ord)}
+                                className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-xs transition-colors flex items-center gap-1 shadow-xs"
+                                title="Conferir Faturamento e Fechar Saída"
+                              >
+                                <PackageCheck className="w-3.5 h-3.5" />
+                                Entregar
+                              </button>
                             )}
                           </div>
-                        </div>
-                      </td>
-                      <td className="p-4 font-sans">
-                        <strong className="text-slate-900 dark:text-slate-100 block">{ord.clientName}</strong>
-                        <span className="text-slate-400 text-[11px] font-mono">{ord.clientPhone}</span>
-                      </td>
-                      <td className="p-4 text-slate-800 dark:text-slate-200">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-bold">{ord.totalWeightKg} kg</span>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenEditWeight(ord);
-                            }}
-                            className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 rounded transition-colors"
-                            title="Editar peso da pesagem"
-                          >
-                            <Scale className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                        <span className="text-[10px] text-slate-400">Ref: {ord.refPieceWeightGrams}g</span>
-                      </td>
-                      <td className="p-4 font-bold text-sky-700 dark:text-sky-400">{ord.estimatedPieceCount} pçs</td>
-                      <td className="p-4 text-slate-700 dark:text-slate-300 font-sans">
-                        {ord.totalIronedPieces} / {ord.estimatedPieceCount} pçs
-                      </td>
-                      <td className="p-4 font-sans" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center gap-1.5">
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* ─── MOBILE CARDS VIEW (MD-HIDDEN) ──────────────────────── */}
+            <div className="block md:hidden divide-y divide-slate-100 dark:divide-slate-800">
+              {paginatedOrders.map(ord => {
+                const stalledInfo = getOrderStalledInfo(ord);
+                return (
+                  <div 
+                    key={ord.id}
+                    className={`p-4 space-y-3 font-sans transition-colors ${
+                      stalledInfo.isStalled ? 'bg-amber-50/50 dark:bg-amber-950/20' : ''
+                    }`}
+                  >
+                    {/* Card Header: OS & Badges */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-base text-slate-900 dark:text-slate-100">
+                            {ord.osNumber}
+                          </span>
                           {getStatusBadge(ord.status)}
-                          <select
-                            value={ord.status}
-                            onChange={e => updateOrderStatus(ord.id, e.target.value as OrderStatus, user?.name || 'Operador', `Status alterado manualmente para ${e.target.value}`)}
-                            className="px-1.5 py-0.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-[11px] font-semibold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
-                            title="Alterar status do pedido diretamente"
-                          >
-                            <option value="recebido">Recebido</option>
-                            <option value="em_andamento">Em Andamento</option>
-                            <option value="pronto">Pronto</option>
-                            <option value="entregue">Entregue</option>
-                          </select>
                         </div>
-                      </td>
-                      <td className="p-4 text-right font-sans">
-                        <div className="flex items-center justify-end gap-1.5" onClick={e => e.stopPropagation()}>
-                          <button
-                            onClick={() => ord.isADefinir ? onNavigate('define-order', ord.id) : onNavigate('order-detail', ord.id)}
-                            className={`px-2.5 py-1 rounded-md font-medium text-xs transition-colors border ${
-                              ord.isADefinir
-                                ? 'bg-amber-600 hover:bg-amber-700 text-white font-bold border-amber-600 shadow-xs'
-                                : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border-transparent dark:border-slate-700'
-                            }`}
-                            title={ord.isADefinir ? "Definir Lavado e Serviços desta O.S." : "Ver detalhes do pedido"}
-                          >
-                            {ord.isADefinir ? 'Definir' : 'Ver'}
-                          </button>
-                          <button
-                            onClick={() => onNavigate('order-print', ord.id)}
-                            className="p-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-md transition-colors border border-transparent dark:border-slate-700"
-                            title="Imprimir Nota de Entrada / Receita do Lavado"
-                          >
-                            <Printer className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => onNavigate('order-print', ord.id, 'saida')}
-                            className="p-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-md transition-colors border border-transparent dark:border-slate-700"
-                            title="Imprimir Comprovante de Saída / Faturamento"
-                          >
-                            <Receipt className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
-                          </button>
 
-                          {/* Botões contextuais de avanço do fluxo de produção */}
-                          {ord.status === 'recebido' && (
-                            <button
-                              onClick={() => updateOrderStatus(ord.id, 'em_andamento', user?.name || 'Operador', 'Iniciada a lavagem.')}
-                              className="px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded-md font-semibold text-xs transition-colors flex items-center gap-1 shadow-sm"
-                              title="Iniciar Produção (Mover para Em Andamento)"
-                            >
-                              <Play className="w-3 h-3 fill-current" />
-                              Iniciar
-                            </button>
+                        <div className="flex flex-wrap gap-1">
+                          {ord.isRelavado && (
+                            <span className="px-1.5 py-0.5 bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 rounded text-[10px] font-bold uppercase border border-purple-200">
+                              Relavado
+                            </span>
                           )}
-
-                          {ord.status === 'em_andamento' && (
-                            <button
-                              onClick={() => updateOrderStatus(ord.id, 'pronto', user?.name || 'Operador')}
-                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md font-semibold text-xs transition-colors flex items-center gap-1 shadow-sm"
-                              title="Concluir Lavado e Notificar Cliente"
-                            >
-                              <MessageSquare className="w-3 h-3" />
-                              Pronto
-                            </button>
+                          {ord.isADefinir && (
+                            <span className="px-1.5 py-0.5 bg-orange-100 dark:bg-orange-950 text-orange-700 dark:text-orange-300 rounded text-[10px] font-bold uppercase border border-orange-200">
+                              À Definir
+                            </span>
                           )}
-
-                          {ord.status === 'pronto' && (
-                            <button
-                              onClick={() => setClosingSaidaOrder(ord)}
-                              className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md font-semibold text-xs transition-colors flex items-center gap-1 shadow-sm"
-                              title="Conferir Faturamento e Fechar Saída"
-                            >
-                              <PackageCheck className="w-3.5 h-3.5" />
-                              Entregar
-                            </button>
-                          )}
-
-                          {ord.status === 'entregue' && (
-                            <span className="px-2 py-1 text-slate-400 dark:text-slate-500 text-[11px] font-mono">
-                              ✓ Entregue
+                          {stalledInfo.isStalled && (
+                            <span className="px-1.5 py-0.5 bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 rounded text-[10px] font-bold border border-amber-200">
+                              Parada {stalledInfo.days}d
                             </span>
                           )}
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                      </div>
+
+                      {/* Dropdown de Alteração Rápida de Status */}
+                      <select
+                        value={ord.status}
+                        onChange={e => updateOrderStatus(ord.id, e.target.value as OrderStatus, user?.name || 'Operador')}
+                        className="px-2 py-1 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-200"
+                      >
+                        <option value="recebido">Recebido</option>
+                        <option value="em_andamento">Em Andamento</option>
+                        <option value="pronto">Pronto</option>
+                        <option value="entregue">Entregue</option>
+                      </select>
+                    </div>
+
+                    {/* Card Content: Cliente, Peso, Peças */}
+                    <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                      <div>
+                        <span className="text-[10px] font-bold uppercase text-slate-400 block">Cliente</span>
+                        <strong className="text-slate-900 dark:text-slate-100 block truncate">{ord.clientName}</strong>
+                        <span className="text-[11px] font-mono text-slate-500">{ord.clientPhone}</span>
+                      </div>
+
+                      <div className="space-y-0.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold uppercase text-slate-400">Peso Total</span>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditWeight(ord)}
+                            className="text-sky-600 text-[10px] font-semibold underline"
+                          >
+                            Editar
+                          </button>
+                        </div>
+                        <strong className="font-mono text-slate-900 dark:text-slate-100 block">{ord.totalWeightKg} kg</strong>
+                        <span className="text-[10px] font-mono text-sky-700 dark:text-sky-400 font-bold block">
+                          {ord.estimatedPieceCount} pçs estimadas
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Card Footer: Ações de Toque Grande */}
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        onClick={() => ord.isADefinir ? onNavigate('define-order', ord.id) : onNavigate('order-detail', ord.id)}
+                        className={`flex-1 py-2 px-3 rounded-xl font-bold text-xs text-center transition-colors border ${
+                          ord.isADefinir
+                            ? 'bg-amber-600 text-white border-amber-600'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700'
+                        }`}
+                      >
+                        {ord.isADefinir ? 'Definir Pedido' : 'Ver Pedido'}
+                      </button>
+
+                      <button
+                        onClick={() => onNavigate('order-print', ord.id)}
+                        className="py-2 px-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl border border-slate-200 dark:border-slate-700 font-semibold text-xs flex items-center justify-center gap-1"
+                        title="Imprimir"
+                      >
+                        <Printer className="w-4 h-4" />
+                      </button>
+
+                      <button
+                        onClick={() => onNavigate('order-print', ord.id, 'saida')}
+                        className="py-2 px-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl border border-slate-200 dark:border-slate-700 font-semibold text-xs flex items-center justify-center gap-1"
+                        title="Comprovante de Saída"
+                      >
+                        <Receipt className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                      </button>
+
+                      {ord.status === 'recebido' && (
+                        <button
+                          onClick={() => updateOrderStatus(ord.id, 'em_andamento', user?.name || 'Operador', 'Iniciada a lavagem.')}
+                          className="py-2 px-3 bg-sky-600 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1"
+                        >
+                          <Play className="w-3.5 h-3.5 fill-current" />
+                        </button>
+                      )}
+
+                      {ord.status === 'em_andamento' && (
+                        <button
+                          onClick={() => updateOrderStatus(ord.id, 'pronto', user?.name || 'Operador')}
+                          className="py-2 px-3 bg-emerald-600 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+
+                      {ord.status === 'pronto' && (
+                        <button
+                          onClick={() => setClosingSaidaOrder(ord)}
+                          className="py-2 px-3 bg-indigo-600 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1"
+                        >
+                          <PackageCheck className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
 
         {/* Paginação de Pedidos (20 mais recentes por página) */}
         <Pagination

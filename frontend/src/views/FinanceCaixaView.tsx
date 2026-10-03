@@ -204,70 +204,53 @@ export const FinanceCaixaView: React.FC = () => {
   }, [reportOrders, uniqueClients]);
 
   // ─── TOTAIS GERAIS DO PERÍODO FILTRADO ──────────────────────────────────────
+  // IMPORTANTE: todos os cálculos derivam de reportOrders (que já aplica período,
+  // status, busca e dateBaseFilter) para garantir que os cards de métricas
+  // reflitam exatamente o mesmo conjunto de OSs visível na tabela.
   const reportOpenOrders = useMemo(() => reportOrders.filter(o => (o.paymentStatus || 'aberto') === 'aberto'), [reportOrders]);
   const reportPaidOrders = useMemo(() => reportOrders.filter(o => o.paymentStatus === 'pago'), [reportOrders]);
 
   // Total a Receber: soma das ordens em aberto filtradas
   const reportTotalOpen = useMemo(() => reportOpenOrders.reduce((sum, o) => sum + (o.totalServiceValue || 0), 0), [reportOpenOrders]);
 
-  // Faturamento Bruto: soma das ordens do período (base OS ou listadas)
-  const reportTotalGross = useMemo(() => {
-    if (dateBaseFilter === 'baixa') {
-      return reportOrders.reduce((sum, o) => sum + (o.totalServiceValue || 0), 0);
-    }
-    return orders
-      .filter(o => {
-        const d = getLocalDateString(o.createdAt);
-        return (!startDate || d >= startDate) && (!endDate || d <= endDate);
-      })
-      .reduce((sum, o) => sum + (o.totalServiceValue || 0), 0);
-  }, [orders, reportOrders, startDate, endDate, dateBaseFilter]);
+  // Faturamento Bruto: soma das ordens filtradas
+  const reportTotalGross = useMemo(() =>
+    reportOrders.reduce((sum, o) => sum + (o.totalServiceValue || 0), 0),
+  [reportOrders]);
 
-  // Total Recebido no Caixa: soma de todas as baixas ocorridas no intervalo [startDate, endDate]
+  // Total Recebido no Caixa: derivado das OSs pagas dentro do conjunto filtrado
   const reportTotalPaid = useMemo(() => {
     let total = 0;
-    orders.forEach(ord => {
+    reportPaidOrders.forEach(ord => {
       if (ord.paymentHistory && ord.paymentHistory.length > 0) {
         ord.paymentHistory.forEach(pay => {
-          const pDate = getLocalDateString(pay.paidAt);
-          const inRange = (!startDate || pDate >= startDate) && (!endDate || pDate <= endDate);
-          if (inRange && pay.action !== 'estorno') {
+          if (pay.action !== 'estorno') {
             total += Number(pay.finalPaidAmount ?? pay.amountPaid ?? 0);
           }
         });
-      } else if (ord.paymentStatus === 'pago') {
-        const pDate = getOrderPaymentDate(ord);
-        const inRange = (!startDate || pDate >= startDate) && (!endDate || pDate <= endDate);
-        if (inRange) {
-          total += Number(ord.finalPaidAmount || ord.totalServiceValue || 0);
-        }
+      } else {
+        total += Number(ord.finalPaidAmount || ord.totalServiceValue || 0);
       }
     });
     return total;
-  }, [orders, startDate, endDate]);
+  }, [reportPaidOrders]);
 
-  // Descontos concedidos no período
+  // Descontos concedidos: derivado das OSs pagas dentro do conjunto filtrado
   const reportTotalDiscount = useMemo(() => {
     let total = 0;
-    orders.forEach(ord => {
+    reportPaidOrders.forEach(ord => {
       if (ord.paymentHistory && ord.paymentHistory.length > 0) {
         ord.paymentHistory.forEach(pay => {
-          const pDate = getLocalDateString(pay.paidAt);
-          const inRange = (!startDate || pDate >= startDate) && (!endDate || pDate <= endDate);
-          if (inRange && pay.action !== 'estorno') {
+          if (pay.action !== 'estorno') {
             total += Number(pay.discountAmount || 0);
           }
         });
-      } else if (ord.paymentStatus === 'pago' && ord.discountAmount) {
-        const pDate = getOrderPaymentDate(ord);
-        const inRange = (!startDate || pDate >= startDate) && (!endDate || pDate <= endDate);
-        if (inRange) {
-          total += Number(ord.discountAmount || 0);
-        }
+      } else if (ord.discountAmount) {
+        total += Number(ord.discountAmount || 0);
       }
     });
     return total;
-  }, [orders, startDate, endDate]);
+  }, [reportPaidOrders]);
 
   const reportTotalPieces = useMemo(() => reportOrders.reduce((sum, o) => sum + (o.estimatedPieceCount || 0), 0), [reportOrders]);
   const reportTotalWeight = useMemo(() => reportOrders.reduce((sum, o) => sum + (o.totalWeightKg || 0), 0), [reportOrders]);
@@ -281,6 +264,22 @@ export const FinanceCaixaView: React.FC = () => {
   const [unifiedReceiverName, setUnifiedReceiverName] = useState<string>('');
   const [unifiedNotes, setUnifiedNotes] = useState<string>('');
   const [showPrintConfirm, setShowPrintConfirm] = useState(false);
+
+  // Dados do último comprovante de baixa (para impressão térmica pós-pagamento)
+  const [lastPaymentReceipt, setLastPaymentReceipt] = useState<{
+    clientName: string;
+    osNumbers: string[];
+    grossAmount: number;
+    discountAmount: number;
+    totalPaid: number;
+    paymentMethod: string;
+    receiverName: string;
+    paidAt: string;
+    notes?: string;
+  } | null>(null);
+
+  // Controla o que a folha print-only renderiza: 'fatura' (grid filtrada/selecionada) ou 'comprovante' (recibo térmico pós-baixa)
+  const [printTarget, setPrintTarget] = useState<'fatura' | 'comprovante'>('fatura');
 
   // Ao alterar filtros ou busca, limpa seleções (não seleciona todos por padrão)
   useEffect(() => {
@@ -346,6 +345,8 @@ export const FinanceCaixaView: React.FC = () => {
     if (ordersToExecute.length === 0) return;
 
     const discount = getUnifiedDiscountAmount();
+    const finalPaid = Math.max(0, ordersToExecute.reduce((s, o) => s + (o.totalServiceValue || 0), 0) - discount);
+    const gross = ordersToExecute.reduce((s, o) => s + (o.totalServiceValue || 0), 0);
     const receiver = unifiedReceiverName.trim() || user?.name || 'Ana (Financeiro)';
     const operator = user?.name || 'Ana (Financeiro)';
 
@@ -359,8 +360,21 @@ export const FinanceCaixaView: React.FC = () => {
       unifiedNotes.trim() || undefined
     );
 
+    // Salva os dados para o comprovante térmico
+    setLastPaymentReceipt({
+      clientName: filteredClient?.name || ordersToExecute.map(o => o.clientName).filter((v, i, a) => a.indexOf(v) === i).join(', '),
+      osNumbers: ordersToExecute.map(o => o.osNumber),
+      grossAmount: gross,
+      discountAmount: discount,
+      totalPaid: finalPaid,
+      paymentMethod: unifiedPaymentMethod,
+      receiverName: receiver,
+      paidAt: new Date().toISOString(),
+      notes: unifiedNotes.trim() || undefined,
+    });
+
     setFeedbackMsg(
-      `Baixa confirmada! ${ordersToExecute.length} OS(s) quitadas — ${unifiedFinalPayAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} (${unifiedPaymentMethod.toUpperCase()}). Recebido por: ${receiver}.`
+      `Baixa confirmada! ${ordersToExecute.length} OS(s) quitadas — ${finalPaid.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} (${unifiedPaymentMethod.toUpperCase()}). Recebido por: ${receiver}.`
     );
     setIsUnifiedPayModalOpen(false);
     setSelectedOrderIdsForUnifiedPay([]);
@@ -368,9 +382,25 @@ export const FinanceCaixaView: React.FC = () => {
     setTimeout(() => setFeedbackMsg(null), 8000);
   };
 
+  // Imprime apenas as OSs selecionadas (ou todas filtradas se nenhuma selecionada) como fatura
   const handlePrint = () => {
-    window.print();
+    setPrintTarget('fatura');
+    setTimeout(() => window.print(), 50);
   };
+
+  // Imprime o comprovante térmico pós-baixa
+  const handlePrintReceipt = () => {
+    setPrintTarget('comprovante');
+    setTimeout(() => window.print(), 50);
+  };
+
+  // OSs a considerar na fatura impressa: selecionadas (se houver) ou todas filtradas
+  const ordersForPrint = useMemo(() => {
+    if (selectedOrderIdsForUnifiedPay.length > 0) {
+      return reportOrders.filter(o => selectedOrderIdsForUnifiedPay.includes(o.id));
+    }
+    return reportOrders;
+  }, [reportOrders, selectedOrderIdsForUnifiedPay]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
@@ -433,7 +463,7 @@ export const FinanceCaixaView: React.FC = () => {
               </div>
               <div>
                 <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Baixa realizada com sucesso!</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Deseja imprimir o comprovante agora?</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Deseja imprimir o comprovante de pagamento?</p>
               </div>
             </div>
             <div className="flex gap-2 justify-end">
@@ -444,11 +474,11 @@ export const FinanceCaixaView: React.FC = () => {
                 Não, obrigado
               </button>
               <button
-                onClick={() => { setShowPrintConfirm(false); window.print(); }}
+                onClick={() => { setShowPrintConfirm(false); handlePrintReceipt(); }}
                 className="px-4 py-2 text-xs font-bold bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl transition-colors flex items-center gap-1.5 shadow-sm"
               >
                 <Printer className="w-3.5 h-3.5" />
-                Imprimir
+                Imprimir Comprovante
               </button>
             </div>
           </div>
@@ -626,11 +656,15 @@ export const FinanceCaixaView: React.FC = () => {
                 type="button"
                 onClick={handlePrint}
                 className="px-3.5 py-2 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 border border-slate-300 dark:border-slate-700 shadow-sm"
-                title="Imprimir relatório ou fatura consolidada do que está filtrado"
+                title={selectedOrderIdsForUnifiedPay.length > 0 ? `Imprimir as ${selectedOrderIdsForUnifiedPay.length} faturas selecionadas` : 'Imprimir todas as faturas filtradas'}
               >
                 <Printer className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
                 <span>
-                  {filteredClient ? `Imprimir Fatura (${filteredClient.name})` : 'Imprimir Relatório'}
+                  {selectedOrderIdsForUnifiedPay.length > 0
+                    ? `Imprimir Selecionadas (${selectedOrderIdsForUnifiedPay.length})`
+                    : filteredClient
+                      ? `Imprimir Fatura — ${filteredClient.name}`
+                      : 'Imprimir Relatório'}
                 </span>
               </button>
 
@@ -845,167 +879,196 @@ export const FinanceCaixaView: React.FC = () => {
         />
       </div>
 
-      {/* ─── FOLHA DE IMPRESSÃO / PDF (Exibida exclusivamente ao imprimir) ─── */}
-      <div className="print-only bg-white text-black space-y-5 text-xs font-sans">
-        {/* Cabeçalho Oficial Simplificado */}
-        <div className="border-b-2 border-black pb-3 flex justify-between items-end">
-          <div>
-            <h1 className="text-xl font-black uppercase tracking-tight text-black leading-none">MAUAD LAVANDERIA</h1>
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-800 block mt-1">
-              {filteredClient ? `FATURA DE SERVIÇOS • ${filteredClient.name.toUpperCase()}` : 'DEMONSTRATIVO CONSOLIDADO'}
-            </span>
-          </div>
-          <div className="text-right text-[11px] font-mono space-y-0.5">
-            <div><strong>Emissão:</strong> {new Date().toLocaleDateString('pt-BR')} às {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
-            <div><strong>Período:</strong> {startDate ? startDate.split('-').reverse().join('/') : ''} até {endDate ? endDate.split('-').reverse().join('/') : ''}</div>
-          </div>
-        </div>
 
-        {/* Dados do Cliente (exibido se filtrado por um cliente) */}
-        {filteredClient && (
-          <div className="p-3 border border-black rounded bg-slate-50 grid grid-cols-2 gap-2 text-xs">
-            <div>
-              <span className="font-bold text-[10px] uppercase text-slate-500 block">Razão Social / Nome</span>
-              <strong className="text-sm">{filteredClient.name}</strong>
-              {filteredClient.companyName && filteredClient.companyName !== filteredClient.name && (
-                <span className="block text-slate-600 text-xs">({filteredClient.companyName})</span>
-              )}
-            </div>
-            <div>
-              <span className="font-bold text-[10px] uppercase text-slate-500 block">WhatsApp / Telefone</span>
-              <span className="font-mono font-semibold">{filteredClient.phone || '—'}</span>
-            </div>
-            {filteredClient.cnpjCpf && (
+      {/* ─── FOLHA DE IMPRESSÃO (Exibida exclusivamente ao imprimir) ─── */}
+      <div className="print-only bg-white text-black font-sans">
+
+        {/* ── FATURA / RELATÓRIO ── Renderiza apenas as OSs selecionadas ou filtradas */}
+        {printTarget === 'fatura' && (
+          <div className="space-y-5 text-xs">
+            {/* Cabeçalho */}
+            <div className="border-b-2 border-black pb-3 flex justify-between items-end">
               <div>
-                <span className="font-bold text-[10px] uppercase text-slate-500 block">CNPJ / CPF</span>
-                <span className="font-mono">{filteredClient.cnpjCpf}</span>
+                <h1 className="text-xl font-black uppercase tracking-tight text-black leading-none">MAUAD LAVANDERIA</h1>
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-800 block mt-1">
+                  {ordersForPrint.length === reportOrders.length
+                    ? (filteredClient ? `FATURA DE SERVIÇOS • ${filteredClient.name.toUpperCase()}` : 'DEMONSTRATIVO CONSOLIDADO')
+                    : `FATURA PARCIAL • ${ordersForPrint.length} OS(S) SELECIONADAS`}
+                </span>
               </div>
-            )}
-            {filteredClient.address && (
-              <div>
-                <span className="font-bold text-[10px] uppercase text-slate-500 block">Endereço</span>
-                <span>{filteredClient.address}</span>
+              <div className="text-right text-[11px] font-mono space-y-0.5">
+                <div><strong>Emissão:</strong> {new Date().toLocaleDateString('pt-BR')} às {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+                <div><strong>Período:</strong> {startDate ? startDate.split('-').reverse().join('/') : ''} até {endDate ? endDate.split('-').reverse().join('/') : ''}</div>
               </div>
-            )}
-          </div>
-        )}
-
-        {/* Tabela Impressa de Serviços */}
-        <table className="w-full border-collapse border border-black text-[11px]">
-          <thead>
-            <tr className="bg-slate-200 border-b border-black text-black">
-              <th className="border border-black p-1.5 text-left">Data</th>
-              <th className="border border-black p-1.5 text-left">Nº OS</th>
-              {!filteredClient && <th className="border border-black p-1.5 text-left">Cliente</th>}
-              <th className="border border-black p-1.5 text-left">Ref / Corte</th>
-              <th className="border border-black p-1.5 text-left">Processo / Serviços</th>
-              <th className="border border-black p-1.5 text-right">Peças</th>
-              <th className="border border-black p-1.5 text-right">Peso (kg)</th>
-              <th className="border border-black p-1.5 text-right">Valor R$</th>
-              <th className="border border-black p-1.5 text-center">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {reportOrders.map(ord => {
-              const corte = ord.corteOs || ord.items.find(i => i.corteOs)?.corteOs || '—';
-              const isPaid = ord.paymentStatus === 'pago';
-              return (
-                <tr key={ord.id} className="border-b border-slate-300">
-                  <td className="border border-black p-1.5 font-mono">{new Date(ord.createdAt).toLocaleDateString('pt-BR')}</td>
-                  <td className="border border-black p-1.5 font-mono font-bold">{ord.osNumber}</td>
-                  {!filteredClient && <td className="border border-black p-1.5 font-sans">{ord.clientName}</td>}
-                  <td className="border border-black p-1.5 font-mono">{corte}</td>
-                  <td className="border border-black p-1.5 font-sans">
-                    {ord.items.length > 1 ? (
-                      <div className="text-[10px] text-slate-800 space-y-0.5">
-                        {ord.items.map((it, idx) => (
-                          <div key={idx}>
-                            • {it.process}: {ord.isRelavado ? 'R$ 0,00' : (it.unitPrice || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                          </div>
-                        ))}
-                        <div className="font-bold border-t border-slate-400 pt-0.5">
-                          Total Unit.: {ord.isRelavado ? 'R$ 0,00' : (ord.items.reduce((s, it) => s + (it.unitPrice || 0), 0)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-[10px] text-slate-700">
-                        {ord.items[0]?.process || 'Lavado'}
-                        {ord.items[0]?.unitPrice ? ` (${(ord.items[0].unitPrice || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})` : ''}
-                      </div>
-                    )}
-                  </td>
-                  <td className="border border-black p-1.5 text-right font-mono font-bold">
-                    {(ord.estimatedPieceCount || 0).toLocaleString('pt-BR')}
-                  </td>
-                  <td className="border border-black p-1.5 text-right font-mono">
-                    {(ord.totalWeightKg || 0).toFixed(1)}
-                  </td>
-                  <td className="border border-black p-1.5 text-right font-mono font-bold">
-                    {(ord.totalServiceValue || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                  </td>
-                  <td className="border border-black p-1.5 text-center font-bold">
-                    {isPaid ? 'PAGO' : 'ABERTO'}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-
-        {/* Quadro de Totais da Fatura */}
-        <div className="border-2 border-black p-3 bg-slate-50 flex justify-between items-center text-xs">
-          <div className="space-y-0.5">
-            <div><strong>Total de OSs:</strong> {reportOrders.length} ordens</div>
-            <div><strong>Total de Peças:</strong> {reportTotalPieces.toLocaleString('pt-BR')} peças</div>
-            <div><strong>Peso Total:</strong> {reportTotalWeight.toFixed(1)} kg</div>
-          </div>
-          <div className="text-right space-y-1">
-            <div className="text-slate-600">Subtotal dos Serviços: <strong>{reportTotalGross.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong></div>
-            <div className="text-emerald-700">Total Já Quitado: <strong>{reportTotalPaid.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong></div>
-            <div className="text-base font-extrabold text-black pt-1 border-t border-black">
-              SALDO DA FATURA (A PAGAR): {reportTotalOpen.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
             </div>
-          </div>
-        </div>
 
-        {/* Recibo e Detalhamento de Baixa / Quitação no PDF (quando houver pagas) */}
-        {reportPaidOrders.length > 0 && (
-          <div className="border border-black p-2.5 bg-slate-50 text-[11px] space-y-1">
-            <div className="font-bold text-black border-b border-black pb-0.5 flex justify-between">
-              <span>COMPROVANTE DE RECEBIMENTO & QUITAÇÃO FINANCEIRA</span>
-              <span>{reportPaidOrders.length} OS(s) QUITADA(S)</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2 pt-0.5 text-[10px]">
-              <div>
-                <span><strong>Quem Recebeu o Pagamento:</strong> {reportPaidOrders[0].receiverName || reportPaidOrders[0].paidByOperator || 'Departamento Financeiro'}</span>
-                <span className="block"><strong>Forma de Pagamento:</strong> {(reportPaidOrders[0].paymentMethod || 'QUITADO').toUpperCase()}</span>
-              </div>
-              <div>
-                <span><strong>Data da Quitação:</strong> {reportPaidOrders[0].paidAt ? new Date(reportPaidOrders[0].paidAt).toLocaleDateString('pt-BR') : 'Registrado'} {reportPaidOrders[0].paidAt ? `às ${new Date(reportPaidOrders[0].paidAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : ''}</span>
-                <span className="block"><strong>Total Quitado:</strong> {reportTotalPaid.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                {reportPaidOrders[0].paymentNotes && (
-                  <span className="block text-slate-700 italic"><strong>Obs:</strong> {reportPaidOrders[0].paymentNotes}</span>
+            {/* Dados do Cliente */}
+            {filteredClient && (
+              <div className="p-3 border border-black rounded bg-slate-50 grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <span className="font-bold text-[10px] uppercase text-slate-500 block">Razão Social / Nome</span>
+                  <strong className="text-sm">{filteredClient.name}</strong>
+                  {filteredClient.companyName && filteredClient.companyName !== filteredClient.name && (
+                    <span className="block text-slate-600 text-xs">({filteredClient.companyName})</span>
+                  )}
+                </div>
+                <div>
+                  <span className="font-bold text-[10px] uppercase text-slate-500 block">WhatsApp / Telefone</span>
+                  <span className="font-mono font-semibold">{filteredClient.phone || '—'}</span>
+                </div>
+                {filteredClient.cnpjCpf && (
+                  <div>
+                    <span className="font-bold text-[10px] uppercase text-slate-500 block">CNPJ / CPF</span>
+                    <span className="font-mono">{filteredClient.cnpjCpf}</span>
+                  </div>
+                )}
+                {filteredClient.address && (
+                  <div>
+                    <span className="font-bold text-[10px] uppercase text-slate-500 block">Endereço</span>
+                    <span>{filteredClient.address}</span>
+                  </div>
                 )}
               </div>
+            )}
+
+            {/* Tabela de Serviços */}
+            <table className="w-full border-collapse border border-black text-[11px]">
+              <thead>
+                <tr className="bg-slate-200 border-b border-black text-black">
+                  <th className="border border-black p-1.5 text-left">Data</th>
+                  <th className="border border-black p-1.5 text-left">Nº OS</th>
+                  {!filteredClient && <th className="border border-black p-1.5 text-left">Cliente</th>}
+                  <th className="border border-black p-1.5 text-left">Ref / Corte</th>
+                  <th className="border border-black p-1.5 text-left">Processo / Serviços</th>
+                  <th className="border border-black p-1.5 text-right">Peças</th>
+                  <th className="border border-black p-1.5 text-right">Peso (kg)</th>
+                  <th className="border border-black p-1.5 text-right">Valor R$</th>
+                  <th className="border border-black p-1.5 text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ordersForPrint.map(ord => {
+                  const corte = ord.corteOs || ord.items.find(i => i.corteOs)?.corteOs || '—';
+                  const isPaid = ord.paymentStatus === 'pago';
+                  return (
+                    <tr key={ord.id} className="border-b border-slate-300">
+                      <td className="border border-black p-1.5 font-mono">{new Date(ord.createdAt).toLocaleDateString('pt-BR')}</td>
+                      <td className="border border-black p-1.5 font-mono font-bold">{ord.osNumber}</td>
+                      {!filteredClient && <td className="border border-black p-1.5 font-sans">{ord.clientName}</td>}
+                      <td className="border border-black p-1.5 font-mono">{corte}</td>
+                      <td className="border border-black p-1.5 font-sans">
+                        {ord.items.length > 1 ? (
+                          <div className="text-[10px] text-slate-800 space-y-0.5">
+                            {ord.items.map((it, idx) => (
+                              <div key={idx}>• {it.process}: {ord.isRelavado ? 'R$ 0,00' : (it.unitPrice || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-[10px] text-slate-700">
+                            {ord.items[0]?.process || 'Lavado'}
+                            {ord.items[0]?.unitPrice ? ` (${(ord.items[0].unitPrice || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})` : ''}
+                          </div>
+                        )}
+                      </td>
+                      <td className="border border-black p-1.5 text-right font-mono font-bold">{(ord.estimatedPieceCount || 0).toLocaleString('pt-BR')}</td>
+                      <td className="border border-black p-1.5 text-right font-mono">{(ord.totalWeightKg || 0).toFixed(1)}</td>
+                      <td className="border border-black p-1.5 text-right font-mono font-bold">{(ord.totalServiceValue || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                      <td className="border border-black p-1.5 text-center font-bold">{isPaid ? 'PAGO' : 'ABERTO'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+
+            {/* Quadro de Totais */}
+            <div className="border-2 border-black p-3 bg-slate-50 flex justify-between items-center text-xs">
+              <div className="space-y-0.5">
+                <div><strong>Total de OSs:</strong> {ordersForPrint.length} ordens</div>
+                <div><strong>Total de Peças:</strong> {ordersForPrint.reduce((s, o) => s + (o.estimatedPieceCount || 0), 0).toLocaleString('pt-BR')} peças</div>
+                <div><strong>Peso Total:</strong> {ordersForPrint.reduce((s, o) => s + (o.totalWeightKg || 0), 0).toFixed(1)} kg</div>
+              </div>
+              <div className="text-right space-y-1">
+                <div className="text-slate-600">Subtotal dos Serviços: <strong>{ordersForPrint.reduce((s, o) => s + (o.totalServiceValue || 0), 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong></div>
+                <div className="text-emerald-700">Total Já Quitado: <strong>{ordersForPrint.filter(o => o.paymentStatus === 'pago').reduce((s, o) => s + (o.finalPaidAmount || o.totalServiceValue || 0), 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong></div>
+                <div className="text-base font-extrabold text-black pt-1 border-t border-black">
+                  SALDO EM ABERTO: {ordersForPrint.filter(o => (o.paymentStatus || 'aberto') === 'aberto').reduce((s, o) => s + (o.totalServiceValue || 0), 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </div>
+              </div>
             </div>
           </div>
         )}
 
-        {/* Assinatura */}
-        <div className="pt-8 grid grid-cols-2 gap-8 text-center text-[10px]">
-          <div>
-            <div className="border-t border-black pt-1 font-bold">
-              {reportPaidOrders.length > 0 && reportPaidOrders[0].receiverName
-                ? `RECEBIDO POR: ${reportPaidOrders[0].receiverName.toUpperCase()}`
-                : 'MAUAD LAVANDERIA INDUSTRIAL'}
+        {/* ── COMPROVANTE TÉRMICO PÓS-BAIXA ── */}
+        {printTarget === 'comprovante' && lastPaymentReceipt && (
+          <div className="max-w-xs mx-auto text-center text-xs font-mono space-y-2 p-2">
+            {/* Cabeçalho */}
+            <div className="border-b-2 border-black pb-2 mb-2">
+              <div className="text-base font-black uppercase tracking-wide">MAUAD LAVANDERIA</div>
+              <div className="text-[10px] font-bold uppercase tracking-widest text-slate-700 mt-0.5">COMPROVANTE DE PAGAMENTO</div>
             </div>
-            <span className="text-slate-500">Departamento Financeiro / Caixa</span>
+
+            {/* Data e Hora */}
+            <div className="text-[11px] text-center">
+              {new Date(lastPaymentReceipt.paidAt).toLocaleDateString('pt-BR')} às {new Date(lastPaymentReceipt.paidAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+            </div>
+
+            {/* Cliente */}
+            <div className="border-y border-dashed border-black py-2 text-left space-y-0.5">
+              <div className="text-[10px] uppercase font-bold text-slate-500">Cliente</div>
+              <div className="font-bold text-sm uppercase">{lastPaymentReceipt.clientName}</div>
+            </div>
+
+            {/* OSs */}
+            <div className="text-left py-1 space-y-0.5">
+              <div className="text-[10px] uppercase font-bold text-slate-500">Ordens de Serviço ({lastPaymentReceipt.osNumbers.length})</div>
+              <div className="text-[11px] break-words leading-5">
+                {lastPaymentReceipt.osNumbers.join(' • ')}
+              </div>
+            </div>
+
+            {/* Valores */}
+            <div className="border-t-2 border-black pt-2 space-y-1 text-left">
+              <div className="flex justify-between text-[11px]">
+                <span>Valor Bruto dos Serviços:</span>
+                <span className="font-bold">{lastPaymentReceipt.grossAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+              </div>
+              {lastPaymentReceipt.discountAmount > 0 && (
+                <div className="flex justify-between text-[11px]">
+                  <span>Desconto Concedido:</span>
+                  <span className="font-bold">- {lastPaymentReceipt.discountAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                </div>
+              )}
+              <div className="flex justify-between border-t border-black pt-1 text-base font-black">
+                <span>TOTAL PAGO:</span>
+                <span>{lastPaymentReceipt.totalPaid.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+              </div>
+            </div>
+
+            {/* Forma de Pagamento */}
+            <div className="border-t border-dashed border-black pt-2 space-y-0.5 text-left text-[11px]">
+              <div className="flex justify-between">
+                <span>Forma de Pagamento:</span>
+                <span className="font-bold uppercase">{lastPaymentReceipt.paymentMethod}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Recebido por:</span>
+                <span className="font-bold">{lastPaymentReceipt.receiverName}</span>
+              </div>
+              {lastPaymentReceipt.notes && (
+                <div className="text-[10px] text-slate-600 italic pt-0.5">
+                  Obs: {lastPaymentReceipt.notes}
+                </div>
+              )}
+            </div>
+
+            {/* Rodapé */}
+            <div className="border-t-2 border-black pt-2 text-[10px] text-slate-600 space-y-0.5">
+              <div>Obrigado pela preferência!</div>
+              <div className="font-mono">{new Date(lastPaymentReceipt.paidAt).toLocaleDateString('pt-BR')} — MAUAD LAVANDERIA</div>
+            </div>
           </div>
-          <div>
-            <div className="border-t border-black pt-1">CLIENTE / SACADO / RESPONSÁVEL</div>
-            <span className="text-slate-500">Data: _____ / _____ / _________</span>
-          </div>
-        </div>
+        )}
+
       </div>
 
       {/* ─── MODAL: DAR BAIXA EM TODOS / UNIFICADA ─────────────────────────── */}
