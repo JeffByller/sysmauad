@@ -107,6 +107,7 @@ export interface Order {
   history: OrderHistoryEvent[];
   notes?: string;
   isRelavado?: boolean;
+  isADefinir?: boolean;
 }
 
 export interface PaymentHistoryEntry {
@@ -269,7 +270,31 @@ export interface SystemSettings {
   defaultPassadorRate?: number;
   stalledOrderAlertDays?: number;
   reportRetentionDays?: number;
+  licenseKey?: string;
   updatedAt?: string;
+}
+
+export type LicenseStatus =
+  | 'ACTIVE'
+  | 'BLOCKED'
+  | 'EXPIRED'
+  | 'INVALID_KEY'
+  | 'UNREACHABLE'
+  | 'PENDING';
+
+export interface LicenseState {
+  isValid: boolean;
+  status: LicenseStatus;
+  licenseKey?: string;
+  clientName?: string;
+  expiresAt?: string | null;
+  message?: string;
+  lastVerifiedAt: string | null;
+  lastSuccessfulContactAt: string | null;
+  consecutiveFailures: number;
+  inGracePeriod: boolean;
+  machineId: string;
+  isStreamConnected?: boolean;
 }
 
 export interface SharedReport {

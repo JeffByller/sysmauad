@@ -3,6 +3,7 @@ import {
   Order, 
   OrderStatus, 
   OrderItem,
+  OrderHistoryEvent,
   Passador, 
   PassadorLog, 
   WhatsAppNotification, 
@@ -41,6 +42,18 @@ interface OrderContextType {
   updateOrderStatus: (orderId: string, status: OrderStatus, operatorName: string, note?: string) => void;
   updateOrderWeight: (orderId: string, newTotalWeightKg: number, newPieceCount?: number, reason?: string, operatorName?: string) => Promise<{ success: boolean; message: string }>;
   updateOrderServices: (orderId: string, newItems: OrderItem[], operatorName?: string) => Promise<{ success: boolean; message: string }>;
+  defineOrder: (orderId: string, definitionData: {
+    items: OrderItem[];
+    chemicalRecipe: ChemicalDose[];
+    totalServiceValue: number;
+    clothingType?: string;
+    corteOs?: string;
+    notes?: string;
+    refPieceWeightGrams?: number;
+    totalWeightKg?: number;
+    estimatedPieceCount?: number;
+    operatorName?: string;
+  }) => Promise<{ success: boolean; message: string; order?: Order }>;
   registerIroning: (orderId: string, passadorId: string, passadorName: string, piecesIroned: number) => { success: boolean; message: string };
   updateIroningLog: (orderId: string, logId: string, newPieces: number, editorRole: string, editorName: string, editorId: string) => Promise<{ success: boolean; message: string }>;
   registerNewPassador: (name: string, phone?: string) => Passador;
@@ -535,6 +548,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const id = `ord-${Date.now()}`;
 
     const isRelavado = Boolean(orderData.isRelavado);
+    const isADefinir = Boolean(orderData.isADefinir);
     const newOrder: Order = {
       ...orderData,
       id,
@@ -544,7 +558,8 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       totalIronedPieces: 0,
       ironingLogs: [],
       isRelavado,
-      totalServiceValue: isRelavado ? 0 : orderData.totalServiceValue,
+      isADefinir,
+      totalServiceValue: (isRelavado || isADefinir) ? 0 : orderData.totalServiceValue,
       paymentStatus: isRelavado ? 'pago' : (orderData.paymentStatus || 'aberto'),
       history: [
         {
@@ -553,7 +568,9 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           operator: orderData.operatorName,
           note: isRelavado 
             ? 'Entrada de RELAVADO (reprocesso sem cobrança ao cliente).'
-            : 'Entrada efetuada com pesagem de referência e cálculo de dosagem por processo.'
+            : (isADefinir
+              ? 'Entrada À DEFINIR: lavado e serviços pendentes de definição pelo cliente.'
+              : 'Entrada efetuada com pesagem de referência e cálculo de dosagem por processo.')
         }
       ]
     };
@@ -775,6 +792,107 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch (err: any) {
       console.error('[OrderContext] Erro ao atualizar serviços do pedido:', err);
       return { success: false, message: err.message || 'Erro de conexão ao atualizar serviços.' };
+    }
+  };
+
+  const defineOrder = async (
+    orderId: string,
+    definitionData: {
+      items: OrderItem[];
+      chemicalRecipe: ChemicalDose[];
+      totalServiceValue: number;
+      clothingType?: string;
+      corteOs?: string;
+      notes?: string;
+      refPieceWeightGrams?: number;
+      totalWeightKg?: number;
+      estimatedPieceCount?: number;
+      operatorName?: string;
+    }
+  ): Promise<{ success: boolean; message: string; order?: Order }> => {
+    const target = orders.find(o => o.id === orderId || o.osNumber === orderId);
+    if (!target) return { success: false, message: 'Pedido não encontrado.' };
+
+    const operator = definitionData.operatorName || 'Operador';
+    const summaryText = definitionData.items.map(i => i.process).join(' + ');
+    const noteText = `Definição concluída: ${summaryText || 'Serviços definidos'}. Valor: R$ ${definitionData.totalServiceValue.toFixed(2)}. Pedido integrado ao fluxo normal.`;
+
+    const newHistoryEvent: OrderHistoryEvent = {
+      timestamp: new Date().toISOString(),
+      status: 'recebido',
+      operator,
+      note: noteText
+    };
+
+    const updatedHistory = [...(target.history || []), newHistoryEvent];
+
+    const updatedOrder: Order = {
+      ...target,
+      isADefinir: false,
+      status: 'recebido',
+      items: definitionData.items,
+      chemicalRecipe: definitionData.chemicalRecipe,
+      totalServiceValue: definitionData.totalServiceValue,
+      paymentStatus: target.isRelavado ? 'pago' : 'aberto',
+      corteOs: definitionData.corteOs !== undefined ? definitionData.corteOs : target.corteOs,
+      refPieceWeightGrams: definitionData.refPieceWeightGrams || target.refPieceWeightGrams,
+      totalWeightKg: definitionData.totalWeightKg || target.totalWeightKg,
+      estimatedPieceCount: definitionData.estimatedPieceCount || target.estimatedPieceCount,
+      history: updatedHistory,
+      notes: definitionData.notes !== undefined ? definitionData.notes : target.notes,
+      updatedAt: new Date().toISOString()
+    };
+
+    // Baixa automática local no estoque de insumos químicos
+    if (definitionData.chemicalRecipe && definitionData.chemicalRecipe.length > 0) {
+      setStockItems(prevStock => prevStock.map(stock => {
+        const matchingDoses = definitionData.chemicalRecipe.filter(c =>
+          c.productName.toLowerCase() === stock.name.toLowerCase() ||
+          c.productName.toLowerCase().includes(stock.name.toLowerCase()) ||
+          stock.name.toLowerCase().includes(c.productName.toLowerCase())
+        );
+        if (matchingDoses.length === 0) return stock;
+
+        const totalUsedGrams = matchingDoses.reduce((acc, curr) => acc + curr.totalGrams, 0);
+        const deduct = (stock.unit === 'kg' || stock.unit === 'L') ? totalUsedGrams / 1000 : totalUsedGrams;
+        const newStock = Math.max(0, Math.round((stock.currentStock - deduct) * 100) / 100);
+        return { ...stock, currentStock: newStock };
+      }));
+    }
+
+    setOrders(prev => prev.map(o => o.id === target.id ? updatedOrder : o));
+
+    try {
+      const res = await fetch(`/api/orders/${target.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          isADefinir: false,
+          status: 'recebido',
+          items: definitionData.items,
+          chemicalRecipe: definitionData.chemicalRecipe,
+          totalServiceValue: definitionData.totalServiceValue,
+          paymentStatus: target.isRelavado ? 'pago' : 'aberto',
+          corteOs: definitionData.corteOs,
+          refPieceWeightGrams: definitionData.refPieceWeightGrams,
+          totalWeightKg: definitionData.totalWeightKg,
+          estimatedPieceCount: definitionData.estimatedPieceCount,
+          history: updatedHistory,
+          notes: definitionData.notes,
+          operatorName: operator
+        })
+      });
+
+      if (res.ok) {
+        const savedOrder = await res.json();
+        setOrders(prev => prev.map(o => o.id === target.id ? savedOrder : o));
+        return { success: true, message: `Ordem ${target.osNumber} definida e integrada ao fluxo normal com sucesso!`, order: savedOrder };
+      }
+      const err = await res.json().catch(() => ({}));
+      return { success: false, message: err.error || 'Erro ao persistir definição da O.S. no servidor.' };
+    } catch (err: any) {
+      console.error('[OrderContext] Erro ao definir pedido:', err);
+      return { success: false, message: err.message || 'Erro de conexão ao definir pedido.' };
     }
   };
 
@@ -1345,6 +1463,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       updateOrderStatus,
       updateOrderWeight,
       updateOrderServices,
+      defineOrder,
       registerIroning,
       updateIroningLog,
       registerNewPassador,

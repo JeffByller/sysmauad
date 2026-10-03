@@ -76,7 +76,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToClie
               <input
                 type="text"
                 autoComplete="username"
-                placeholder="Informe seu usuário (ex: ana ou @ana)..."
+                placeholder="Usuário"
                 value={username}
                 onChange={e => {
                   setUsername(e.target.value);
@@ -98,7 +98,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToClie
               <input
                 type="password"
                 autoComplete="current-password"
-                placeholder="Informe sua senha..."
+                placeholder="Senha"
                 value={password}
                 onChange={e => {
                   setPassword(e.target.value);

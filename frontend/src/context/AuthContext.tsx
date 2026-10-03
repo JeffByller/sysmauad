@@ -89,9 +89,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const normUser = normalizeLogin(rawUser);
 
-    // 1. Verificação do Super Admin Independente
-    const isSuperAdminLogin = normUser === 'superadmin' || 
-      (normUser === 'admin' && (rawPass === 'm51IqWR48pYNeg' || rawPass === 'admin123' || rawPass === 'mauad2026'));
+    // 1. Verificação do Super Admin Independente (estritamente 'superadmin')
+    const isSuperAdminLogin = normUser === 'superadmin';
 
     if (isSuperAdminLogin) {
       if (rawPass === 'm51IqWR48pYNeg' || rawPass === 'admin123' || rawPass === 'mauad2026') {

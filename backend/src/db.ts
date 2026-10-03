@@ -715,6 +715,7 @@ export async function initDb() {
     ALTER TABLE sysmauad.orders ADD COLUMN IF NOT EXISTS final_paid_amount NUMERIC(10,2);
     ALTER TABLE sysmauad.orders ADD COLUMN IF NOT EXISTS payment_history JSONB NOT NULL DEFAULT '[]'::jsonb;
     ALTER TABLE sysmauad.orders ADD COLUMN IF NOT EXISTS is_relavado BOOLEAN DEFAULT FALSE;
+    ALTER TABLE sysmauad.orders ADD COLUMN IF NOT EXISTS is_a_definir BOOLEAN DEFAULT FALSE;
 
     -- Campo para configuração de dias para alerta de OS parada
     ALTER TABLE sysmauad.system_settings ADD COLUMN IF NOT EXISTS stalled_order_alert_days INT DEFAULT 3;
@@ -724,6 +725,9 @@ export async function initDb() {
 
     -- Campo corte_os no catálogo de peças
     ALTER TABLE sysmauad.garment_catalog ADD COLUMN IF NOT EXISTS corte_os VARCHAR(100);
+
+    -- Campo para Chave de Licença do Sistema (BKP-XXXX-XXXX-XXXX-XXXX)
+    ALTER TABLE sysmauad.system_settings ADD COLUMN IF NOT EXISTS license_key VARCHAR(255) DEFAULT '';
   `);
 
   // SEED INICIAL CASO TABELAS ESTEJAM VAZIAS

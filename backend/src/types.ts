@@ -172,6 +172,7 @@ export interface Order {
   history: OrderHistoryEvent[];
   notes?: string;
   isRelavado?: boolean;
+  isADefinir?: boolean;
   updatedAt?: string;
 }
 
@@ -242,6 +243,7 @@ export interface SystemSettings {
   defaultPassadorRate?: number;
   stalledOrderAlertDays?: number;
   reportRetentionDays?: number;
+  licenseKey?: string;
   updatedAt?: string;
 }
 

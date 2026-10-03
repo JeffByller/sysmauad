@@ -46,6 +46,8 @@ import {
   renderExpiredReportPage,
   REPORTS_BACKLOG_DIR
 } from './reportService';
+import { licenseService } from './license/license.service';
+import { licenseGuard } from './license/license.middleware';
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -54,6 +56,7 @@ app.set('trust proxy', 1);
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(apiRateLimiter);
+app.use(licenseGuard({ supportContact: 'suporte@jeffgsan.com.br' }));
 
 function getBaseUrl(req: Request): string {
   const proto = req.headers['x-forwarded-proto'] || (req.secure ? 'https' : 'http');
@@ -207,6 +210,7 @@ function mapOrder(row: any): Order {
     history: Array.isArray(row.history) ? row.history : [],
     notes: row.notes || undefined,
     isRelavado: Boolean(row.is_relavado),
+    isADefinir: Boolean(row.is_a_definir),
     updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : undefined
   };
 }
@@ -273,6 +277,7 @@ function mapSettings(row: any): SystemSettings {
     defaultPassadorRate: Number(row.default_passador_rate !== null && row.default_passador_rate !== undefined ? row.default_passador_rate : 0.15),
     stalledOrderAlertDays: Number(row.stalled_order_alert_days !== null && row.stalled_order_alert_days !== undefined ? row.stalled_order_alert_days : 3),
     reportRetentionDays: Number(row.report_retention_days !== null && row.report_retention_days !== undefined ? row.report_retention_days : 30),
+    licenseKey: row.license_key || process.env.LICENSE_KEY || '',
     updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : undefined
   };
 }
@@ -890,8 +895,8 @@ app.post('/auth/login', async (req: Request, res: Response) => {
       });
     }
 
-    // 2. Super Admin
-    if (normUser === 'superadmin' || normUser === 'admin') {
+    // 2. Super Admin (estritamente 'superadmin')
+    if (normUser === 'superadmin') {
       if (SUPER_ADMIN.passwords.includes(rawPass)) {
         clearBruteForceAttempts(ip, normUser);
         recordAuditLog({
@@ -1756,14 +1761,15 @@ app.post('/orders', async (req: Request, res: Response) => {
 
     const corteOs = orderData.corteOs || (Array.isArray(orderData.items) && orderData.items[0]?.corteOs) || null;
     const isRelavado = Boolean(orderData.isRelavado);
+    const isADefinir = Boolean(orderData.isADefinir);
 
     const result = await query(
       `INSERT INTO sysmauad.orders (
          id, os_number, corte_os, client_id, client_name, client_phone, client_address,
          created_at, operator_name, ref_piece_weight_grams, total_weight_kg,
          estimated_piece_count, total_service_value, payment_status, payment_method, discount_amount,
-         items, chemical_recipe, status, total_ironed_pieces, ironing_logs, history, notes, is_relavado
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
+         items, chemical_recipe, status, total_ironed_pieces, ironing_logs, history, notes, is_relavado, is_a_definir
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
        RETURNING *`,
       [
         id,
@@ -1778,7 +1784,7 @@ app.post('/orders', async (req: Request, res: Response) => {
         Number(orderData.refPieceWeightGrams || 0),
         Number(orderData.totalWeightKg || 0),
         Number(orderData.estimatedPieceCount || 0),
-        isRelavado ? 0 : Number(orderData.totalServiceValue || 0),
+        (isRelavado || isADefinir) ? 0 : Number(orderData.totalServiceValue || 0),
         isRelavado ? 'pago' : (orderData.paymentStatus || 'aberto'),
         orderData.paymentMethod || null,
         Number(orderData.discountAmount || 0),
@@ -1789,7 +1795,8 @@ app.post('/orders', async (req: Request, res: Response) => {
         JSON.stringify([]),
         JSON.stringify(history),
         orderData.notes || null,
-        isRelavado
+        isRelavado,
+        isADefinir
       ]
     );
 
@@ -1802,7 +1809,7 @@ app.post('/orders', async (req: Request, res: Response) => {
     recordAuditLog({
       level: 'info',
       category: 'orders',
-      action: isRelavado ? 'order_relavado_created' : 'order_created',
+      action: isRelavado ? 'order_relavado_created' : (isADefinir ? 'order_a_definir_created' : 'order_created'),
       userName: orderData.operatorName || 'Operador',
       ipAddress: ip,
       userAgent: req.headers['user-agent'] as string,
@@ -1812,8 +1819,9 @@ app.post('/orders', async (req: Request, res: Response) => {
         clientName: orderData.clientName,
         totalWeightKg: orderData.totalWeightKg,
         estimatedPieceCount: orderData.estimatedPieceCount,
-        totalServiceValue: isRelavado ? 0 : orderData.totalServiceValue,
-        isRelavado
+        totalServiceValue: (isRelavado || isADefinir) ? 0 : orderData.totalServiceValue,
+        isRelavado,
+        isADefinir
       }
     }).catch(() => {});
 
@@ -1833,6 +1841,9 @@ app.put('/orders/:id', async (req: Request, res: Response) => {
 
     const corteOs = body.corteOs !== undefined ? body.corteOs : row.corte_os;
     const isRelavado = body.isRelavado !== undefined ? Boolean(body.isRelavado) : Boolean(row.is_relavado);
+    const isADefinir = body.isADefinir !== undefined ? Boolean(body.isADefinir) : Boolean(row.is_a_definir);
+    const status = body.status !== undefined ? body.status : row.status;
+    const history = body.history !== undefined ? JSON.stringify(body.history) : (row.history ? JSON.stringify(row.history) : '[]');
 
     const result = await query(
       `UPDATE sysmauad.orders SET
@@ -1851,8 +1862,11 @@ app.put('/orders/:id', async (req: Request, res: Response) => {
          notes = COALESCE($13, notes),
          corte_os = $14,
          is_relavado = $15,
+         is_a_definir = $16,
+         status = $17,
+         history = $18,
          updated_at = NOW()
-       WHERE id = $16
+       WHERE id = $19
        RETURNING *`,
       [
         body.clientId,
@@ -1870,9 +1884,30 @@ app.put('/orders/:id', async (req: Request, res: Response) => {
         body.notes,
         corteOs,
         isRelavado,
+        isADefinir,
+        status,
+        history,
         id
       ]
     );
+
+    // Se o pedido deixou de ser 'à definir', registra auditoria de definição concluída
+    if (Boolean(row.is_a_definir) && !isADefinir) {
+      recordAuditLog({
+        level: 'info',
+        category: 'orders',
+        action: 'order_definition_completed',
+        userName: body.operatorName || 'Operador',
+        ipAddress: getClientIp(req),
+        userAgent: req.headers['user-agent'] as string,
+        details: {
+          orderId: id,
+          osNumber: row.os_number,
+          clientName: row.client_name,
+          totalServiceValue: body.totalServiceValue
+        }
+      }).catch(() => {});
+    }
 
     res.json(mapOrder(result.rows[0]));
   } catch (err: any) {
@@ -2645,6 +2680,139 @@ app.put('/settings', async (req: Request, res: Response) => {
     res.json(mapSettings(result.rows[0]));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------------------
+// 11.1 LICENCIAMENTO DO SISTEMA (LICENSE MANAGEMENT)
+// ----------------------------------------------------
+app.get('/license/status', (_req: Request, res: Response) => {
+  const state = licenseService.getState();
+  res.json({
+    authorized: licenseService.isAuthorized(),
+    ...state
+  });
+});
+
+app.get('/license/events', (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  if (typeof (res as any).flushHeaders === 'function') {
+    (res as any).flushHeaders();
+  }
+
+  // Envia estado atual imediatamente ao conectar
+  const currentState = {
+    authorized: licenseService.isAuthorized(),
+    ...licenseService.getState()
+  };
+  res.write(`data: ${JSON.stringify(currentState)}\n\n`);
+
+  // Registra ouvinte para disparar novo estado em tempo real
+  const unsubscribe = licenseService.subscribe((state) => {
+    try {
+      res.write(`data: ${JSON.stringify({ authorized: licenseService.isAuthorized(), ...state })}\n\n`);
+    } catch (_) {}
+  });
+
+  // Keep-alive ping a cada 25 segundos
+  const keepAlive = setInterval(() => {
+    try {
+      res.write(': keep-alive\n\n');
+    } catch (_) {}
+  }, 25000);
+
+  req.on('close', () => {
+    clearInterval(keepAlive);
+    unsubscribe();
+  });
+});
+
+app.post('/license/ping', async (_req: Request, res: Response) => {
+  try {
+    const result = await licenseService.ping();
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ online: false, error: err.message });
+  }
+});
+
+app.post('/license/verify', async (_req: Request, res: Response) => {
+  try {
+    const state = await licenseService.verifyLicense();
+    res.json({
+      authorized: licenseService.isAuthorized(),
+      ...state
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/license/update-key', async (req: Request, res: Response) => {
+  try {
+    const { licenseKey, username, password } = req.body;
+    const cleanKey = String(licenseKey || '').trim();
+
+    if (!cleanKey) {
+      return res.status(400).json({ success: false, message: 'Chave de licença não informada.' });
+    }
+
+    const normUser = normalizeLogin(username || '');
+    const cleanPass = String(password || '').trim();
+
+    // Apenas o verdadeiro Super Admin (superadmin) ou portador da senha mestre é autorizado
+    const isMasterPassword = cleanPass ? SUPER_ADMIN.passwords.includes(cleanPass) : false;
+    const isSuperAdminAuthorized = (normUser === 'superadmin') || isMasterPassword;
+
+    // Apenas o Super Admin tem permissão para alterar a licença
+    if (!isSuperAdminAuthorized) {
+      recordAuditLog({
+        action: 'license_update_denied',
+        category: 'security',
+        level: 'warn',
+        userName: username || 'desconhecido',
+        ipAddress: getClientIp(req),
+        details: { message: 'Tentativa não autorizada de atualizar chave de licença por usuário não-superadmin.' }
+      });
+      return res.status(403).json({
+        success: false,
+        message: 'Acesso negado: apenas o Super Administrador pode alterar a chave de licença do sistema.'
+      });
+    }
+
+    // Persiste no banco de dados
+    await query(
+      `UPDATE sysmauad.system_settings SET license_key = $1, updated_at = NOW() WHERE id = 'default'`,
+      [cleanKey]
+    );
+
+    // Atualiza o serviço em memória e força checagem remota imediata
+    const state = await licenseService.updateLicenseKey(cleanKey);
+
+    recordAuditLog({
+      action: 'license_key_updated',
+      category: 'security',
+      level: state.isValid ? 'info' : 'warn',
+      userName: username || 'superadmin',
+      ipAddress: getClientIp(req),
+      details: {
+        status: state.status,
+        valid: state.isValid,
+        clientName: state.clientName,
+        message: state.message
+      }
+    });
+
+    res.json({
+      success: state.isValid,
+      authorized: licenseService.isAuthorized(),
+      ...state
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -3539,6 +3707,17 @@ async function startServer() {
     }, 60 * 60 * 1000);
 
     startAutomationScheduler();
+
+    // Inicialização do Serviço de Licenças com a chave salva no banco
+    try {
+      const licRes = await query('SELECT license_key FROM sysmauad.system_settings WHERE id = $1', ['default']);
+      const dbLicKey = licRes.rows.length > 0 ? (licRes.rows[0].license_key || '') : '';
+      const activeKey = dbLicKey || process.env.LICENSE_KEY || '';
+      await licenseService.initialize({ licenseKey: activeKey });
+    } catch (licErr: any) {
+      console.warn('[Sysmauad Backend API] Aviso na inicialização da licença:', licErr.message);
+    }
+
     app.listen(port, () => {
       console.log(`[Sysmauad Backend API] Conectado ao PostgreSQL e ouvindo na porta ${port}`);
     });

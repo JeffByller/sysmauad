@@ -13,7 +13,8 @@ export const UserManagementView: React.FC = () => {
     updateUserPermissions, 
     updateUserPassword,
     toggleUserActive,
-    user: currentUser 
+    user: currentUser,
+    isSuperAdmin
   } = useAuth();
 
   const [isAddingUser, setIsAddingUser] = useState(false);
@@ -227,23 +228,25 @@ export const UserManagementView: React.FC = () => {
         </button>
       </div>
 
-      {/* Super Admin Info Card */}
-      <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 rounded-2xl p-5 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-amber-500 text-white rounded-xl shadow-sm">
-            <ShieldCheck className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Super Admin (Acesso Mestre)</h3>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500 text-white">PROTEGIDO</span>
+      {/* Super Admin Info Card (Apenas visível para o Super Admin) */}
+      {isSuperAdmin && (
+        <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 rounded-2xl p-5 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-amber-500 text-white rounded-xl shadow-sm">
+              <ShieldCheck className="w-5 h-5" />
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Usuário mestre independente dos usuários do sistema. Possui acesso total e irrestrito a todos os módulos, menus e configurações.
-            </p>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Super Admin (Acesso Mestre)</h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500 text-white">PROTEGIDO</span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Usuário mestre independente dos usuários do sistema. Possui acesso total e irrestrito a todos os módulos, menus e configurações.
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Success Feedback */}
       {feedback && (
@@ -339,7 +342,7 @@ export const UserManagementView: React.FC = () => {
                   <option value="operador">Operador de Balcão</option>
                   <option value="financeiro">Gestor Financeiro</option>
                   <option value="passador">Passador</option>
-                  <option value="admin">Administrador Geral</option>
+                  {isSuperAdmin && <option value="admin">Administrador Geral</option>}
                 </select>
               </div>
             </div>
@@ -744,7 +747,7 @@ export const UserManagementView: React.FC = () => {
                   <option value="operador">Operador de Balcão</option>
                   <option value="financeiro">Gestor Financeiro</option>
                   <option value="passador">Passador</option>
-                  <option value="admin">Administrador Geral</option>
+                  {isSuperAdmin && <option value="admin">Administrador Geral</option>}
                 </select>
                 {editRole === 'passador' && (
                   <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1">

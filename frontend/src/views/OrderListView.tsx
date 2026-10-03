@@ -14,7 +14,8 @@ import {
   Check, 
   X,
   CheckCircle2,
-  Receipt
+  Receipt,
+  HelpCircle
 } from 'lucide-react';
 import { Order, OrderStatus } from '../types';
 import { Pagination } from '../components/common/Pagination';
@@ -104,6 +105,8 @@ export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
         matchesStatus = getOrderStalledInfo(ord).isStalled;
       } else if (statusFilter === 'relavados') {
         matchesStatus = Boolean(ord.isRelavado);
+      } else if (statusFilter === 'a_definir') {
+        matchesStatus = Boolean(ord.isADefinir);
       } else {
         matchesStatus = ord.status === statusFilter;
       }
@@ -239,6 +242,7 @@ export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
               <option value="todos">Todos os Status</option>
               <option value="paradas">⚠️ OS Paradas (≥ {stalledOrderAlertDays || 3} {stalledOrderAlertDays === 1 ? 'dia' : 'dias'})</option>
               <option value="relavados">🔄 Relavados (R$ 0,00)</option>
+              <option value="a_definir">🔶 À Definir (Aguardando Definição)</option>
               <option value="recebido">1. Pedido Feito</option>
               <option value="em_andamento">2. Em Andamento</option>
               <option value="pronto">3. Pronto</option>
@@ -276,11 +280,11 @@ export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
                   return (
                     <tr 
                       key={ord.id} 
-                      onDoubleClick={() => onNavigate('order-detail', ord.id)}
+                      onDoubleClick={() => ord.isADefinir ? onNavigate('define-order', ord.id) : onNavigate('order-detail', ord.id)}
                       className={`hover:bg-slate-100/80 dark:hover:bg-slate-800/70 transition-colors font-mono cursor-pointer select-none ${
                         stalledInfo.isStalled ? 'bg-amber-50/40 dark:bg-amber-950/20' : ''
                       }`}
-                      title="Duplo clique para abrir e editar este pedido"
+                      title={ord.isADefinir ? "Duplo clique para definir lavado e serviços desta O.S." : "Duplo clique para abrir e ver este pedido"}
                     >
                       <td className="p-4">
                         <div className="flex flex-col gap-1 items-start">
@@ -290,6 +294,12 @@ export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
                               <span className="px-1.5 py-0.5 bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 rounded text-[10px] font-bold uppercase border border-purple-200 dark:border-purple-800 flex items-center gap-0.5">
                                 <RotateCcw className="w-2.5 h-2.5" />
                                 Relavado
+                              </span>
+                            )}
+                            {ord.isADefinir && (
+                              <span className="px-1.5 py-0.5 bg-orange-100 dark:bg-orange-950 text-orange-700 dark:text-orange-300 rounded text-[10px] font-bold uppercase border border-orange-200 dark:border-orange-800 flex items-center gap-0.5">
+                                <HelpCircle className="w-2.5 h-2.5" />
+                                À Definir
                               </span>
                             )}
                             {stalledInfo.isStalled && (
@@ -345,10 +355,15 @@ export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
                       <td className="p-4 text-right font-sans">
                         <div className="flex items-center justify-end gap-1.5" onClick={e => e.stopPropagation()}>
                           <button
-                            onClick={() => onNavigate('order-detail', ord.id)}
-                            className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-md font-medium text-xs transition-colors border border-transparent dark:border-slate-700"
+                            onClick={() => ord.isADefinir ? onNavigate('define-order', ord.id) : onNavigate('order-detail', ord.id)}
+                            className={`px-2.5 py-1 rounded-md font-medium text-xs transition-colors border ${
+                              ord.isADefinir
+                                ? 'bg-amber-600 hover:bg-amber-700 text-white font-bold border-amber-600 shadow-xs'
+                                : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border-transparent dark:border-slate-700'
+                            }`}
+                            title={ord.isADefinir ? "Definir Lavado e Serviços desta O.S." : "Ver detalhes do pedido"}
                           >
-                            Ver
+                            {ord.isADefinir ? 'Definir' : 'Ver'}
                           </button>
                           <button
                             onClick={() => onNavigate('order-print', ord.id)}

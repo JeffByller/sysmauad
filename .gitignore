@@ -32,3 +32,4 @@ Thumbs.db
 # Runtime Data & Backups
 data/backups/*
 !data/backups/.gitkeep
+data/machine_id.txt

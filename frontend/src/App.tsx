@@ -28,12 +28,90 @@ import { ClientSignupView } from './views/ClientSignupView';
 import { SettingsView } from './views/SettingsView';
 import { AuditLogsView } from './views/AuditLogsView';
 import { AuditProvider } from './context/AuditContext';
+import { LicenseState } from './types';
+import { AlertTriangle, Key, ShieldAlert, Lock } from 'lucide-react';
+
+const SlimLockScreen: React.FC<{ onLogout: () => void }> = ({ onLogout }) => (
+  <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex items-center justify-center p-6 font-sans transition-colors">
+    <div className="max-w-sm w-full text-center space-y-7 animate-in fade-in zoom-in-95 duration-200">
+      <div className="w-16 h-16 mx-auto rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-400 dark:text-slate-500 shadow-sm">
+        <Lock className="w-7 h-7 stroke-[1.75]" />
+      </div>
+
+      <div className="space-y-1.5">
+        <h1 className="text-lg font-semibold tracking-tight text-slate-800 dark:text-slate-200">
+          Acesso Restrito
+        </h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed font-normal">
+          Entre em contato com o administrador.
+        </p>
+      </div>
+
+      <div className="pt-1">
+        <button
+          onClick={onLogout}
+          className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-900 text-xs font-semibold rounded-xl transition-all duration-150 cursor-pointer shadow-sm"
+        >
+          Sair
+        </button>
+      </div>
+    </div>
+  </div>
+);
 
 
 export const AppContent: React.FC = () => {
-  const { user } = useAuth();
+  const { user, isSuperAdmin, logout } = useAuth();
   const { client } = useClientAuth();
   const { markReadyOrder, closeMarkReadyModal } = useOrders();
+  const [licenseState, setLicenseState] = useState<LicenseState | null>(null);
+
+  useEffect(() => {
+    let es: EventSource | null = null;
+    let isMounted = true;
+
+    // Conexão Push em Tempo Real via Server-Sent Events (SSE)
+    const connectSSE = () => {
+      try {
+        es = new EventSource('/api/license/events');
+        es.onmessage = (event) => {
+          if (!isMounted) return;
+          try {
+            const data = JSON.parse(event.data) as LicenseState;
+            setLicenseState(data);
+          } catch (_) {}
+        };
+        es.onerror = () => {
+          // Navegador reconecta automaticamente se a conexão oscilar
+        };
+      } catch (_) {}
+    };
+
+    connectSSE();
+
+    // Fallback de segurança via polling a cada 30 segundos
+    const checkLicense = async () => {
+      try {
+        const res = await fetch('/api/license/status');
+        if (res.ok && isMounted) {
+          const data = (await res.json()) as LicenseState;
+          setLicenseState(data);
+        }
+      } catch {
+        // network error / offline
+      }
+    };
+    checkLicense();
+    const interval = setInterval(checkLicense, 30000);
+
+    return () => {
+      isMounted = false;
+      if (es) {
+        es.close();
+      }
+      clearInterval(interval);
+    };
+  }, []);
 
   const getTabFromLocation = (): string => {
     const full = (window.location.hash || '') + ' ' + (window.location.search || '');
@@ -154,8 +232,31 @@ export const AppContent: React.FC = () => {
     );
   }
 
+  // Se a licença do sistema estiver bloqueada/suspensa no servidor de licenças, exibe a tela de bloqueio slim
+  if (licenseState && !licenseState.isValid && user && !isSuperAdmin) {
+    return <SlimLockScreen onLogout={logout} />;
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
+      {/* Top Banner de Alerta de Licença para Super Admin */}
+      {isSuperAdmin && licenseState && !licenseState.isValid && (
+        <div className="bg-rose-600 text-white px-4 py-2 text-xs font-semibold flex items-center justify-between shadow-md">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <span>
+              Atenção: A licença do sistema está <strong>{licenseState.status}</strong>. O acesso de operadores está bloqueado até que a chave seja configurada.
+            </span>
+          </div>
+          <button
+            onClick={() => handleNavigate('settings')}
+            className="px-3 py-1 bg-white text-rose-700 hover:bg-rose-50 text-xs font-bold rounded-lg transition-colors shrink-0 ml-4 cursor-pointer"
+          >
+            Configurar Licença
+          </button>
+        </div>
+      )}
+
       {/* Top Navbar Header (oculto nas páginas de login e portal do assinante) */}
       {currentTab !== 'login' && 
        currentTab !== 'client-login' && 
@@ -205,8 +306,9 @@ export const AppContent: React.FC = () => {
           />
         )}
 
-        {currentTab === 'new-order' && (
+        {(currentTab === 'new-order' || currentTab === 'define-order') && (
           <NewOrderView
+            editOrderId={currentTab === 'define-order' ? selectedOrderId : undefined}
             onOrderCreated={orderId => handleNavigate('order-print', orderId)}
             onNavigateToClients={() => handleNavigate('clients')}
             onNavigateToOrders={() => handleNavigate('orders')}
@@ -232,6 +334,7 @@ export const AppContent: React.FC = () => {
             orderId={selectedOrderId}
             onBack={() => handleNavigate('orders')}
             onNavigatePrint={(orderId, printMode) => handleNavigate('order-print', orderId, printMode)}
+            onNavigateDefine={(orderId) => handleNavigate('define-order', orderId)}
           />
         )}
 
