@@ -323,7 +323,7 @@ export const PassadorReportView: React.FC = () => {
 
   const getViewModeLabel = (mode: typeof lavadoViewMode) => {
     switch (mode) {
-      case 'pedidos': return 'LISTAGEM DETALHADA DE PEDIDOS / LOTES';
+      case 'pedidos': return 'LISTAGEM DETALHADA';
       case 'processos': return 'RESUMO CONSOLIDADO POR PROCESSO DE LAVADO';
       default: return 'COMPLETO (RESUMO DE LAVADOS + LISTA DE PEDIDOS)';
     }
@@ -420,9 +420,9 @@ export const PassadorReportView: React.FC = () => {
     }
     if (reportType === 'passadores') {
       if (selectedPassador) {
-        return `PRODUÇÃO POR PASSADOR • ${selectedPassador.name.toUpperCase()}`;
+        return 'RELATÓRIO';
       }
-      return 'RELATÓRIO GERAL DE PRODUÇÃO DE PASSADORIA';
+      return 'RELATÓRIO DE PASSADORIA';
     }
     if (reportType === 'fornecedores') {
       if (selectedSupplier) {
@@ -484,7 +484,7 @@ export const PassadorReportView: React.FC = () => {
             }`}
           >
             <UserCheck className="w-3.5 h-3.5" />
-            2. Produção por Passador
+            2. Passadoria
           </button>
 
           {!isPassadorUser && (
@@ -748,7 +748,7 @@ export const PassadorReportView: React.FC = () => {
               <div className="flex items-center gap-2">
                 <span className="text-slate-500 dark:text-slate-400 font-bold uppercase text-[11px] flex items-center gap-1 shrink-0">
                   <UserCheck className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
-                  Passador:
+                  Colaborador:
                 </span>
 
                 <div className="relative flex-1">
@@ -768,7 +768,7 @@ export const PassadorReportView: React.FC = () => {
                           setPassadorSearchTerm('');
                         }}
                         className="p-1 text-sky-600 hover:text-sky-800 dark:hover:text-sky-100 rounded-lg hover:bg-sky-100 dark:hover:bg-sky-900 transition-colors ml-1"
-                        title="Limpar e ver todos os passadores"
+                        title="Limpar e ver todos os colaboradores"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -778,7 +778,7 @@ export const PassadorReportView: React.FC = () => {
                       <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
                       <input
                         type="text"
-                        placeholder="Buscar passador ativo..."
+                        placeholder="Buscar colaborador..."
                         value={passadorSearchTerm}
                         onChange={e => {
                           setPassadorSearchTerm(e.target.value);
@@ -817,12 +817,12 @@ export const PassadorReportView: React.FC = () => {
                           }}
                           className="w-full text-left px-3 py-2 text-xs font-bold text-sky-700 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-slate-800 flex items-center justify-between"
                         >
-                          <span>• Todos os Passadores Ativos ({activePassadores.length})</span>
+                          <span>• Todos os Colaboradores ({activePassadores.length})</span>
                           {selectedPassadorId === 'all' && <CheckCircle2 className="w-3.5 h-3.5 text-sky-600" />}
                         </button>
                         {filteredPassadores.length === 0 ? (
                           <div className="px-3 py-3 text-center text-xs text-slate-400">
-                            Nenhum passador ativo encontrado com "{passadorSearchTerm}".
+                            Nenhum colaborador encontrado com "{passadorSearchTerm}".
                           </div>
                         ) : (
                           filteredPassadores.map(p => (
@@ -941,13 +941,11 @@ export const PassadorReportView: React.FC = () => {
         {/* Cabeçalho do Documento */}
         <div className="flex justify-between items-start text-xs font-bold leading-tight">
           <span>LAVANDERIA MAUAD</span>
-          <span className="text-center font-mono">{getReportTitle()}</span>
-          <span>Pagina: 001</span>
+          <span className="font-mono">{getReportTitle()}</span>
         </div>
 
         {/* Informações de Emissão */}
-        <div className="flex justify-between text-[11px] pt-1">
-          <span>EMISSAO: {new Date().toLocaleDateString('pt-BR')} FUNCNR: {user?.name?.toUpperCase() || 'SUPER ADMIN'}</span>
+        <div className="flex justify-end text-[11px] pt-1 text-slate-500 font-mono">
           <span>{new Date().toLocaleDateString('pt-BR', { weekday: 'long' })}, {new Date().toLocaleDateString('pt-BR')} {new Date().toLocaleTimeString('pt-BR')}</span>
         </div>
 
@@ -959,16 +957,12 @@ export const PassadorReportView: React.FC = () => {
         {/* Parâmetros do Relatório */}
         <div className="text-[11px] space-y-0.5">
           <div><strong>PERÍODO DE APURAÇÃO:</strong> {startDate.split('-').reverse().join('/')} a {endDate.split('-').reverse().join('/')}</div>
-          <div><strong>OPERADOR RESPONSÁVEL:</strong> {user?.name || 'Super Admin'}</div>
           {reportType === 'lavados' && (
-            <>
-              <div><strong>FILTRO OPERACIONAL:</strong> {getStatusFilterLabel(lavadoStatusFilter)}</div>
-              <div><strong>FORMATO DO EXTRATO:</strong> {getViewModeLabel(lavadoViewMode)}</div>
-            </>
+            <div><strong>FILTRO OPERACIONAL:</strong> {getStatusFilterLabel(lavadoStatusFilter)}</div>
           )}
           {reportType === 'passadores' && selectedPassador && (
             <div>
-              <strong>PASSADOR:</strong> {selectedPassador.name.toUpperCase()}{selectedPassador.phone ? ` • Tel: ${selectedPassador.phone}` : ''}
+              <strong>COLABORADOR:</strong> {selectedPassador.name.toUpperCase()}{selectedPassador.phone ? ` • Tel: ${selectedPassador.phone}` : ''}
             </div>
           )}
           {reportType === 'fornecedores' && selectedSupplier && (
@@ -993,7 +987,7 @@ export const PassadorReportView: React.FC = () => {
               <span>RESUMO DO PERÍODO:</span>
               <div className="flex gap-4 font-mono">
                 <span>LOTES: <strong>{filteredOrders.length}</strong></span>
-                <span>TOTAL DE PEÇAS: <strong>{totalLavadoPieces.toLocaleString('pt-BR')} Pcs</strong></span>
+                <span>TOTAL PECAS: <strong>{totalLavadoPieces.toLocaleString('pt-BR')}</strong></span>
                 <span>PESO TOTAL: <strong>{totalLavadoKg.toFixed(2)} kg</strong></span>
               </div>
             </div>
@@ -1013,7 +1007,7 @@ export const PassadorReportView: React.FC = () => {
                     </div>
 
                     <div className="grid grid-cols-12 font-bold text-[11px] text-slate-700 py-1 border-b border-dashed border-slate-200">
-                      <span className="col-span-5">LAVADO / RECEITA</span>
+                      <span className="col-span-5">LAVADO</span>
                       <span className="col-span-2 text-center">LOTES</span>
                       <span className="col-span-2 text-right">PESO (KG)</span>
                       <span className="col-span-3 text-right">QUANTIDADE (PÇS)</span>
@@ -1042,10 +1036,10 @@ export const PassadorReportView: React.FC = () => {
                     </div>
 
                     <div className="grid grid-cols-12 items-center pt-1.5 border-t border-slate-300 font-bold text-xs font-mono">
-                      <span className="col-span-5 font-sans">SUBTOTAL LAVAGEM:</span>
+                      <span className="col-span-5 font-sans">SUBTOTAL:</span>
                       <span className="col-span-2 text-center">{processReport.totalLotes} lotes</span>
                       <span className="col-span-2 text-right">{processReport.totalKg.toFixed(2)} kg</span>
-                      <span className="col-span-3 text-right text-sm">{processReport.totalPieces.toLocaleString('pt-BR')} Pcs</span>
+                      <span className="col-span-3 text-right text-sm">TOTAL PECAS: {processReport.totalPieces.toLocaleString('pt-BR')}</span>
                     </div>
                   </div>
                 )}
@@ -1061,16 +1055,16 @@ export const PassadorReportView: React.FC = () => {
                 {(lavadoViewMode === 'completo' || lavadoViewMode === 'pedidos') && (
                   <div className="space-y-1.5">
                     <div className="flex justify-between items-center font-bold text-xs pb-1 border-b border-slate-300">
-                      <span>LISTAGEM DETALHADA DOS PEDIDOS / LOTES</span>
+                      <span>LISTAGEM DETALHADA</span>
                       <span className="text-[10px] text-slate-500 font-normal">{filteredOrders.length} registros</span>
                     </div>
 
                     {/* Cabeçalho da Tabela de Pedidos */}
                     <div className="grid grid-cols-12 font-bold text-[10px] uppercase text-slate-700 py-1 border-b border-dashed border-slate-200">
-                      <span className="col-span-2">PEDIDO / OS</span>
+                      <span className="col-span-2">PEDIDO</span>
                       <span className="col-span-3">CLIENTE</span>
-                      <span className="col-span-2">ROUPA / CORTE</span>
-                      <span className="col-span-2">LAVADO / RECEITA</span>
+                      <span className="col-span-2">ROUPA</span>
+                      <span className="col-span-2">LAVADO</span>
                       <span className="col-span-1 text-right">PÇS</span>
                       <span className="col-span-1 text-right">KG</span>
                       <span className="col-span-1 text-center">STATUS</span>
@@ -1089,11 +1083,10 @@ export const PassadorReportView: React.FC = () => {
                 </div>
 
                 <div className="flex flex-col sm:flex-row justify-between items-baseline gap-2 font-bold text-xs pt-1">
-                  <span>TOTAL GERAL APURADO ({getStatusFilterLabel(lavadoStatusFilter)}):</span>
                   <div className="flex items-center gap-6 font-mono text-sm">
-                    <span>Total de Lotes: {filteredOrders.length} lotes</span>
+                    <span>Total de Lotes: {filteredOrders.length}</span>
                     <span>{totalLavadoKg.toFixed(2)} kg</span>
-                    <span className="text-base text-slate-900 font-black">Qtd Total Peças: {totalLavadoPieces.toLocaleString('pt-BR')} Pcs</span>
+                    <span className="text-base text-slate-900 font-black">TOTAL PECAS: {totalLavadoPieces.toLocaleString('pt-BR')}</span>
                   </div>
                 </div>
               </>
@@ -1133,17 +1126,13 @@ export const PassadorReportView: React.FC = () => {
                 </div>
 
                 <div className="space-y-1 pt-1 font-mono text-xs">
-                  <div className="flex justify-between">
-                    <span>Total de Lotes:</span>
-                    <span>{selectedPassador.logs.length} lotes</span>
-                  </div>
                   <div className="flex justify-between font-bold text-sm text-slate-900 pt-1 border-t border-slate-300">
                     <span>Qtd Total Peças:</span>
                     <span className="text-base font-black">{selectedPassador.totalPiecesInPeriod.toLocaleString('pt-BR')} Pcs</span>
                   </div>
                   {showValues && (
                     <div className="flex justify-between font-bold text-sm text-emerald-800 pt-1 border-t border-dotted border-slate-200">
-                      <span>Total a Pagar ({Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(passadorRateInput)}/pç):</span>
+                      <span>Total a Receber:</span>
                       <span className="text-base font-black">
                         {Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedPassador.totalPiecesInPeriod * passadorRateInput)}
                       </span>
@@ -1155,7 +1144,7 @@ export const PassadorReportView: React.FC = () => {
               /* RELATÓRIO GERAL DE TODOS OS PASSADORES */
               <div className="space-y-2">
                 <div className="grid grid-cols-12 font-bold text-xs uppercase pb-1 border-b border-slate-300">
-                  <span className="col-span-6">COLABORADOR / PASSADOR</span>
+                  <span className="col-span-6">COLABORADOR</span>
                   <span className="col-span-3 text-center">LOTES</span>
                   <span className="col-span-3 text-right">QUANTIDADE</span>
                 </div>
@@ -1206,22 +1195,13 @@ export const PassadorReportView: React.FC = () => {
                   ------------------------------------------------------------------------------------------------------------------------
                 </div>
 
-                <div className="flex flex-col sm:flex-row justify-between items-baseline gap-2 font-bold text-sm pt-1">
-                  <span>TOTAL GERAL PASSADORIA:</span>
-                  <div className="flex items-center gap-6 font-mono text-sm">
-                    <span>Total de Lotes: {passadorReports.reduce((s, p) => s + p.logs.length, 0)} lotes</span>
-                    <span className="text-base text-slate-900 font-bold">Qtd Total Peças: {totalPassadorPieces.toLocaleString('pt-BR')} Pcs</span>
-                    {showValues && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-slate-500 font-normal">
-                          ({Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(passadorRateInput)}/pç)
-                        </span>
-                        <span className="text-base text-emerald-800 font-black">
-                          {Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalPassadorValue)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
+                <div className="flex justify-between items-baseline gap-2 font-bold text-sm pt-1">
+                  <span className="text-base text-slate-900 font-bold">Qtd Total Peças: {totalPassadorPieces.toLocaleString('pt-BR')} Pcs</span>
+                  {showValues && (
+                    <span className="text-base text-emerald-800 font-black">
+                      {Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalPassadorValue)}
+                    </span>
+                  )}
                 </div>
               </div>
             )}
@@ -1271,27 +1251,11 @@ export const PassadorReportView: React.FC = () => {
           </div>
         )}
 
-        {/* Assinaturas no rodapé formatadas para o documento */}
-        <div className="pt-12 flex justify-between text-center text-[10px] uppercase font-mono">
+        {/* Assinatura no rodapé formatada para o documento */}
+        <div className="pt-12 flex justify-center text-center text-[10px] uppercase font-mono">
           <div>
-            <div className="w-48 border-b border-slate-800 mb-1"></div>
-            <span>
-              {reportType === 'passadores' && selectedPassador 
-                ? `ASSINATURA: ${selectedPassador.name.toUpperCase()}`
-                : reportType === 'fornecedores' && selectedSupplier
-                ? `REPRESENTANTE: ${selectedSupplier.name.toUpperCase()}`
-                : 'ENTREGUE POR'}
-            </span>
-          </div>
-          <div>
-            <div className="w-48 border-b border-slate-800 mb-1"></div>
-            <span>
-              {reportType === 'passadores' && selectedPassador
-                ? 'CONFERIDO POR (SUPERVISÃO)'
-                : reportType === 'fornecedores' && selectedSupplier
-                ? 'RECEBIDO POR (ALMOXARIFADO)'
-                : 'RECEBIDO POR'}
-            </span>
+            <div className="w-56 border-b border-slate-800 mb-1"></div>
+            <span>ASSINATURA</span>
           </div>
         </div>
       </div>

@@ -285,99 +285,106 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
   const getStatusBadge = (status: OrderStatus) => {
     switch (status) {
       case 'recebido':
-        return <span className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-md text-xs font-semibold border border-slate-200 dark:border-slate-700">1. Pedido Feito</span>;
+        return <span className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold border border-slate-200 dark:border-slate-700">1. Pedido Feito</span>;
       case 'em_andamento':
-        return <span className="px-3 py-1 bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300 rounded-md text-xs font-semibold border border-sky-200 dark:border-sky-800">2. Em Andamento</span>;
+        return <span className="px-2.5 py-1 bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300 rounded-lg text-xs font-semibold border border-sky-200 dark:border-sky-800">2. Em Andamento</span>;
       case 'pronto':
-        return <span className="px-3 py-1 bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 rounded-md text-xs font-semibold border border-emerald-200 dark:border-emerald-800">3. Pronto p/ Retirada</span>;
+        return <span className="px-2.5 py-1 bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 rounded-lg text-xs font-semibold border border-emerald-200 dark:border-emerald-800">3. Pronto</span>;
       case 'entregue':
-        return <span className="px-3 py-1 bg-slate-800 dark:bg-slate-700 text-slate-100 rounded-md text-xs font-semibold">4. Entregue</span>;
+        return <span className="px-2.5 py-1 bg-slate-800 dark:bg-slate-700 text-slate-100 rounded-lg text-xs font-semibold">4. Entregue</span>;
     }
   };
 
+  const passadorProgressPct = order.estimatedPieceCount > 0 
+    ? Math.min(100, Math.round(((order.totalIronedPieces || 0) / order.estimatedPieceCount) * 100))
+    : 0;
+
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
       {/* Top Action Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
         <div className="flex items-center gap-4">
           <button
             onClick={onBack}
-            className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl transition-colors border border-transparent dark:border-slate-700"
-            title="Voltar"
+            className="p-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl transition-colors border border-transparent dark:border-slate-700 shrink-0"
+            title="Voltar à lista de pedidos"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="font-mono font-bold text-xl text-slate-900 dark:text-slate-100">{order.osNumber}</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-mono font-bold text-2xl text-slate-900 dark:text-slate-100 tracking-tight">
+                {order.osNumber}
+              </span>
               {order.isRelavado && (
-                <span className="px-2.5 py-0.5 bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 rounded-md text-xs font-bold uppercase border border-purple-200 dark:border-purple-800 flex items-center gap-1">
+                <span className="px-2.5 py-1 bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 rounded-lg text-xs font-bold uppercase border border-purple-200 dark:border-purple-800 flex items-center gap-1">
                   <RotateCcw className="w-3.5 h-3.5" />
-                  Relavado (Isento R$ 0,00)
+                  Relavado
                 </span>
               )}
               {order.isADefinir && (
-                <span className="px-2.5 py-0.5 bg-orange-100 dark:bg-orange-950 text-orange-700 dark:text-orange-300 rounded-md text-xs font-bold uppercase border border-orange-200 dark:border-orange-800 flex items-center gap-1">
+                <span className="px-2.5 py-1 bg-orange-100 dark:bg-orange-950 text-orange-700 dark:text-orange-300 rounded-lg text-xs font-bold uppercase border border-orange-200 dark:border-orange-800 flex items-center gap-1">
                   <HelpCircle className="w-3.5 h-3.5" />
-                  À Definir (Pendente)
+                  À Definir
                 </span>
               )}
               {getStatusBadge(order.status)}
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Criado em {new Date(order.createdAt).toLocaleString('pt-BR')}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-sans">
+              Cliente: <strong className="text-slate-800 dark:text-slate-200">{order.clientName}</strong> • Entrada em {new Date(order.createdAt).toLocaleDateString('pt-BR')} às {new Date(order.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+            </p>
           </div>
         </div>
 
+        {/* Action Buttons */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Botão Definir Lavado & Serviços (quando À Definir) */}
           {order.isADefinir && onNavigateDefine && (
             <button
               type="button"
               onClick={() => onNavigateDefine(order.id)}
-              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm ring-2 ring-amber-400/40"
-              title="Abrir o formulário original completo para definir as Etapas 2 e 4"
+              className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm ring-2 ring-amber-400/40"
+              title="Definir lavado e serviços desta ordem"
             >
               <Sparkles className="w-4 h-4" />
-              Definir Pedido (Formulário Completo)
+              <span>Definir Pedido</span>
             </button>
           )}
 
-          {/* Botão Gerar Relavado */}
           <button
             type="button"
             onClick={handleOpenRelavado}
-            className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-sm"
+            className="px-3.5 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-sm"
             title="Gerar nova entrada em Relavado (sem cobrança) para este lote"
           >
             <RotateCcw className="w-4 h-4" />
-            Gerar Relavado
+            <span>Gerar Relavado</span>
           </button>
 
           <button
             onClick={() => onNavigatePrint(order.id)}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5"
+            className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-sm"
           >
             <Printer className="w-4 h-4" />
-            Imprimir Nota / Receita
+            <span>Imprimir Nota</span>
           </button>
 
           <button
             onClick={() => onNavigatePrint(order.id, 'saida')}
-            className="px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-sm"
+            className="px-3.5 py-2 bg-slate-700 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-sm"
             title="Imprimir Comprovante de Saída / Faturamento"
           >
             <Receipt className="w-4 h-4" />
-            Comprovante de Saída
+            <span>Comprovante de Saída</span>
           </button>
 
           {order.status !== 'pronto' && order.status !== 'entregue' && (
             <button
               onClick={() => updateOrderStatus(order.id, 'pronto', user?.name || 'Operador')}
-              className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-sm"
+              className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-sm"
               title="Marcar como Pronto e disparar WhatsApp"
             >
               <MessageSquare className="w-4 h-4" />
-              Marcar como Pronto (Aviso WhatsApp)
+              <span>Avisar Pronto (WhatsApp)</span>
             </button>
           )}
         </div>
@@ -415,15 +422,15 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
         </div>
       )}
 
-      {/* Workflow Stepper & Direct Status Advancement Bar */}
+      {/* Workflow Stepper & Status Bar */}
       <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 transition-colors font-sans">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
           <div>
             <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider font-mono">
-              FLUXO DE PRODUÇÃO DO LOTE
+              FLUXO DE PRODUÇÃO
             </h3>
             <p className="text-[11px] text-slate-500">
-              Acompanhe as 4 etapas industriais ou altere o status do pedido manualmente.
+              Acompanhe as etapas ou altere o status manualmente.
             </p>
           </div>
 
@@ -434,10 +441,10 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
               onChange={e => updateOrderStatus(order.id, e.target.value as OrderStatus, user?.name || 'Operador', `Status alterado manualmente para ${e.target.value}`)}
               className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
             >
-              <option value="recebido">1. Pedido Feito (Entrada)</option>
-              <option value="em_andamento">2. Em Andamento (Lavagem/Secagem)</option>
-              <option value="pronto">3. Pronto (Aguardando Retirada)</option>
-              <option value="entregue">4. Entregue (Finalizado)</option>
+              <option value="recebido">1. Pedido Feito</option>
+              <option value="em_andamento">2. Em Andamento</option>
+              <option value="pronto">3. Pronto</option>
+              <option value="entregue">4. Entregue</option>
             </select>
           </div>
         </div>
@@ -450,7 +457,7 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
               : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-500'
           }`}>
             <span className="block text-[10px] uppercase font-mono font-bold text-slate-400">Etapa 1</span>
-            <span className="text-xs">1. Pedido Feito</span>
+            <span className="text-xs font-medium">1. Pedido Feito</span>
           </div>
 
           <div className={`p-3 rounded-xl border text-center transition-colors ${
@@ -459,7 +466,7 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
               : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-500'
           }`}>
             <span className="block text-[10px] uppercase font-mono font-bold text-slate-400">Etapa 2</span>
-            <span className="text-xs">2. Em Andamento</span>
+            <span className="text-xs font-medium">2. Em Andamento</span>
           </div>
 
           <div className={`p-3 rounded-xl border text-center transition-colors ${
@@ -468,7 +475,7 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
               : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-500'
           }`}>
             <span className="block text-[10px] uppercase font-mono font-bold text-slate-400">Etapa 3</span>
-            <span className="text-xs">3. Pronto p/ Retirada</span>
+            <span className="text-xs font-medium">3. Pronto</span>
           </div>
 
           <div className={`p-3 rounded-xl border text-center transition-colors ${
@@ -477,7 +484,7 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
               : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-500'
           }`}>
             <span className="block text-[10px] uppercase font-mono font-bold text-slate-400">Etapa 4</span>
-            <span className="text-xs">4. Entregue</span>
+            <span className="text-xs font-medium">4. Entregue</span>
           </div>
         </div>
 
@@ -497,7 +504,7 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
                 className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm"
               >
                 <Play className="w-3.5 h-3.5 fill-current" />
-                Iniciar Produção (Mover para Em Andamento)
+                Iniciar Produção
               </button>
             )}
 
@@ -507,7 +514,7 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm"
               >
                 <MessageSquare className="w-3.5 h-3.5" />
-                Concluir Lavado (Marcar como Pronto)
+                Concluir Lavado
               </button>
             )}
 
@@ -517,7 +524,7 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm"
               >
                 <PackageCheck className="w-3.5 h-3.5" />
-                Registrar Entrega / Fechar Saída
+                Registrar Entrega
               </button>
             )}
 
@@ -525,7 +532,7 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
               <div className="flex items-center gap-2">
                 <span className="text-emerald-700 dark:text-emerald-400 text-xs font-bold flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4" />
-                  Pedido Entregue e Concluído
+                  Pedido Entregue
                 </span>
                 <button
                   type="button"
@@ -539,179 +546,260 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
           </div>
         </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Left Column: Client, Weights & Services */}
-        <div className="space-y-6">
-          {/* Client Card */}
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3 transition-colors">
-            <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider font-mono">DADOS DO CLIENTE</h3>
-            <div>
-              <h4 className="font-bold text-slate-900 dark:text-slate-100 text-base">{order.clientName}</h4>
-              <p className="text-xs font-mono text-slate-600 dark:text-slate-400 mt-1">Tel: {order.clientPhone}</p>
-              {order.clientAddress && (
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{order.clientAddress}</p>
-              )}
-            </div>
-          </div>
 
-          {/* Weights & Calculation Card */}
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3 transition-colors">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider font-mono">ESTATÍSTICAS DA PESAGEM</h3>
+      {/* KPI Cards: Resumo Executivo Rápido */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Card 1: Cliente */}
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+          <div>
+            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider font-mono block mb-1">
+              Cliente
+            </span>
+            <h4 className="font-bold text-slate-900 dark:text-slate-100 text-base leading-snug">
+              {order.clientName}
+            </h4>
+            <p className="text-xs font-mono text-slate-600 dark:text-slate-400 mt-1">
+              Tel: {order.clientPhone || 'Não informado'}
+            </p>
+          </div>
+          {order.clientAddress && (
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 line-clamp-1" title={order.clientAddress}>
+              {order.clientAddress}
+            </p>
+          )}
+        </div>
+
+        {/* Card 2: Pesagem & Peças */}
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider font-mono">
+                Carga & Peças
+              </span>
               <button
                 type="button"
                 onClick={handleOpenEditWeight}
-                className="text-xs font-bold text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 flex items-center gap-1 transition-colors px-2 py-1 rounded-lg hover:bg-sky-50 dark:hover:bg-sky-950/30 border border-transparent hover:border-sky-200 dark:hover:border-sky-800"
+                className="text-[11px] font-bold text-sky-600 hover:text-sky-700 dark:text-sky-400 flex items-center gap-1 transition-colors"
                 title="Corrigir peso lançado"
               >
-                <Scale className="w-3.5 h-3.5" />
+                <Scale className="w-3 h-3" />
                 Editar Peso
               </button>
             </div>
-            <div className="space-y-2 text-xs font-mono">
-              <div className="flex justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-                <span className="text-slate-500 dark:text-slate-400">Peso 1 Peça (Ref):</span>
-                <strong className="text-slate-900 dark:text-slate-100">{order.refPieceWeightGrams} g</strong>
-              </div>
-              <div className="flex justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-                <span className="text-slate-500 dark:text-slate-400">Peso Total Lote:</span>
-                <strong className="text-slate-900 dark:text-slate-100">{order.totalWeightKg} kg</strong>
-              </div>
-              <div className="flex justify-between pt-1">
-                <span className="text-slate-500 dark:text-slate-400">Peças Estimadas:</span>
-                <strong className="text-sky-700 dark:text-sky-400 text-sm font-bold">{order.estimatedPieceCount} pçs</strong>
-              </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-bold font-mono text-slate-900 dark:text-slate-100">
+                {order.totalWeightKg} <span className="text-xs font-sans text-slate-500 font-normal">kg</span>
+              </span>
+              <span className="text-base font-bold text-sky-700 dark:text-sky-400 font-mono">
+                • {order.estimatedPieceCount} <span className="text-xs font-sans font-normal">pçs</span>
+              </span>
             </div>
           </div>
+          <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+            Ref. por Peça: <strong>{order.refPieceWeightGrams} g</strong>
+          </div>
+        </div>
 
-          {/* Card: Serviços & Faturamento (Exibição Discriminada Conforme Solicitado) */}
+        {/* Card 3: Faturamento */}
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider font-mono">
+                Faturamento
+              </span>
+              <button
+                type="button"
+                onClick={handleOpenEditServices}
+                className="text-[11px] font-bold text-sky-600 hover:text-sky-700 dark:text-sky-400 flex items-center gap-1 transition-colors"
+                title="Editar serviços e valores"
+              >
+                <Edit3 className="w-3 h-3" />
+                Editar
+              </button>
+            </div>
+            <div className="text-2xl font-bold font-mono text-slate-900 dark:text-slate-100">
+              {order.isRelavado
+                ? 'R$ 0,00'
+                : order.isADefinir
+                  ? 'R$ 0,00'
+                  : (order.totalServiceValue || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            </div>
+          </div>
+          <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+              order.isRelavado
+                ? 'bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300'
+                : order.paymentStatus === 'pago'
+                  ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300'
+                  : 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300'
+            }`}>
+              {order.isRelavado ? 'Isento' : order.paymentStatus === 'pago' ? 'Pago' : 'Em Aberto'}
+            </span>
+            <span className="text-[11px] font-mono text-slate-500">
+              {order.items.reduce((acc, it) => acc + (it.unitPrice || 0), 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/pç
+            </span>
+          </div>
+        </div>
+
+        {/* Card 4: Passadoria */}
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+          <div>
+            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider font-mono block mb-1">
+              Passadoria
+            </span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-bold font-mono text-emerald-700 dark:text-emerald-400">
+                {order.totalIronedPieces || 0}
+              </span>
+              <span className="text-xs font-mono text-slate-500">
+                / {order.estimatedPieceCount} pçs ({passadorProgressPct}%)
+              </span>
+            </div>
+          </div>
+          <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+              <div 
+                className="bg-emerald-600 h-full rounded-full transition-all duration-300"
+                style={{ width: `${passadorProgressPct}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main 2-Column Balanced Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left Column (7 cols): Serviços & Receita Química */}
+        <div className="lg:col-span-7 space-y-6">
+          {/* Card: Serviços Lançados na Nota */}
           <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 transition-colors font-sans">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider font-mono flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-sky-500" />
-                SERVIÇOS & FATURAMENTO
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider font-mono flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                Serviços Lançados na Ordem de Serviço
               </h3>
               <button
                 type="button"
                 onClick={handleOpenEditServices}
-                className="text-xs font-bold text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 flex items-center gap-1 transition-colors px-2 py-1 rounded-lg hover:bg-sky-50 dark:hover:bg-sky-950/30 border border-transparent hover:border-sky-200 dark:hover:border-sky-800"
-                title="Editar serviços e valores da nota"
+                className="text-xs font-bold text-sky-600 hover:text-sky-700 dark:text-sky-400 flex items-center gap-1 transition-colors px-2.5 py-1 rounded-lg hover:bg-sky-50 dark:hover:bg-sky-950/30 border border-slate-200 dark:border-slate-700"
+                title="Editar serviços e valores"
               >
                 <Edit3 className="w-3.5 h-3.5" />
                 Editar Serviços
               </button>
             </div>
 
-            {/* Quadro de Valores Individuais por Tipo de Serviço */}
-            <div className="space-y-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800 font-mono text-xs">
-              <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider pb-1 border-b border-slate-200 dark:border-slate-700">
-                Valores por Tipo de Serviço:
-              </div>
-
-              {order.isADefinir && (
-                <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/80 rounded-xl space-y-2 my-1">
-                  <div className="flex items-start gap-2 text-amber-900 dark:text-amber-200">
-                    <HelpCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
-                    <span className="text-[11px] leading-tight">
-                      Esta ficha está <strong>À Definir</strong>. O lavado e os serviços ainda não foram estabelecidos.
+            {order.isADefinir && (
+              <div className="p-4 bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800/80 rounded-xl space-y-2">
+                <div className="flex items-start gap-2.5 text-orange-900 dark:text-orange-200">
+                  <HelpCircle className="w-5 h-5 shrink-0 text-orange-600 dark:text-orange-400 mt-0.5" />
+                  <div>
+                    <strong className="block text-xs font-bold">Ordem com Lavado À Definir</strong>
+                    <span className="text-xs leading-relaxed block text-orange-800 dark:text-orange-300">
+                      O lavado e os procedimentos ainda não foram definidos pelo cliente.
                     </span>
                   </div>
-                  {onNavigateDefine && (
-                    <button
-                      type="button"
-                      onClick={() => onNavigateDefine(order.id)}
-                      className="w-full px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-xs"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      Definir no Formulário Completo (Etapas 2 e 4)
-                    </button>
-                  )}
                 </div>
-              )}
-
-              {(!order.isADefinir || order.items.length > 0) && (
-                order.items.map((item, idx) => (
-                  <div key={idx} className="flex justify-between items-center py-0.5">
-                    <span className="text-slate-700 dark:text-slate-300 font-semibold uppercase">
-                      {item.process || 'Serviço'}:
-                    </span>
-                    <strong className="text-slate-900 dark:text-slate-100">
-                      {(order.isRelavado || order.isADefinir)
-                        ? 'R$ 0,00'
-                        : (item.unitPrice || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                    </strong>
-                  </div>
-                ))
-              )}
-
-              <div className="border-t-2 border-slate-300 dark:border-slate-700 pt-1.5 flex justify-between items-center text-xs font-bold">
-                <span className="text-slate-900 dark:text-slate-100 uppercase">Total da Nota:</span>
-                <strong className="text-sky-700 dark:text-sky-400 text-sm">
-                  {order.isRelavado
-                    ? 'R$ 0,00'
-                    : order.isADefinir
-                      ? 'R$ 0,00 (À Definir)'
-                      : (order.items.reduce((acc, it) => acc + (it.unitPrice || 0), 0)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                </strong>
+                {onNavigateDefine && (
+                  <button
+                    type="button"
+                    onClick={() => onNavigateDefine(order.id)}
+                    className="mt-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-xs"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Definir Lavado e Serviços Agora
+                  </button>
+                )}
               </div>
-            </div>
+            )}
 
-            {/* Resumo Financeiro */}
-            <div className="space-y-2 text-xs font-mono">
-              <div className="flex justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-                <span className="text-slate-500 dark:text-slate-400">Total Faturado (Lote):</span>
-                <strong className="text-slate-900 dark:text-slate-100 text-sm">
-                  {order.isRelavado
-                    ? 'R$ 0,00 (Isento)'
-                    : order.isADefinir
-                      ? 'R$ 0,00 (À Definir)'
-                      : (order.totalServiceValue || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                </strong>
-              </div>
-              <div className="flex justify-between items-center pt-0.5">
-                <span className="text-slate-500 dark:text-slate-400">Situação:</span>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase font-sans ${
-                  order.paymentStatus === 'pago'
-                    ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
-                    : 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
-                }`}>
-                  {order.paymentStatus === 'pago' ? 'Pago / Quitado' : 'Aberto'}
-                </span>
-              </div>
-            </div>
+            {/* Tabela Ampla de Serviços */}
+            {(!order.isADefinir || order.items.length > 0) && (
+              <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 font-semibold border-b border-slate-200 dark:border-slate-800 uppercase font-mono tracking-wider">
+                    <tr>
+                      <th className="p-3">Serviço / Lavado</th>
+                      <th className="p-3 text-center">Tipo</th>
+                      <th className="p-3 text-right">Valor Unitário</th>
+                      <th className="p-3 text-right">Total Estimado</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-sans">
+                    {order.items.map((item, idx) => {
+                      const itemTotal = order.isRelavado || order.isADefinir
+                        ? 0
+                        : (item.unitPrice || 0) * (order.estimatedPieceCount || 0);
 
-            <div className="pt-1 flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={() => onNavigatePrint(order.id, 'saida')}
-                className="w-full px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 border border-slate-200 dark:border-slate-700"
-              >
-                <Receipt className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
-                Imprimir Comprovante de Saída
-              </button>
-            </div>
+                      return (
+                        <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                          <td className="p-3 font-semibold text-slate-900 dark:text-slate-100">
+                            {item.process || 'Serviço'}
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                              {item.serviceType === 'diferenciado' ? 'Diferenciado' : 'Padrão'}
+                            </span>
+                          </td>
+                          <td className="p-3 text-right font-mono font-bold text-slate-800 dark:text-slate-200">
+                            {(order.isRelavado || order.isADefinir)
+                              ? 'R$ 0,00'
+                              : (item.unitPrice || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </td>
+                          <td className="p-3 text-right font-mono text-slate-600 dark:text-slate-400">
+                            {itemTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot className="bg-slate-50 dark:bg-slate-800/60 font-mono text-xs border-t-2 border-slate-200 dark:border-slate-700">
+                    <tr>
+                      <td colSpan={2} className="p-3 font-bold text-slate-700 dark:text-slate-300 uppercase">
+                        Total da Nota (Preço por Peça):
+                      </td>
+                      <td colSpan={2} className="p-3 text-right font-black text-sky-700 dark:text-sky-400 text-sm">
+                        {order.isRelavado
+                          ? 'R$ 0,00'
+                          : order.isADefinir
+                            ? 'R$ 0,00'
+                            : (order.items.reduce((acc, it) => acc + (it.unitPrice || 0), 0)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td colSpan={2} className="p-3 font-bold text-slate-900 dark:text-slate-100 uppercase">
+                        Total Faturado do Lote ({order.estimatedPieceCount} pçs):
+                      </td>
+                      <td colSpan={2} className="p-3 text-right font-black text-emerald-700 dark:text-emerald-400 text-base">
+                        {order.isRelavado
+                          ? 'R$ 0,00 (Isento)'
+                          : order.isADefinir
+                            ? 'R$ 0,00 (À Definir)'
+                            : (order.totalServiceValue || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
           </div>
 
-          {/* QR Code Card */}
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm text-center space-y-3 transition-colors">
-            <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider font-mono">CÓDIGO QR DO PEDIDO</h3>
-            <div className="p-3 bg-slate-50 dark:bg-white border border-slate-200 rounded-xl inline-block">
-              <QRCodeSVG value={order.osNumber} size={140} />
+          {/* Card: Receita Química */}
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 transition-colors font-sans">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider font-mono flex items-center gap-2">
+                <FlaskConical className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                Receita Química do Lote
+              </h3>
+              <span className="text-xs font-mono text-slate-500">
+                Base: {order.totalWeightKg} kg
+              </span>
             </div>
-            <span className="font-mono text-xs font-bold text-slate-900 dark:text-slate-100 block">{order.osNumber}</span>
-          </div>
-        </div>
 
-        {/* Middle & Right Column: Recipe, Passador Logs & History */}
-        <div className="md:col-span-2 space-y-6">
-          {/* Chemical Recipe */}
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 transition-colors">
-            <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider flex items-center gap-2">
-              <FlaskConical className="w-4 h-4 text-sky-600 dark:text-sky-400" />
-              Sequência de Processos & Dosagem Química Calculada (Receita)
-            </h3>
             {order.chemicalRecipe.length === 0 ? (
-              <p className="text-xs text-slate-400 py-2">Nenhuma receita química associada.</p>
+              <p className="text-xs text-slate-400 py-4 text-center">
+                Nenhuma receita química associada a este pedido.
+              </p>
             ) : (
               <div className="space-y-3">
                 {(() => {
@@ -729,11 +817,11 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
 
                   return fases.map(fase => (
                     <div key={`${fase.order}-${fase.name}`} className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-                      <div className="bg-slate-100 dark:bg-slate-800/80 px-3 py-1.5 flex items-center justify-between border-b border-slate-200 dark:border-slate-800">
-                        <span className="font-bold text-[11px] uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                      <div className="bg-slate-100 dark:bg-slate-800/80 px-3.5 py-2 flex items-center justify-between border-b border-slate-200 dark:border-slate-800">
+                        <span className="font-bold text-xs uppercase tracking-wider text-slate-800 dark:text-slate-200">
                           Fase {String(fase.order).padStart(2, '0')} — {fase.name}
                         </span>
-                        <span className="text-[10px] font-mono text-slate-400">
+                        <span className="text-[11px] font-mono text-slate-500">
                           {fase.items.length} produto(s)
                         </span>
                       </div>
@@ -741,19 +829,21 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
                         <table className="w-full text-left text-xs">
                           <thead className="bg-slate-50 dark:bg-slate-800/40 text-slate-500 font-semibold border-b border-slate-100 dark:border-slate-800">
                             <tr>
-                              <th className="p-2.5">Insumo Químico</th>
-                              <th className="p-2.5 text-center">Dosagem</th>
-                              <th className="p-2.5 text-right">Qtd. Máquina</th>
+                              <th className="p-3">Insumo Químico</th>
+                              <th className="p-3 text-center">Dosagem</th>
+                              <th className="p-3 text-right">Qtd. Máquina</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-mono">
                             {fase.items.map((chem, idx) => (
                               <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                                <td className="p-2.5 font-semibold text-slate-800 dark:text-slate-200">{chem.productName}</td>
-                                <td className="p-2.5 text-center font-mono text-sky-700 dark:text-sky-400">
+                                <td className="p-3 font-semibold text-slate-800 dark:text-slate-200 font-sans">
+                                  {chem.productName}
+                                </td>
+                                <td className="p-3 text-center text-sky-700 dark:text-sky-400">
                                   {chem.dosagePct !== undefined ? `${chem.dosagePct}%` : `${chem.dosagePerKg} g/kg`}
                                 </td>
-                                <td className="p-2.5 text-right font-mono font-bold text-sky-700 dark:text-sky-400">
+                                <td className="p-3 text-right font-bold text-sky-700 dark:text-sky-400">
                                   {(chem.totalGrams / 1000).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg
                                 </td>
                               </tr>
@@ -767,27 +857,30 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
               </div>
             )}
           </div>
+        </div>
 
-          {/* Passador Logs */}
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 transition-colors">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider flex items-center gap-2">
+        {/* Right Column (5 cols): Passadoria, Histórico & QR Code */}
+        <div className="lg:col-span-5 space-y-6">
+          {/* Card: Histórico de Passadoria */}
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 transition-colors font-sans">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider font-mono flex items-center gap-2">
                 <Shirt className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                Histórico de Passadoria dos Colaboradores
+                Passadoria & Acabamento
               </h3>
               <span className="text-xs font-mono font-bold text-slate-800 dark:text-slate-200">
-                Total Passado: {order.totalIronedPieces} / {order.estimatedPieceCount} pçs
+                {order.totalIronedPieces || 0} / {order.estimatedPieceCount} pçs
               </span>
             </div>
 
             {order.ironingLogs.length === 0 ? (
               <div className="p-6 text-center text-slate-400 text-xs border border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
-                Nenhum lançamento de passadoria registrado ainda para este pedido (Lançamento opcional).
+                Nenhum lançamento de passadoria registrado ainda para este pedido.
               </div>
             ) : (
               <div className="space-y-2">
                 {order.ironingLogs.map(log => (
-                  <div key={log.id} className="p-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 rounded-xl flex items-center justify-between text-xs font-mono">
+                  <div key={log.id} className="p-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 rounded-xl flex items-center justify-between text-xs">
                     <div>
                       <div className="flex items-center gap-1.5">
                         <strong className="text-slate-900 dark:text-slate-100 block">{log.passadorName}</strong>
@@ -797,11 +890,11 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
                           </span>
                         )}
                       </div>
-                      <span className="text-slate-400 text-[10px]">{new Date(log.timestamp).toLocaleString('pt-BR')}</span>
+                      <span className="text-slate-400 text-[10px] font-mono">{new Date(log.timestamp).toLocaleString('pt-BR')}</span>
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <span className="font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-3 py-1 rounded-lg text-sm">
+                      <span className="font-bold font-mono text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-3 py-1 rounded-lg text-sm">
                         +{log.piecesIroned} pçs
                       </span>
                       <button
@@ -822,25 +915,38 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
             )}
           </div>
 
-          {/* Timeline History */}
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 transition-colors">
-            <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider flex items-center gap-2">
+          {/* Card: Histórico de Movimentações */}
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 transition-colors font-sans">
+            <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider font-mono flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
               <Clock className="w-4 h-4 text-slate-400" />
-              Histórico de Status da Ordem de Serviço
+              Histórico do Pedido
             </h3>
             <div className="space-y-3">
               {order.history.map((ev, idx) => (
-                <div key={idx} className="flex items-start gap-3 text-xs border-l-2 border-slate-200 dark:border-slate-700 pl-4 py-1">
+                <div key={idx} className="flex items-start gap-3 text-xs border-l-2 border-slate-200 dark:border-slate-700 pl-3.5 py-1">
                   <div>
                     <span className="font-semibold text-slate-900 dark:text-slate-100 capitalize block">{ev.status}</span>
                     <span className="text-[10px] font-mono text-slate-400">
-                      {new Date(ev.timestamp).toLocaleString('pt-BR')} • Op: {ev.operator}
+                      {new Date(ev.timestamp).toLocaleString('pt-BR')} • {ev.operator}
                     </span>
-                    {ev.note && <p className="text-slate-600 dark:text-slate-400 mt-1">{ev.note}</p>}
+                    {ev.note && <p className="text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">{ev.note}</p>}
                   </div>
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Card: QR Code do Pedido */}
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors text-center space-y-3 font-sans">
+            <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider font-mono">
+              CÓDIGO QR DA O.S.
+            </h3>
+            <div className="p-3 bg-slate-50 dark:bg-white border border-slate-200 rounded-xl inline-block shadow-xs">
+              <QRCodeSVG value={order.osNumber} size={130} />
+            </div>
+            <span className="font-mono text-xs font-bold text-slate-900 dark:text-slate-100 block">
+              {order.osNumber}
+            </span>
           </div>
         </div>
       </div>

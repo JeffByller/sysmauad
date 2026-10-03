@@ -224,29 +224,9 @@ export const UserManagementView: React.FC = () => {
           className="px-4 py-2.5 bg-sky-700 hover:bg-sky-800 text-white text-xs font-semibold rounded-xl transition-colors shadow-sm flex items-center gap-2"
         >
           <UserPlus className="w-4 h-4" />
-          {isAddingUser ? 'Fechar Formulário' : 'Novo Usuário do Sistema'}
+          {isAddingUser ? 'Fechar' : 'Novo Usuário'}
         </button>
       </div>
-
-      {/* Super Admin Info Card (Apenas visível para o Super Admin) */}
-      {isSuperAdmin && (
-        <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 rounded-2xl p-5 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-amber-500 text-white rounded-xl shadow-sm">
-              <ShieldCheck className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Super Admin (Acesso Mestre)</h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500 text-white">PROTEGIDO</span>
-              </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Usuário mestre independente dos usuários do sistema. Possui acesso total e irrestrito a todos os módulos, menus e configurações.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Success Feedback */}
       {feedback && (
@@ -260,7 +240,7 @@ export const UserManagementView: React.FC = () => {
       {isAddingUser && (
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-5 animate-in fade-in duration-200 transition-colors">
           <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 pb-3">
-            Cadastrar Novo Usuário com Senha
+            Novo Usuário
           </h2>
 
           <form onSubmit={handleCreateUser} className="space-y-4">
@@ -281,11 +261,11 @@ export const UserManagementView: React.FC = () => {
 
               <div>
                 <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1">
-                  Login / Usuário (Username) *
+                  Login *
                 </label>
                 <input
                   type="text"
-                  placeholder="Ex: ana.financeiro ou carlos"
+                  placeholder="Ex: ana ou carlos"
                   value={username}
                   onChange={e => setUsername(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
@@ -293,7 +273,7 @@ export const UserManagementView: React.FC = () => {
                 />
                 {username.trim() && (
                   <p className="text-[10px] text-sky-600 dark:text-sky-400 mt-1 font-mono">
-                    Login de acesso: @{username.trim().toLowerCase().replace(/^@+/, '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '.')}
+                    @{username.trim().toLowerCase().replace(/^@+/, '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '.')}
                   </p>
                 )}
               </div>
@@ -313,7 +293,7 @@ export const UserManagementView: React.FC = () => {
 
               <div>
                 <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1">
-                  Senha de Acesso *
+                  Senha *
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -332,17 +312,17 @@ export const UserManagementView: React.FC = () => {
 
               <div>
                 <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1">
-                  Perfil de Função (Role)
+                  Perfil
                 </label>
                 <select
                   value={role}
                   onChange={e => handleRoleChange(e.target.value as any)}
                   className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
                 >
-                  <option value="operador">Operador de Balcão</option>
-                  <option value="financeiro">Gestor Financeiro</option>
+                  <option value="operador">Operador</option>
+                  <option value="financeiro">Financeiro</option>
                   <option value="passador">Passador</option>
-                  {isSuperAdmin && <option value="admin">Administrador Geral</option>}
+                  {isSuperAdmin && <option value="admin">Administrador</option>}
                 </select>
               </div>
             </div>
@@ -350,7 +330,7 @@ export const UserManagementView: React.FC = () => {
             {/* Menu Permission Checkboxes */}
             <div className="pt-2">
               <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-2">
-                Menus Permitidos para Exibição no Sistema:
+                Menus Permitidos:
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 bg-slate-50 dark:bg-slate-800/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
                 {ALL_MENU_KEYS.map(menu => (
@@ -403,7 +383,7 @@ export const UserManagementView: React.FC = () => {
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 uppercase font-mono tracking-wider">
                 <th className="p-4">Nome</th>
-                <th className="p-4">Usuário (Login)</th>
+                <th className="p-4">Usuário</th>
                 <th className="p-4">Perfil</th>
                 <th className="p-4">Menus Permitidos</th>
                 <th className="p-4 text-center">Status</th>
@@ -561,7 +541,7 @@ export const UserManagementView: React.FC = () => {
                   <Key className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-base text-white">Alterar Senha do Usuário</h3>
+                  <h3 className="font-bold text-base text-white">Alterar Senha</h3>
                   <p className="text-xs text-slate-400 font-mono">@{changingPasswordUser.username} ({changingPasswordUser.name})</p>
                 </div>
               </div>
@@ -570,7 +550,7 @@ export const UserManagementView: React.FC = () => {
             <form onSubmit={handleSaveNewPassword} className="p-6 space-y-4">
               <div>
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
-                  Nova Senha de Acesso:
+                  Nova Senha:
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -619,7 +599,7 @@ export const UserManagementView: React.FC = () => {
                   <ShieldCheck className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-base text-white">Configurar Visibilidade de Menus</h3>
+                  <h3 className="font-bold text-base text-white">Menus Permitidos</h3>
                   <p className="text-xs text-slate-400 font-mono">Usuário: {editingPermissionsUser.name} (@{editingPermissionsUser.username})</p>
                 </div>
               </div>
@@ -628,7 +608,7 @@ export const UserManagementView: React.FC = () => {
             <form onSubmit={handleSavePermissions} className="p-6 space-y-5">
               <div className="space-y-3">
                 <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
-                  Marque os menus que este usuário tem permissão para visualizar:
+                  Selecione os menus permitidos:
                 </span>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-80 overflow-y-auto p-1">
@@ -687,7 +667,7 @@ export const UserManagementView: React.FC = () => {
                   <Edit3 className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-base text-white">Editar Dados do Usuário</h3>
+                  <h3 className="font-bold text-base text-white">Editar Usuário</h3>
                   <p className="text-xs text-slate-400 font-mono">ID: {editingUser.id}</p>
                 </div>
               </div>
@@ -710,7 +690,7 @@ export const UserManagementView: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1">
-                    Login / Usuário *
+                    Login *
                   </label>
                   <input
                     type="text"
@@ -737,17 +717,17 @@ export const UserManagementView: React.FC = () => {
 
               <div>
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1">
-                  Perfil de Função (Role)
+                  Perfil
                 </label>
                 <select
                   value={editRole}
                   onChange={e => setEditRole(e.target.value as any)}
                   className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
                 >
-                  <option value="operador">Operador de Balcão</option>
-                  <option value="financeiro">Gestor Financeiro</option>
+                  <option value="operador">Operador</option>
+                  <option value="financeiro">Financeiro</option>
                   <option value="passador">Passador</option>
-                  {isSuperAdmin && <option value="admin">Administrador Geral</option>}
+                  {isSuperAdmin && <option value="admin">Administrador</option>}
                 </select>
                 {editRole === 'passador' && (
                   <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1">
@@ -758,7 +738,7 @@ export const UserManagementView: React.FC = () => {
 
               <div>
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1">
-                  Nova Senha de Acesso (Opcional)
+                  Nova Senha (Opcional)
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">

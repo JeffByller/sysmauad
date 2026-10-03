@@ -246,8 +246,8 @@ export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
                 <option value="em_andamento">2. Em Andamento</option>
                 <option value="pronto">3. Pronto</option>
                 <option value="entregue">4. Entregue</option>
-                <option value="relavados">🔄 Relavados</option>
-                <option value="a_definir">🔶 À Definir</option>
+                <option value="relavados">Relavados</option>
+                <option value="a_definir">À Definir</option>
               </select>
             </div>
           </div>
@@ -314,7 +314,7 @@ export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
                     : 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 hover:bg-amber-200'
                 }`}
               >
-                ⚠️ OS Paradas ({stalledOrders.length})
+                OS Paradas ({stalledOrders.length})
               </button>
             )}
 
@@ -323,10 +323,10 @@ export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
               className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${
                 statusFilter === 'relavados'
                   ? 'bg-purple-700 text-white shadow-xs'
-                  : 'bg-slate-100 dark:bg-slate-800 text-purple-700 dark:text-purple-400'
+                  : 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 hover:bg-purple-100'
               }`}
             >
-              🔄 Relavados
+              Relavados
             </button>
 
             <button
@@ -334,10 +334,10 @@ export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
               className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${
                 statusFilter === 'a_definir'
                   ? 'bg-orange-600 text-white shadow-xs'
-                  : 'bg-slate-100 dark:bg-slate-800 text-orange-700 dark:text-orange-400'
+                  : 'bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800 hover:bg-orange-100'
               }`}
             >
-              🔶 À Definir
+              À Definir
             </button>
           </div>
         </div>

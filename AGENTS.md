@@ -19,6 +19,11 @@ Este documento define os princípios, padrões de arquitetura, convenções de c
    - O acesso ao portal do cliente é roteado via HashRouter (`#/client-portal` e `#/client-login`).
    - Evitar conflitos de cache no navegador: se o cliente efetuar logout, o token e os dados locais devem ser totalmente limpos e redirecionar para `#/client-login`.
 
+4. **Linguagem Direta, Objetiva e Sem Jargões Técnicos (UX Limpa)**:
+   - Utilizar vocabulário natural em português, conciso e livre de termos técnicos ou em inglês que confundem o usuário final (ex: usar `Perfil` em vez de `Perfil de Função (Role)`, `Login` em vez de `Login / Usuário (Username)`, `Menus Permitidos` em vez de `Menus Permitidos para Exibição no Sistema:`).
+   - Menos texto, mais clareza: evitar redundâncias ou textos prolixos em rótulos, botões e cabeçalhos.
+   - Não poluir telas com banners ou avisos intrusivos redundantes (ex: cards anunciando que o usuário atual é Super Admin).
+
 ---
 
 ## 2. Padrões de Desenvolvimento Frontend

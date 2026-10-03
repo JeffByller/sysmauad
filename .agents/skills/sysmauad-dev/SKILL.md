@@ -52,5 +52,6 @@ docker logs -f --tail 50 sysmauad-evolution
 ## 4. Boas Práticas ao Adicionar Funcionalidades
 
 1. **UX Intuitiva**: Não adicione botões redundantes. Se já existe uma pesquisa rápida na tabela, reutilize-a em vez de criar múltiplos botões de filtro.
-2. **Hash Navigation**: Se criar uma nova tela pública ou compartilhável, adicione o mapeamento de hash em `frontend/src/App.tsx` e garanta que o logout limpe o hash para evitar problemas de cache.
-3. **Persistência de Dados**: Sempre que um status de OS for alterado, ou uma baixa for executada, registre a data/hora respeitando o fuso horário de Brasília (`America/Sao_Paulo`).
+2. **Linguagem Direta e Sem Jargões Técnicos**: Elimine estrangeirismos ou termos de desenvolvedor da UI (nunca use `Role`, `Username`, `Payload` etc.; use `Perfil`, `Login`, etc.). Mantenha os rótulos de campos e botões curtos e diretos ao ponto, evitando redundâncias ou cards invasivos desnecessários na tela.
+3. **Hash Navigation**: Se criar uma nova tela pública ou compartilhável, adicione o mapeamento de hash em `frontend/src/App.tsx` e garanta que o logout limpe o hash para evitar problemas de cache.
+4. **Persistência de Dados**: Sempre que um status de OS for alterado, ou uma baixa for executada, registre a data/hora respeitando o fuso horário de Brasília (`America/Sao_Paulo`).
