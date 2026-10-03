@@ -152,7 +152,7 @@ export const PassadorMobileView: React.FC<PassadorMobileViewProps> = ({ onOpenSc
       {isSinglePlay && user ? (
         <div className="bg-slate-900 rounded-2xl p-4 text-white shadow-xl flex items-center justify-between border border-slate-800">
           <div>
-            <span className="text-[11px] text-slate-400 font-medium block">Colaborador / Passador</span>
+            <span className="text-[11px] text-slate-400 font-medium block">Colaborador</span>
             <h1 className="text-lg font-bold text-white tracking-tight">{user.name}</h1>
           </div>
           <span className="text-[11px] font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-800 px-2.5 py-1 rounded-lg">
@@ -173,7 +173,7 @@ export const PassadorMobileView: React.FC<PassadorMobileViewProps> = ({ onOpenSc
           >
             {passadores.filter(p => p.active !== false).map(p => (
               <option key={p.id} value={p.id}>
-                {p.name} ({p.totalPiecesIroned} pçs total)
+                {p.name}
               </option>
             ))}
           </select>

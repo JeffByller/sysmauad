@@ -343,7 +343,9 @@ export const AppContent: React.FC = () => {
         )}
 
         {currentTab === 'clients' && (
-          <ClientManagementView />
+          <ClientManagementView
+            onNavigate={(tab, param, printMode) => handleNavigate(tab, param, printMode)}
+          />
         )}
 
         {currentTab === 'garment-catalog' && (

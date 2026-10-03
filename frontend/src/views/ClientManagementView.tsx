@@ -16,7 +16,6 @@ import {
   Phone, 
   Building, 
   AlertCircle, 
-  ExternalLink, 
   Check, 
   MessageSquare,
   Package,
@@ -32,6 +31,8 @@ import {
   Filter,
   Clock,
   ArrowRight,
+  Printer,
+  Tag,
   ChevronDown,
   ChevronUp
 } from 'lucide-react';
@@ -41,7 +42,11 @@ import { Pagination } from '../components/common/Pagination';
 
 type ClientModalTab = 'dados' | 'pedidos' | 'financeiro' | 'mensagens' | 'historico';
 
-export const ClientManagementView: React.FC = () => {
+interface ClientManagementViewProps {
+  onNavigate?: (tab: string, param?: string, printMode?: 'ambos' | 'nota' | 'receita' | 'saida') => void;
+}
+
+export const ClientManagementView: React.FC<ClientManagementViewProps> = ({ onNavigate }) => {
   const { 
     clients, 
     orders,
@@ -91,6 +96,10 @@ export const ClientManagementView: React.FC = () => {
   const [clientMessages, setClientMessages] = useState<ClientMessageLog[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [expandedMsgId, setExpandedMsgId] = useState<string | null>(null);
+
+  // Filtros da aba financeira do cliente
+  const [financeSearchTerm, setFinanceSearchTerm] = useState('');
+  const [financeStatusFilter, setFinanceStatusFilter] = useState<'todos' | 'aberto' | 'pago'>('todos');
 
   // Estados de paginação (20 registros por página)
   const [currentPageClients, setCurrentPageClients] = useState(1);
@@ -346,13 +355,13 @@ export const ClientManagementView: React.FC = () => {
       } else {
         setInviteStatus({
           type: 'error',
-          msg: data.error || 'Falha ao disparar pelo WhatsApp. Você pode clicar em "Abrir no WhatsApp" para enviar manualmente.'
+          msg: data.error || 'Falha ao disparar pelo WhatsApp. Você pode copiar o link ou mensagem acima.'
         });
       }
     } catch (err: any) {
       setInviteStatus({
         type: 'error',
-        msg: 'Não foi possível conectar à API de WhatsApp. Utilize o botão "Abrir no WhatsApp" para enviar direto.'
+        msg: 'Não foi possível conectar à API de WhatsApp. Você pode copiar o link ou mensagem para enviar direto.'
       });
     } finally {
       setSendingInvite(false);
@@ -494,6 +503,8 @@ export const ClientManagementView: React.FC = () => {
     let totalGross = 0;
     let totalPaid = 0;
     let totalPending = 0;
+    let openCount = 0;
+    let paidCount = 0;
 
     clientOrders.forEach(o => {
       const val = o.totalServiceValue || 0;
@@ -502,26 +513,37 @@ export const ClientManagementView: React.FC = () => {
       totalGross += val;
       if (o.paymentStatus === 'pago') {
         totalPaid += (o.finalPaidAmount || net);
+        paidCount++;
       } else {
         totalPending += net;
+        openCount++;
       }
     });
 
-    return { totalOrdersCount, totalGross, totalPaid, totalPending };
+    return { totalOrdersCount, totalGross, totalPaid, totalPending, openCount, paidCount };
   }, [clientOrders]);
+
+  const filteredFinanceOrders = useMemo(() => {
+    return clientOrders.filter(o => {
+      if (financeStatusFilter === 'pago' && o.paymentStatus !== 'pago') return false;
+      if (financeStatusFilter === 'aberto' && o.paymentStatus === 'pago') return false;
+      if (financeSearchTerm.trim()) {
+        const term = financeSearchTerm.toLowerCase();
+        const matchOs = o.osNumber.toLowerCase().includes(term);
+        const matchCorte = o.corteOs?.toLowerCase().includes(term);
+        const matchItem = o.items?.some(i => i.clothingType.toLowerCase().includes(term) || i.process.toLowerCase().includes(term));
+        if (!matchOs && !matchCorte && !matchItem) return false;
+      }
+      return true;
+    }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [clientOrders, financeStatusFilter, financeSearchTerm]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
         <div>
-          <span className="text-xs font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 block mb-1">
-            Base de Clientes & Marcas
-          </span>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Gestão de Clientes</h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Edite cadastros, consulte pedidos, histórico financeiro, auditoria de mensagens e histórico de alterações.
-          </p>
         </div>
 
         <button
@@ -554,10 +576,6 @@ export const ClientManagementView: React.FC = () => {
               className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium"
             />
           </div>
-
-          <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
-            Total Cadastrado: {clients.length} cliente(s)
-          </span>
         </div>
 
         <div className="overflow-x-auto">
@@ -613,30 +631,30 @@ export const ClientManagementView: React.FC = () => {
                         <button
                           onClick={() => handleOpenEditModal(c, 'dados')}
                           className="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold transition-colors border border-slate-200 dark:border-slate-700 flex items-center gap-1"
-                          title="Abrir Cadastro, Pedidos, Financeiro e Histórico"
+                          title="Editar Cadastro, Pedidos, Financeiro e Histórico"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
-                          <span>Abrir Ficha</span>
+                          <span>Editar</span>
                         </button>
 
-                        {/* Send Access Link Button */}
-                        <button
-                          onClick={() => handleOpenInvite(c)}
-                          className="px-2.5 py-1.5 bg-sky-700 hover:bg-sky-800 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 shadow-sm"
-                          title="Enviar Link de Cadastro / Acesso ao Cliente"
-                        >
-                          <Send className="w-3.5 h-3.5" />
-                          <span>Link</span>
-                        </button>
-
-                        {/* Reset Password Button */}
-                        {c.passwordHash && (
+                        {/* Botão Alternado: Link de Acesso ou Resetar Senha */}
+                        {c.passwordHash ? (
                           <button
                             onClick={() => handleResetPassword(c)}
                             className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 shadow-sm"
                             title="Resetar Senha do Cliente"
                           >
                             <Key className="w-3.5 h-3.5" />
+                            <span>Resetar Senha</span>
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleOpenInvite(c)}
+                            className="px-2.5 py-1.5 bg-sky-700 hover:bg-sky-800 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 shadow-sm"
+                            title="Enviar Link de Cadastro / Acesso ao Cliente"
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                            <span>Link</span>
                           </button>
                         )}
 
@@ -1028,50 +1046,74 @@ export const ClientManagementView: React.FC = () => {
                       <table className="w-full text-left text-xs">
                         <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800">
                           <tr>
-                            <th className="p-3">OS</th>
-                            <th className="p-3">Data / Hora</th>
-                            <th className="p-3 text-center">Peças</th>
+                            <th className="p-3">OS / Entrada</th>
+                            <th className="p-3">Peça</th>
+                            <th className="p-3">Lavado</th>
+                            <th className="p-3 text-center">Qtd</th>
                             <th className="p-3 text-center">Peso</th>
-                            <th className="p-3">Status da Produção</th>
-                            <th className="p-3">Status Financeiro</th>
-                            <th className="p-3 text-right">Valor Líquido</th>
+                            <th className="p-3 text-center">Status</th>
+                            <th className="p-3 text-center">Data Pronto</th>
+                            <th className="p-3 text-right">Ações</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-mono">
                           {paginatedClientOrders.map(o => {
-                            const val = o.totalServiceValue || 0;
-                            const discount = o.discountAmount || 0;
-                            const net = Math.max(0, val - discount);
+                            const entryDate = new Date(o.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                            const readyEvent = o.history?.find(h => h.status === 'pronto');
+                            const readyDate = readyEvent
+                              ? new Date(readyEvent.timestamp).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+                              : (o.status === 'pronto' || o.status === 'entregue')
+                                ? new Date(o.updatedAt || o.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+                                : '—';
+                            const garment = o.items && o.items.length > 0
+                              ? o.items.map(i => i.clothingType).filter(Boolean).join(', ')
+                              : (o.corteOs ? `Corte ${o.corteOs}` : 'Peça Padrão');
+                            const process = o.items && o.items.length > 0
+                              ? o.items.map(i => i.process).filter(Boolean).join(', ')
+                              : 'Lavado';
+                            const pieceCount = o.estimatedPieceCount || o.items?.reduce((acc, i) => acc + (i.quantity || 0), 0) || 0;
 
                             return (
                               <tr key={o.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                                <td className="p-3 font-bold text-slate-900 dark:text-slate-100">{o.osNumber}</td>
-                                <td className="p-3 text-[11px] text-slate-600 dark:text-slate-400">
-                                  {new Date(o.createdAt).toLocaleDateString('pt-BR')} às {new Date(o.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                <td className="p-3">
+                                  <div className="font-bold text-slate-900 dark:text-slate-100">{o.osNumber}</div>
+                                  <div className="text-[10px] text-slate-500 font-sans">{entryDate}</div>
                                 </td>
-                                <td className="p-3 text-center">{o.estimatedPieceCount || 0}</td>
-                                <td className="p-3 text-center">{(o.totalWeightKg || 0).toFixed(1)} kg</td>
-                                <td className="p-3 font-sans">
+                                <td className="p-3 font-sans text-slate-800 dark:text-slate-200 max-w-[160px] truncate" title={garment}>
+                                  {garment}
+                                </td>
+                                <td className="p-3 font-sans text-slate-600 dark:text-slate-400 max-w-[140px] truncate" title={process}>
+                                  {process}
+                                </td>
+                                <td className="p-3 text-center font-bold text-slate-900 dark:text-slate-100">
+                                  {pieceCount}
+                                </td>
+                                <td className="p-3 text-center text-slate-600 dark:text-slate-400">
+                                  {(o.totalWeightKg || 0).toFixed(1)} kg
+                                </td>
+                                <td className="p-3 text-center font-sans">
                                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
                                     o.status === 'pronto' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' :
                                     o.status === 'entregue' ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300' :
                                     o.status === 'recebido' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' :
                                     'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300'
                                   }`}>
-                                    {o.status.replace('_', ' ')}
+                                    {o.status === 'recebido' ? '1. Feito' : o.status === 'em_andamento' ? '2. Andamento' : o.status === 'pronto' ? '3. Pronto' : '4. Entregue'}
                                   </span>
                                 </td>
-                                <td className="p-3 font-sans">
-                                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                    o.paymentStatus === 'pago' 
-                                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' 
-                                      : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
-                                  }`}>
-                                    {o.paymentStatus === 'pago' ? 'PAGO' : 'ABERTO'}
-                                  </span>
+                                <td className="p-3 text-center text-slate-600 dark:text-slate-400">
+                                  {readyDate}
                                 </td>
-                                <td className="p-3 text-right font-bold text-slate-900 dark:text-slate-100">
-                                  {net.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                <td className="p-3 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() => onNavigate?.('order-print', o.id)}
+                                    className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold transition-colors border border-slate-200 dark:border-slate-700 inline-flex items-center gap-1 shadow-xs"
+                                    title="Imprimir OS / Pedido"
+                                  >
+                                    <Printer className="w-3.5 h-3.5 text-sky-600" />
+                                    <span>Imprimir</span>
+                                  </button>
                                 </td>
                               </tr>
                             );
@@ -1092,102 +1134,214 @@ export const ClientManagementView: React.FC = () => {
 
               {/* ─── ABA 3: FINANCEIRO DO CLIENTE ─── */}
               {activeModalTab === 'financeiro' && (
-                <div className="space-y-5">
+                <div className="space-y-4">
                   {/* Cards de Resumo Financeiro */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 font-mono">
-                    <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
-                      <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
-                        Total Faturado ({clientFinanceSummary.totalOrdersCount} OSs)
-                      </span>
-                      <strong className="text-lg text-slate-900 dark:text-slate-100">
-                        {clientFinanceSummary.totalGross.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                      </strong>
-                    </div>
-
-                    <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-800/60">
-                      <span className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-300 block tracking-wider">
-                        Total Quitado / Pago
-                      </span>
-                      <strong className="text-lg text-emerald-700 dark:text-emerald-400">
-                        {clientFinanceSummary.totalPaid.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                      </strong>
-                    </div>
-
-                    <div className="p-4 bg-amber-50 dark:bg-amber-950/40 rounded-xl border border-amber-200 dark:border-amber-800/60">
-                      <span className="text-[10px] uppercase font-bold text-amber-700 dark:text-amber-300 block tracking-wider">
-                        Saldo Em Aberto (A Receber)
-                      </span>
-                      <strong className="text-lg text-amber-700 dark:text-amber-400">
+                    <div className="p-4 bg-white dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs">
+                      <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1.5">
+                        <span className="text-[10px] uppercase font-bold text-amber-600 dark:text-amber-400 tracking-wider">
+                          A Receber (Aberto)
+                        </span>
+                        <Clock className="w-3.5 h-3.5 text-amber-500" />
+                      </div>
+                      <strong className="text-xl text-amber-600 dark:text-amber-400 block">
                         {clientFinanceSummary.totalPending.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                       </strong>
+                      <span className="text-[10px] text-slate-400 mt-0.5 block">
+                        {clientFinanceSummary.openCount} fatura(s) pendente(s)
+                      </span>
+                    </div>
+
+                    <div className="p-4 bg-white dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs">
+                      <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1.5">
+                        <span className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400 tracking-wider">
+                          Total Recebido (Pago)
+                        </span>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                      </div>
+                      <strong className="text-xl text-emerald-600 dark:text-emerald-400 block">
+                        {clientFinanceSummary.totalPaid.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </strong>
+                      <span className="text-[10px] text-slate-400 mt-0.5 block">
+                        {clientFinanceSummary.paidCount} fatura(s) quitada(s)
+                      </span>
+                    </div>
+
+                    <div className="p-4 bg-white dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs">
+                      <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1.5">
+                        <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 tracking-wider">
+                          Total Faturado
+                        </span>
+                        <DollarSign className="w-3.5 h-3.5 text-sky-600" />
+                      </div>
+                      <strong className="text-xl text-slate-900 dark:text-slate-100 block">
+                        {clientFinanceSummary.totalGross.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </strong>
+                      <span className="text-[10px] text-slate-400 mt-0.5 block">
+                        {clientFinanceSummary.totalOrdersCount} fatura(s) emitida(s)
+                      </span>
                     </div>
                   </div>
 
-                  {/* Lista de Ordens de Serviço do Cliente */}
-                  <div>
-                    <h4 className="font-bold text-xs uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-1.5">
-                      <FileText className="w-4 h-4 text-sky-600" />
-                      Extrato Financeiro de Ordens de Serviço
-                    </h4>
+                  {/* Barra de Filtros do Financeiro */}
+                  <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center justify-between text-xs">
+                    <div className="relative flex-1">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                      <input
+                        type="text"
+                        placeholder="Buscar por OS, corte ou serviço..."
+                        value={financeSearchTerm}
+                        onChange={e => setFinanceSearchTerm(e.target.value)}
+                        className="w-full pl-8 pr-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs"
+                      />
+                    </div>
 
-                    {clientOrders.length === 0 ? (
-                      <p className="text-xs text-slate-400 italic">Nenhum faturamento registrado para este cliente.</p>
-                    ) : (
-                      <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
-                        <table className="w-full text-left text-xs font-mono">
-                          <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800">
-                            <tr>
-                              <th className="p-3">OS</th>
-                              <th className="p-3">Data Emissão</th>
-                              <th className="p-3 text-right">Valor Bruto</th>
-                              <th className="p-3 text-right">Desconto</th>
-                              <th className="p-3 text-right">Valor Quitado</th>
-                              <th className="p-3 text-center">Status</th>
-                              <th className="p-3">Quem Recebeu / Baixa</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {clientOrders.map(o => (
+                    <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setFinanceStatusFilter('todos')}
+                        className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
+                          financeStatusFilter === 'todos'
+                            ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                        }`}
+                      >
+                        Todas ({clientOrders.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFinanceStatusFilter('aberto')}
+                        className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
+                          financeStatusFilter === 'aberto'
+                            ? 'bg-amber-500 text-white shadow-xs'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                        }`}
+                      >
+                        Em Aberto ({clientFinanceSummary.openCount})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFinanceStatusFilter('pago')}
+                        className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
+                          financeStatusFilter === 'pago'
+                            ? 'bg-emerald-600 text-white shadow-xs'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                        }`}
+                      >
+                        Pagas ({clientFinanceSummary.paidCount})
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Tabela do Financeiro idêntica à do FinanceCaixaView */}
+                  {filteredFinanceOrders.length === 0 ? (
+                    <p className="text-xs text-slate-400 italic p-6 text-center bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
+                      Nenhum registro financeiro encontrado com os filtros atuais.
+                    </p>
+                  ) : (
+                    <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+                      <table className="w-full text-left text-xs font-mono">
+                        <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800">
+                          <tr>
+                            <th className="p-3">Emissão</th>
+                            <th className="p-3">OS</th>
+                            <th className="p-3">Corte / Ref</th>
+                            <th className="p-3">Peças & Lavado</th>
+                            <th className="p-3 text-right">Peso</th>
+                            <th className="p-3 text-right">Valor Total</th>
+                            <th className="p-3 text-center">Status</th>
+                            <th className="p-3 text-right">Forma / Baixa</th>
+                            <th className="p-3 text-right">Ações</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                          {filteredFinanceOrders.map(o => {
+                            const val = o.totalServiceValue || 0;
+                            const discount = o.discountAmount || 0;
+                            const net = Math.max(0, val - discount);
+                            const isPaid = o.paymentStatus === 'pago';
+                            const corte = o.corteOs || o.items?.find(i => i.corteOs)?.corteOs || '—';
+                            const pieceDesc = o.items && o.items.length > 0
+                              ? o.items.map(i => i.clothingType || i.process).filter(Boolean).join(', ')
+                              : 'Lavado';
+
+                            return (
                               <tr key={o.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                                <td className="p-3 font-bold text-slate-900 dark:text-slate-100">{o.osNumber}</td>
-                                <td className="p-3 text-[11px] text-slate-500">
+                                <td className="p-3 text-slate-500 font-sans">
                                   {new Date(o.createdAt).toLocaleDateString('pt-BR')}
                                 </td>
-                                <td className="p-3 text-right">
-                                  {(o.totalServiceValue || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                <td className="p-3 font-bold text-slate-900 dark:text-slate-100">
+                                  {o.osNumber}
                                 </td>
-                                <td className="p-3 text-right text-rose-600 dark:text-rose-400">
-                                  {(o.discountAmount || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                <td className="p-3 text-slate-600 dark:text-slate-400">
+                                  {corte}
                                 </td>
-                                <td className="p-3 text-right font-bold text-emerald-700 dark:text-emerald-400">
-                                  {(o.finalPaidAmount || (o.paymentStatus === 'pago' ? (o.totalServiceValue || 0) - (o.discountAmount || 0) : 0)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                </td>
-                                <td className="p-3 text-center font-sans">
-                                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                    o.paymentStatus === 'pago'
-                                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                                      : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                                  }`}>
-                                    {o.paymentStatus === 'pago' ? 'PAGO' : 'ABERTO'}
+                                <td className="p-3 font-sans">
+                                  <span className="font-bold text-slate-900 dark:text-slate-100 font-mono block">
+                                    {o.estimatedPieceCount || 0} pçs
+                                  </span>
+                                  <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate block max-w-[180px]" title={pieceDesc}>
+                                    {pieceDesc}
                                   </span>
                                 </td>
-                                <td className="p-3 text-[11px] text-slate-600 dark:text-slate-400 font-sans">
-                                  {o.paymentStatus === 'pago' ? (
-                                    <span>
-                                      <strong>{o.receiverName || o.paidByOperator || 'Caixa'}</strong>
-                                      {o.paidAt && ` em ${new Date(o.paidAt).toLocaleDateString('pt-BR')}`}
+                                <td className="p-3 text-right text-slate-600 dark:text-slate-400">
+                                  {(o.totalWeightKg || 0).toFixed(1)} kg
+                                </td>
+                                <td className="p-3 text-right">
+                                  <strong className="text-slate-900 dark:text-slate-100 block">
+                                    {net.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                  </strong>
+                                  {discount > 0 && (
+                                    <span className="text-[10px] text-rose-600 font-sans block">
+                                      Desc: -{discount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                     </span>
-                                  ) : (
-                                    <span className="text-slate-400 italic">Pendente</span>
                                   )}
                                 </td>
+                                <td className="p-3 text-center font-sans">
+                                  {isPaid ? (
+                                    <span className="px-2.5 py-0.5 bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 rounded-md text-[11px] font-semibold border border-emerald-200 dark:border-emerald-800">
+                                      PAGO
+                                    </span>
+                                  ) : (
+                                    <span className="px-2.5 py-0.5 bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 rounded-md text-[11px] font-semibold border border-amber-200 dark:border-amber-800">
+                                      ABERTO
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="p-3 text-right font-sans">
+                                  {isPaid ? (
+                                    <div>
+                                      <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold block uppercase font-mono">
+                                        {o.paymentMethod || 'QUITADO'}
+                                      </span>
+                                      <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono block">
+                                        {o.paidAt ? `Baixa: ${new Date(o.paidAt).toLocaleDateString('pt-BR')}` : 'Baixado'}
+                                        {o.receiverName ? ` • ${o.receiverName}` : ''}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                                      Pendente
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="p-3 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() => onNavigate?.('order-print', o.id, 'saida')}
+                                    className="p-1.5 text-slate-500 hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-slate-800 rounded-lg transition-colors inline-block"
+                                    title="Imprimir Comprovante / OS"
+                                  >
+                                    <Printer className="w-3.5 h-3.5" />
+                                  </button>
+                                </td>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1685,29 +1839,16 @@ export const ClientManagementView: React.FC = () => {
                 Fechar
               </button>
 
-              <div className="w-full sm:w-auto flex flex-col sm:flex-row items-center gap-2">
-                <a
-                  href={`https://api.whatsapp.com/send?phone=55${cleanPhoneDigits(invitedClient.phone)}&text=${encodeURIComponent(inviteMessage)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full sm:w-auto px-3.5 py-2.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
-                  title="Abre diretamente a conversa no WhatsApp Web ou aplicativo do celular"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  Abrir no WhatsApp
-                </a>
-
-                <button
-                  type="button"
-                  onClick={handleSendWhatsAppInvite}
-                  disabled={sendingInvite}
-                  className="w-full sm:w-auto px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
-                  title="Disparar mensagem direta via conexão oficial da lavanderia"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  {sendingInvite ? 'Enviando WhatsApp...' : 'Disparar pelo WhatsApp'}
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={handleSendWhatsAppInvite}
+                disabled={sendingInvite}
+                className="w-full sm:w-auto px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                title="Disparar mensagem direta via conexão oficial da lavanderia"
+              >
+                <Send className="w-3.5 h-3.5" />
+                {sendingInvite ? 'Enviando WhatsApp...' : 'Disparar pelo WhatsApp'}
+              </button>
             </div>
           </div>
         </div>
