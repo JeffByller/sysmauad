@@ -1,16 +1,16 @@
 import React, { useState, useMemo } from 'react';
 import { useOrders } from '../context/OrderContext';
 import { QRCodeSVG } from 'qrcode.react';
-import { Printer, ArrowLeft, FileText, FlaskConical, Layers, Receipt } from 'lucide-react';
+import { Printer, ArrowLeft, FileText, FlaskConical, Layers, Receipt, QrCode } from 'lucide-react';
 
 interface OrderPrintViewProps {
   orderId: string;
   onBack: () => void;
-  initialMode?: 'ambos' | 'nota' | 'receita' | 'saida';
+  initialMode?: 'ambos' | 'nota' | 'receita' | 'saida' | 'passadoria';
 }
 
 export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack, initialMode }) => {
-  const { getOrderById, getOrderByOS, calculateChemicals, orders } = useOrders();
+  const { getOrderById, getOrderByOS, calculateChemicals, orders, passadores } = useOrders();
   
   // Localiza o pedido com segurança por ID ou por OS
   const order = useMemo(() => {
@@ -18,8 +18,13 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
     return getOrderById(orderId) || getOrderByOS(orderId) || orders.find(o => o.id === orderId || o.osNumber === orderId);
   }, [orderId, getOrderById, getOrderByOS, orders]);
 
-  // Modo de visualização/impressão: 'ambos' | 'nota' | 'receita' | 'saida'
-  const [printMode, setPrintMode] = useState<'ambos' | 'nota' | 'receita' | 'saida'>(initialMode || 'ambos');
+  // Modo de visualização/impressão: 'ambos' | 'nota' | 'receita' | 'saida' | 'passadoria'
+  const [printMode, setPrintMode] = useState<'ambos' | 'nota' | 'receita' | 'saida' | 'passadoria'>(initialMode || 'ambos');
+
+  // Passadores ativos no sistema para preenchimento manual
+  const activePassadoresList = useMemo(() => {
+    return (passadores || []).filter(p => p.active !== false);
+  }, [passadores]);
 
   // Fases e produtos da receita técnica calculados por porcentagem sobre o peso total
   // O hook useMemo DEVE SEMPRE rodar no topo, antes de qualquer retorno condicional!
@@ -161,6 +166,18 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
           >
             <Receipt className="w-3.5 h-3.5" />
             Comprovante de Saída
+          </button>
+
+          <button
+            onClick={() => setPrintMode('passadoria')}
+            className={`px-3 py-1.5 rounded-md flex items-center gap-1.5 transition-colors ${
+              printMode === 'passadoria'
+                ? 'bg-white dark:bg-slate-700 text-sky-700 dark:text-sky-300 font-bold shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+            }`}
+          >
+            <QrCode className="w-3.5 h-3.5" />
+            Passadoria
           </button>
         </div>
 
@@ -841,6 +858,154 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
               <span className="font-mono font-bold tracking-tight">O.S. {pureOsNumber}</span>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* 4. RELATÓRIO DE PASSADORIA — CONTROLE MANUAL DE CHÃO DE FÁBRICA*/}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {printMode === 'passadoria' && (
+        <div className="bg-white text-slate-900 p-6 sm:p-8 rounded-xl border border-slate-300 shadow-md space-y-4 font-mono text-[11px] leading-tight print-sheet print:border-0 print:shadow-none print:rounded-none w-full">
+          
+          {/* Cabeçalho */}
+          <div className="flex justify-between items-baseline font-bold text-xs uppercase pb-1.5 border-b-2 border-slate-900">
+            <span className="text-sm font-black tracking-wider">MAUAD LAVANDERIA</span>
+            <span className="text-sm font-bold tracking-wide">CONTROLE DE PASSADORIA</span>
+            <span className="text-[10px]">PÁGINA: 001</span>
+          </div>
+
+          {/* Destaque Central da O.S. e Metadados */}
+          <div className="flex justify-between items-center py-1">
+            <div className="text-[10px] text-left space-y-0.5">
+              <div><span className="font-bold">DATA DE EMISSÃO:</span> {dateShort}</div>
+              <div><span className="font-bold">OPERADOR DA LAVAGEM:</span> {order.operatorName?.toUpperCase() || 'GILMÁRIO'}</div>
+            </div>
+
+            <div className="text-center bg-slate-100 border border-slate-400 px-4 py-1.5 rounded">
+              <span className="text-[9px] block font-bold text-slate-600 uppercase">ORDEM DE SERVIÇO</span>
+              <span className="text-xl font-black font-mono tracking-wider text-slate-900">Nº {pureOsNumber}</span>
+            </div>
+
+            <div className="text-[10px] text-right space-y-0.5">
+              <div><span className="font-bold">DIA DA SEMANA:</span> {weekdayFormatted}</div>
+              <div><span className="font-bold">HORÁRIO:</span> {timeFormatted}</div>
+            </div>
+          </div>
+
+          {/* Dados Simplificados do Cliente e Pedido */}
+          <div className="border border-slate-900 rounded p-2.5 bg-slate-50 space-y-1">
+            <div className="flex justify-between border-b border-dashed border-slate-300 pb-1">
+              <span><strong className="text-slate-900">CLIENTE / CONFECÇÃO:</strong> {clientNameSafe}</span>
+              {primaryCorteOs && (
+                <span><strong className="text-slate-900">CORTE / REF:</strong> {primaryCorteOs.toUpperCase()}</span>
+              )}
+            </div>
+            
+            <div className="grid grid-cols-12 gap-2 text-[10px] pt-0.5">
+              <div className="col-span-6">
+                <strong>TIPO DE ROUPA / PEÇA:</strong> {primaryRoupa}
+              </div>
+              <div className="col-span-6">
+                <strong>PROCESSO / LAVADO:</strong> {primaryLavado}
+              </div>
+              <div className="col-span-6">
+                <strong>QTD ESTIMADA DO LOTE:</strong> <span className="font-black text-xs">{totalPiecesSafe} PEÇAS</span>
+              </div>
+              <div className="col-span-6">
+                <strong>PESO TOTAL DO LOTE:</strong> {totalWeightSafe.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} KG
+              </div>
+            </div>
+
+            {order.notes && (
+              <div className="border-t border-dashed border-slate-300 pt-1 text-[10px]">
+                <strong>OBSERVAÇÕES:</strong> {order.notes}
+              </div>
+            )}
+          </div>
+
+          {/* Divisor com Título Central */}
+          <div className="flex items-center gap-2 w-full my-2">
+            <div className="flex-1 border-b border-dashed border-slate-400"></div>
+            <span className="font-bold text-xs uppercase text-slate-900 px-2 tracking-wide">
+              REGISTRO MANUAL DE PASSAGEM DE PEÇAS
+            </span>
+            <div className="flex-1 border-b border-dashed border-slate-400"></div>
+          </div>
+
+          {/* Tabela de Passadores Ativos */}
+          <div className="border-2 border-slate-900 rounded overflow-hidden">
+            <table className="w-full text-left border-collapse font-mono text-xs">
+              <thead>
+                <tr className="bg-slate-900 text-white uppercase text-[10px] tracking-wider">
+                  <th className="p-2 border-r border-slate-700 w-2/5">NOME DO PASSADOR(A)</th>
+                  <th className="p-2 border-r border-slate-700 w-1/4 text-center">QTD PASSADA (PÇS)</th>
+                  <th className="p-2 w-1/3 text-center">ASSINATURA / RUBRICA</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y border-slate-900">
+                {activePassadoresList.length > 0 ? (
+                  activePassadoresList.map((p) => (
+                    <tr key={p.id} className="h-12 border-b border-slate-300">
+                      <td className="p-2 font-bold uppercase text-slate-900 border-r border-slate-300 align-middle">
+                        {p.name}
+                      </td>
+                      <td className="p-2 border-r border-slate-300 align-middle text-center">
+                        <div className="w-28 h-8 border border-slate-400 mx-auto rounded flex items-center justify-end px-2 bg-slate-50 text-slate-400 text-[10px]">
+                          [ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ] pçs
+                        </div>
+                      </td>
+                      <td className="p-2 align-bottom text-center">
+                        <div className="border-b border-slate-400 w-4/5 mx-auto mb-1"></div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={3} className="p-4 text-center text-slate-500 italic">
+                      Nenhum passador ativo cadastrado no sistema.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Resumo Final de Conferência Manual */}
+          <div className="border border-slate-400 rounded p-3 bg-slate-50 grid grid-cols-12 gap-4 items-center">
+            <div className="col-span-7 space-y-1">
+              <div className="font-bold text-xs text-slate-900 uppercase">SOMA TOTAL PROCESSADA NO LOTE</div>
+              <p className="text-[10px] text-slate-600 leading-snug">
+                Cada passador deve anotar acima a quantidade exata de peças passadas por ele neste lote de O.S. Nº {pureOsNumber}.
+              </p>
+            </div>
+            <div className="col-span-5 text-right font-bold border-l border-slate-300 pl-3">
+              <span className="text-[10px] block text-slate-600">TOTAL GERAL DECLARADO:</span>
+              <div className="inline-block border-2 border-slate-900 rounded px-4 py-1.5 mt-0.5 bg-white text-base font-black">
+                [ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ] PEÇAS
+              </div>
+            </div>
+          </div>
+
+          {/* Rodapé com Assinatura de Supervisão e QR Code */}
+          <div className="pt-6 grid grid-cols-12 items-end gap-4 text-center font-mono text-[10px] uppercase">
+            <div className="col-span-5">
+              <div className="border-b border-black w-4/5 mx-auto mb-1"></div>
+              <div className="font-bold">SUPERVISÃO / CONFERÊNCIA DE QUALIDADE</div>
+            </div>
+
+            <div className="col-span-5">
+              <div className="border-b border-black w-4/5 mx-auto mb-1"></div>
+              <div className="font-bold">RESPONSÁVEL PELA EXPEDIÇÃO</div>
+            </div>
+
+            <div className="col-span-2 flex flex-col items-end justify-center text-[9px] text-slate-600">
+              <div className="p-0.5 border border-black bg-white inline-block mb-0.5">
+                <QRCodeSVG value={order.osNumber || pureOsNumber} size={42} />
+              </div>
+              <span className="font-mono font-bold tracking-tight">O.S. {pureOsNumber}</span>
+            </div>
+          </div>
+
         </div>
       )}
     </div>
