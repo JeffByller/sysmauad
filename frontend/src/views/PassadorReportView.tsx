@@ -308,12 +308,12 @@ export const PassadorReportView: React.FC = () => {
   // Helper para legenda amigável do filtro de status do Painel
   const getStatusFilterLabel = (status: typeof lavadoStatusFilter) => {
     switch (status) {
-      case 'recebido': return '1. ENTRADAS / PEDIDO FEITO (RECEBIDOS)';
-      case 'em_andamento': return '2. EM ANDAMENTO / PROCESSAMENTO (LAVANDO)';
-      case 'pronto': return '3. PRONTO P/ RETIRADA (A SER ENTREGUE)';
-      case 'entregue': return '4. ENTREGUES (SAÍDAS)';
-      case 'na_lavanderia': return 'NA LAVANDERIA (NÃO ENTREGUES / EM ABERTO)';
-      default: return 'TODOS OS STATUS (GERAL)';
+      case 'recebido': return '1. ENTRADAS';
+      case 'em_andamento': return '2. EM ANDAMENTO';
+      case 'pronto': return '3. PRONTOS';
+      case 'entregue': return '4. SAÍDAS';
+      case 'na_lavanderia': return 'NA LAVANDERIA';
+      default: return 'TODOS OS STATUS';
     }
   };
 
@@ -912,16 +912,6 @@ export const PassadorReportView: React.FC = () => {
         {/* ───────────────────────────────────────────────────────────── */}
         {reportType === 'lavados' && (
           <div className="space-y-4">
-            {/* Resumo Rápido de Cabeçalho */}
-            <div className="bg-slate-50 border border-slate-200 p-2.5 rounded flex justify-between items-center text-[11px] font-bold">
-              <span>RESUMO DO PERÍODO:</span>
-              <div className="flex gap-4 font-mono">
-                <span>LOTES: <strong>{filteredOrders.length}</strong></span>
-                <span>TOTAL PECAS: <strong>{totalLavadoPieces.toLocaleString('pt-BR')}</strong></span>
-                <span>PESO TOTAL: <strong>{totalLavadoKg.toFixed(2)} kg</strong></span>
-              </div>
-            </div>
-
             {filteredOrders.length === 0 ? (
               <div className="py-8 text-center text-slate-500 font-sans">
                 Nenhum pedido ou lote encontrado para os parâmetros selecionados ({getStatusFilterLabel(lavadoStatusFilter)} no período de {startDate.split('-').reverse().join('/')} a {endDate.split('-').reverse().join('/')}).
@@ -965,7 +955,7 @@ export const PassadorReportView: React.FC = () => {
                   </div>
 
                   <div className="grid grid-cols-12 items-center pt-1.5 border-t border-slate-300 font-bold text-xs font-mono">
-                    <span className="col-span-5 font-sans">SUBTOTAL:</span>
+                    <span className="col-span-5 font-sans">TOTAL:</span>
                     <span className="col-span-2 text-center">{processReport.totalLotes} lotes</span>
                     <span className="col-span-2 text-right">{processReport.totalKg.toFixed(2)} kg</span>
                     <span className="col-span-3 text-right text-sm">TOTAL PECAS: {processReport.totalPieces.toLocaleString('pt-BR')}</span>
@@ -1000,19 +990,6 @@ export const PassadorReportView: React.FC = () => {
                       {sortedOrders.map(order => renderOrderRow(order))}
                     </div>
                   </div>
-
-                {/* Separador e Totais Finais do Relatório */}
-                <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px] pt-1">
-                  ------------------------------------------------------------------------------------------------------------------------
-                </div>
-
-                <div className="flex flex-col sm:flex-row justify-between items-baseline gap-2 font-bold text-xs pt-1">
-                  <div className="flex items-center gap-6 font-mono text-sm">
-                    <span>Total de Lotes: {filteredOrders.length}</span>
-                    <span>{totalLavadoKg.toFixed(2)} kg</span>
-                    <span className="text-base text-slate-900 font-black">TOTAL PECAS: {totalLavadoPieces.toLocaleString('pt-BR')}</span>
-                  </div>
-                </div>
               </>
             )}
           </div>
@@ -1051,8 +1028,8 @@ export const PassadorReportView: React.FC = () => {
 
                 <div className="space-y-1 pt-1 font-mono text-xs">
                   <div className="flex justify-between font-bold text-sm text-slate-900 pt-1 border-t border-slate-300">
-                    <span>Qtd Total Peças:</span>
-                    <span className="text-base font-black">{selectedPassador.totalPiecesInPeriod.toLocaleString('pt-BR')} Pcs</span>
+                    <span>TOTAL PECAS:</span>
+                    <span className="text-base font-black">{selectedPassador.totalPiecesInPeriod.toLocaleString('pt-BR')}</span>
                   </div>
                   {showValues && (
                     <div className="flex justify-between font-bold text-sm text-emerald-800 pt-1 border-t border-dotted border-slate-200">
@@ -1120,7 +1097,7 @@ export const PassadorReportView: React.FC = () => {
                 </div>
 
                 <div className="flex justify-between items-baseline gap-2 font-bold text-sm pt-1">
-                  <span className="text-base text-slate-900 font-bold">Qtd Total Peças: {totalPassadorPieces.toLocaleString('pt-BR')} Pcs</span>
+                  <span className="text-base text-slate-900 font-bold">TOTAL PECAS: {totalPassadorPieces.toLocaleString('pt-BR')}</span>
                   {showValues && (
                     <span className="text-base text-emerald-800 font-black">
                       {Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalPassadorValue)}
