@@ -466,12 +466,43 @@ export const FinanceCaixaView: React.FC = () => {
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Deseja imprimir o comprovante de pagamento?</p>
               </div>
             </div>
-            <div className="flex gap-2 justify-end">
+          <div className="flex gap-2 justify-end">
               <button
                 onClick={() => setShowPrintConfirm(false)}
                 className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
               >
                 Não, obrigado
+              </button>
+              <button
+                onClick={() => {
+                  if (!lastPaymentReceipt) return;
+                  const lines = [
+                    'MAUAD LAVANDERIA — COMPROVANTE DE PAGAMENTO',
+                    '─'.repeat(42),
+                    `Cliente: ${lastPaymentReceipt.clientName}`,
+                    `OS(s): ${lastPaymentReceipt.osNumbers.join(', ')}`,
+                    `Data: ${new Date(lastPaymentReceipt.paidAt).toLocaleDateString('pt-BR')}`,
+                    `Forma de Pagamento: ${lastPaymentReceipt.paymentMethod.toUpperCase()}`,
+                    `Valor Bruto: ${lastPaymentReceipt.grossAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
+                    lastPaymentReceipt.discountAmount > 0 ? `Desconto: -${lastPaymentReceipt.discountAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}` : null,
+                    `Total Pago: ${lastPaymentReceipt.totalPaid.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
+                    `Recebido por: ${lastPaymentReceipt.receiverName}`,
+                    lastPaymentReceipt.notes ? `Obs: ${lastPaymentReceipt.notes}` : null,
+                    '─'.repeat(42),
+                    'Obrigado pela preferência!',
+                  ].filter(Boolean).join('\n');
+                  const blob = new Blob([lines], { type: 'text/plain;charset=utf-8' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `comprovante-${lastPaymentReceipt.osNumbers[0] || 'pagamento'}-${new Date().toISOString().slice(0, 10)}.txt`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+                className="px-4 py-2 text-xs font-bold bg-sky-700 hover:bg-sky-800 text-white rounded-xl transition-colors flex items-center gap-1.5 shadow-sm"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                Baixar
               </button>
               <button
                 onClick={() => { setShowPrintConfirm(false); handlePrintReceipt(); }}
@@ -718,7 +749,7 @@ export const FinanceCaixaView: React.FC = () => {
                 <th className="p-3 text-right">Valor R$</th>
                 <th className="p-3 text-center">Status</th>
                 <th className="p-3 text-right">Baixa / Pagamento</th>
-                <th className="p-3 text-center w-24">Ações</th>
+                <th className="p-3 text-center w-24"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-mono">
@@ -1096,18 +1127,14 @@ export const FinanceCaixaView: React.FC = () => {
 
             {/* Modal Body */}
             <form onSubmit={handleConfirmUnifiedPayment} className="p-6 space-y-4">
-              {/* Resumo da Fatura Unificada */}
+              {/* OSs selecionadas (compacto) */}
               <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-mono space-y-1.5">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Cliente da Fatura:</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 font-semibold">
+                    {selectedOrdersToPay.length} OS(s) selecionada(s) · {selectedPiecesToPay.toLocaleString('pt-BR')} peças
+                  </span>
                   <strong className="text-slate-900 dark:text-slate-100 font-sans text-sm">
-                    {filteredClient ? filteredClient.name : 'Vários Clientes Selecionados'}
-                  </strong>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Ordens de Serviço Selecionadas:</span>
-                  <strong className="text-emerald-700 dark:text-emerald-400 font-bold">
-                    {selectedOrdersToPay.length} OS(s) ({selectedPiecesToPay.toLocaleString('pt-BR')} peças)
+                    {selectedGrossToPay.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                   </strong>
                 </div>
                 <div className="flex flex-wrap gap-1 pt-1 max-h-20 overflow-y-auto">
@@ -1116,10 +1143,6 @@ export const FinanceCaixaView: React.FC = () => {
                       {o.osNumber}
                     </span>
                   ))}
-                </div>
-                <div className="flex justify-between text-sm font-bold text-slate-900 dark:text-slate-100 pt-2 border-t border-slate-200 dark:border-slate-700">
-                  <span>Subtotal Bruto ({selectedOrdersToPay.length} OSs):</span>
-                  <span>{selectedGrossToPay.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
                 </div>
               </div>
 
@@ -1197,18 +1220,16 @@ export const FinanceCaixaView: React.FC = () => {
 
                 <div>
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1">
-                    Quem Recebeu o Pagamento <span className="text-rose-500">*</span>
+                    Recebido por
                   </label>
                   <input
                     type="text"
-                    required
-                    placeholder="Ex: Ana (Financeiro) ou Mauad"
-                    value={unifiedReceiverName}
-                    onChange={e => setUnifiedReceiverName(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    readOnly
+                    value={user?.name || unifiedReceiverName}
+                    className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl text-xs font-medium text-slate-600 dark:text-slate-400 cursor-not-allowed select-none"
                   />
                   <span className="text-[10px] text-slate-400 mt-0.5 block">
-                    Nome da pessoa ou setor que recebeu os valores
+                    Preenchido automaticamente com o usuário logado
                   </span>
                 </div>
               </div>
