@@ -3,8 +3,8 @@ import { licenseService } from './license.service';
 
 const DEFAULT_BYPASS_PREFIXES = [
   '/license',
-  '/auth/login',
-  '/client-auth/login',
+  '/auth',
+  '/client-auth',
   '/health',
   '/favicon.ico'
 ];

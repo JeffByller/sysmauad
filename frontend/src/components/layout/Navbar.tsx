@@ -31,15 +31,22 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange }) => {
   const { theme, toggleTheme } = useTheme();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+
   const handleMobileNav = (tab: string) => {
     onTabChange(tab);
     setIsMobileMenuOpen(false);
   };
 
-  const handleLogout = () => {
+  const handleRequestLogout = () => {
+    setIsLogoutModalOpen(true);
+    setIsMobileMenuOpen(false);
+  };
+
+  const handleConfirmLogout = () => {
+    setIsLogoutModalOpen(false);
     logout();
     onTabChange('login');
-    setIsMobileMenuOpen(false);
   };
 
   const isSuperAdmin = user?.id === 'super-admin-root';
@@ -272,7 +279,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange }) => {
 
             {/* Logout Button */}
             <button
-              onClick={handleLogout}
+              onClick={handleRequestLogout}
               className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors shrink-0"
               title="Sair / Trocar Operador"
             >
@@ -430,7 +437,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange }) => {
 
 
               <button
-                onClick={handleLogout}
+                onClick={handleRequestLogout}
                 className="p-2.5 rounded-xl flex items-center gap-2 font-semibold text-rose-400 hover:bg-rose-950/40 hover:text-rose-300 transition-colors col-span-2 border border-rose-900/30 mt-1"
               >
                 <LogOut className="w-4 h-4" />
@@ -493,6 +500,49 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange }) => {
           )}
         </div>
       </div>
+
+      {/* ─── MODAL DE CONFIRMAÇÃO DE SAÍDA / LOGOUT ─── */}
+      {isLogoutModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-sm w-full p-6 space-y-5 text-slate-900 dark:text-slate-100">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                <LogOut className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-base text-slate-900 dark:text-slate-100">
+                  Encerrar Sessão
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {user?.name || 'Operador'}
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              Deseja realmente sair do sistema? Sua sessão ativa será encerrada e você precisará digitar suas credenciais para entrar novamente.
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setIsLogoutModalOpen(false)}
+                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmLogout}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-colors flex items-center gap-1.5"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Sim, Sair</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 };

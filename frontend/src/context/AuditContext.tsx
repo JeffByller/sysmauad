@@ -273,35 +273,6 @@ export const AuditProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, [notifyError]);
 
-  // Timeout de Sessão por Inatividade (30 minutos)
-  useEffect(() => {
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-
-    const resetInactivityTimer = () => {
-      if (timeoutId) clearTimeout(timeoutId);
-
-      if (userRef.current) {
-        timeoutId = setTimeout(() => {
-          // Sessão expirou
-          notifySecurity(
-            'Sessão Expirada por Inatividade',
-            'Por motivos de segurança e conformidade, sua sessão foi encerrada devido à inatividade prolongada.'
-          );
-          logout();
-        }, INACTIVITY_TIMEOUT_MS);
-      }
-    };
-
-    const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
-    events.forEach(evt => window.addEventListener(evt, resetInactivityTimer, { passive: true }));
-    resetInactivityTimer();
-
-    return () => {
-      clearTimeout(timeoutId);
-      events.forEach(evt => window.removeEventListener(evt, resetInactivityTimer));
-    };
-  }, [logout, notifySecurity]);
-
   return (
     <AuditContext.Provider value={{
       notifications,

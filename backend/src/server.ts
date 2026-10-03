@@ -48,6 +48,15 @@ import {
 } from './reportService';
 import { licenseService } from './license/license.service';
 import { licenseGuard } from './license/license.middleware';
+import {
+  checkActiveSession,
+  createSession,
+  touchSession,
+  endSession,
+  getActiveSessions,
+  cleanupExpiredSessions,
+  SESSION_TIMEOUT_MINUTES
+} from './session';
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -786,6 +795,17 @@ app.post('/users', async (req: Request, res: Response) => {
       );
     }
 
+    recordAuditLog({
+      level: 'info',
+      category: 'users',
+      action: 'user_created',
+      userId: id,
+      userName: name.trim(),
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string,
+      details: { id, name: name.trim(), username: cleanUser, role: role || 'operador' }
+    }).catch(() => {});
+
     res.status(201).json({ success: true, user: mapUser(insert.rows[0]) });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
@@ -844,6 +864,17 @@ app.put('/users/:id', async (req: Request, res: Response) => {
       );
     }
 
+    recordAuditLog({
+      level: 'info',
+      category: 'users',
+      action: 'user_updated',
+      userId: id,
+      userName: updatedName,
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string,
+      details: { id, name: updatedName, username: cleanUsername, role: updatedRole, active: updatedActive }
+    }).catch(() => {});
+
     res.json({ success: true, user: mapUser(result.rows[0]) });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
@@ -865,6 +896,17 @@ app.put('/users/:id/password', async (req: Request, res: Response) => {
     if (result.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
     }
+
+    recordAuditLog({
+      level: 'info',
+      category: 'users',
+      action: 'user_password_changed',
+      userId: id,
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string,
+      details: { id }
+    }).catch(() => {});
+
     res.json({ success: true, message: 'Senha atualizada com sucesso.' });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
@@ -877,10 +919,26 @@ app.delete('/users/:id', async (req: Request, res: Response) => {
     if (id === 'super-admin-root') {
       return res.status(400).json({ success: false, message: 'Não é permitido excluir o Super Admin.' });
     }
+
+    const userRes = await query('SELECT name, username FROM sysmauad.users WHERE id = $1', [id]);
+    const deletedName = userRes.rows[0]?.name || id;
+
     const result = await query('DELETE FROM sysmauad.users WHERE id = $1', [id]);
     if (result.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
     }
+
+    recordAuditLog({
+      level: 'warn',
+      category: 'users',
+      action: 'user_deleted',
+      userId: id,
+      userName: deletedName,
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string,
+      details: { id, name: deletedName }
+    }).catch(() => {});
+
     res.json({ success: true, message: 'Usuário excluído com sucesso.' });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
@@ -926,6 +984,40 @@ app.post('/auth/login', async (req: Request, res: Response) => {
     if (normUser === 'superadmin') {
       if (SUPER_ADMIN.passwords.includes(rawPass)) {
         clearBruteForceAttempts(ip, normUser);
+
+        // Verificação de sessão única concorrente para Super Admin
+        const existingSession = await checkActiveSession(SUPER_ADMIN.id);
+        if (existingSession && !req.body.forceOverride) {
+          const lastSeenMin = Math.max(1, Math.round((Date.now() - new Date(existingSession.lastSeenAt).getTime()) / 60000));
+          recordAuditLog({
+            level: 'warn',
+            category: 'auth',
+            action: 'login_denied_concurrent_session',
+            userId: SUPER_ADMIN.id,
+            userName: SUPER_ADMIN.name,
+            ipAddress: ip,
+            userAgent: req.headers['user-agent'] as string,
+            details: {
+              reason: 'Tentativa de login simultâneo do Super Admin com sessão ativa',
+              activeSessionId: existingSession.id,
+              lastSeenMinutesAgo: lastSeenMin
+            }
+          }).catch(() => {});
+
+          return res.status(409).json({
+            success: false,
+            message: `O Super Admin já possui uma sessão ativa iniciada em outro navegador (última atividade há ${lastSeenMin} min). Apenas 1 conexão simultânea é permitida. Encerre a sessão anterior ou aguarde a expiração de inatividade (15 minutos).`,
+            concurrentSession: true
+          });
+        }
+
+        const sessionId = await createSession({
+          userId: SUPER_ADMIN.id,
+          userName: SUPER_ADMIN.name,
+          ipAddress: ip,
+          userAgent: req.headers['user-agent'] as string
+        });
+
         recordAuditLog({
           level: 'info',
           category: 'auth',
@@ -934,7 +1026,7 @@ app.post('/auth/login', async (req: Request, res: Response) => {
           userName: SUPER_ADMIN.name,
           ipAddress: ip,
           userAgent: req.headers['user-agent'] as string,
-          details: { role: SUPER_ADMIN.role, superAdmin: true }
+          details: { role: SUPER_ADMIN.role, superAdmin: true, sessionId }
         }).catch(() => {});
 
         return res.json({
@@ -946,7 +1038,8 @@ app.post('/auth/login', async (req: Request, res: Response) => {
             role: SUPER_ADMIN.role,
             allowedMenus: SUPER_ADMIN.allowedMenus,
             active: SUPER_ADMIN.active
-          }
+          },
+          sessionId
         });
       }
     }
@@ -1059,8 +1152,41 @@ app.post('/auth/login', async (req: Request, res: Response) => {
       });
     }
 
-    // Sucesso! Limpa tentativas e registra log
+    // 3.1 Verificação de Sessão Única Concorrente
+    const existingSession = await checkActiveSession(found.id);
+    if (existingSession) {
+      const lastSeenMin = Math.max(1, Math.round((Date.now() - new Date(existingSession.lastSeenAt).getTime()) / 60000));
+      recordAuditLog({
+        level: 'warn',
+        category: 'auth',
+        action: 'login_denied_concurrent_session',
+        userId: found.id,
+        userName: found.name,
+        ipAddress: ip,
+        userAgent: req.headers['user-agent'] as string,
+        details: {
+          reason: 'Tentativa de login simultâneo com usuário já conectado',
+          activeSessionId: existingSession.id,
+          lastSeenMinutesAgo: lastSeenMin
+        }
+      }).catch(() => {});
+
+      return res.status(409).json({
+        success: false,
+        message: `Este usuário já possui uma sessão ativa iniciada em outro navegador ou dispositivo (última atividade há ${lastSeenMin} min). Apenas 1 conexão simultânea é permitida por usuário. Encerre a sessão anterior ou aguarde a expiração de inatividade (15 minutos).`,
+        concurrentSession: true
+      });
+    }
+
+    // Sucesso! Cria sessão e limpa tentativas
     clearBruteForceAttempts(ip, normUser);
+    const sessionId = await createSession({
+      userId: found.id,
+      userName: found.name,
+      ipAddress: ip,
+      userAgent: req.headers['user-agent'] as string
+    });
+
     recordAuditLog({
       level: 'info',
       category: 'auth',
@@ -1069,10 +1195,10 @@ app.post('/auth/login', async (req: Request, res: Response) => {
       userName: found.name,
       ipAddress: ip,
       userAgent: req.headers['user-agent'] as string,
-      details: { role: found.role, username: found.username }
+      details: { role: found.role, username: found.username, sessionId }
     }).catch(() => {});
 
-    res.json({ success: true, user: found });
+    res.json({ success: true, user: found, sessionId });
   } catch (err: any) {
     recordAuditLog({
       level: 'error',
@@ -1083,6 +1209,87 @@ app.post('/auth/login', async (req: Request, res: Response) => {
       details: { error: err.message }
     }).catch(() => {});
     res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Heartbeat de Sessão (Keep-alive periódico e validação de inatividade)
+app.post('/auth/heartbeat', async (req: Request, res: Response) => {
+  try {
+    const { sessionId } = req.body;
+    if (!sessionId) {
+      return res.status(400).json({ success: false, message: 'ID da sessão é obrigatório.' });
+    }
+
+    const isValid = await touchSession(sessionId);
+    if (!isValid) {
+      return res.status(401).json({
+        success: false,
+        sessionExpired: true,
+        message: 'Sua sessão expirou por inatividade ou foi encerrada. Faça login novamente.'
+      });
+    }
+
+    res.json({ success: true, valid: true });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Logout Oficial do Sistema (Encerra a sessão e libera o acesso para novo login)
+app.post('/auth/logout', async (req: Request, res: Response) => {
+  const ip = getClientIp(req);
+  try {
+    const { sessionId, userId, userName } = req.body;
+
+    await endSession(sessionId, userId);
+
+    recordAuditLog({
+      level: 'info',
+      category: 'auth',
+      action: 'logout',
+      userId: userId || undefined,
+      userName: userName || undefined,
+      ipAddress: ip,
+      userAgent: req.headers['user-agent'] as string,
+      details: { sessionId, method: 'manual_logout' }
+    }).catch(() => {});
+
+    res.json({ success: true, message: 'Sessão encerrada com sucesso.' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Listagem de Sessões Ativas (Visível na tela de Auditoria)
+app.get('/auth/sessions/active', async (_req: Request, res: Response) => {
+  try {
+    const sessions = await getActiveSessions();
+    res.json(sessions);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Encerramento Forçado de Sessão de Usuário pelo Super Admin
+app.post('/auth/sessions/:id/terminate', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { adminName } = req.body;
+    await endSession(id);
+
+    recordAuditLog({
+      level: 'warn',
+      category: 'auth',
+      action: 'session_terminated_by_admin',
+      userName: adminName || 'Super Admin',
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string,
+      details: { terminatedSessionId: id }
+    }).catch(() => {});
+
+    res.json({ success: true, message: 'Sessão encerrada com sucesso.' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -1129,6 +1336,15 @@ app.post('/clients', async (req: Request, res: Response) => {
         passwordHash || null
       ]
     );
+
+    recordAuditLog({
+      level: 'info',
+      category: 'client',
+      action: 'client_created',
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string,
+      details: { clientId: id, clientName: name.trim(), phone: phone.trim() }
+    }).catch(() => {});
 
     res.status(201).json(mapClient(result.rows[0]));
   } catch (err: any) {
@@ -1544,6 +1760,15 @@ app.post('/stock', async (req: Request, res: Response) => {
        RETURNING *`,
       [id, name.trim(), unit || 'kg', Number(currentStock || 0), Number(minStockAlert || 0), Number(defaultDosagePerKg || 0), category || 'outros', notes || null]
     );
+    recordAuditLog({
+      level: 'info',
+      category: 'stock',
+      action: 'stock_item_created',
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string,
+      details: { id, name: name.trim(), unit: unit || 'kg', currentStock }
+    }).catch(() => {});
+
     res.status(201).json(mapStock(result.rows[0]));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -1579,6 +1804,15 @@ app.put('/stock/:id', async (req: Request, res: Response) => {
       ]
     );
 
+    recordAuditLog({
+      level: 'info',
+      category: 'stock',
+      action: 'stock_item_updated',
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string,
+      details: { id, name: name !== undefined ? name.trim() : row.name, currentStock }
+    }).catch(() => {});
+
     res.json(mapStock(result.rows[0]));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -1589,8 +1823,20 @@ app.put('/stock/:id/quantity', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { quantity } = req.body;
+    const current = await query('SELECT name, current_stock FROM sysmauad.stock_items WHERE id = $1', [id]);
+    const oldQty = current.rows[0]?.current_stock;
     const result = await query('UPDATE sysmauad.stock_items SET current_stock = $1, updated_at = NOW() WHERE id = $2 RETURNING *', [Number(quantity), id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Insumo não encontrado.' });
+
+    recordAuditLog({
+      level: 'info',
+      category: 'stock',
+      action: 'stock_quantity_adjusted',
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string,
+      details: { id, name: current.rows[0]?.name, oldStock: oldQty, newStock: Number(quantity) }
+    }).catch(() => {});
+
     res.json(mapStock(result.rows[0]));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -1600,7 +1846,19 @@ app.put('/stock/:id/quantity', async (req: Request, res: Response) => {
 app.delete('/stock/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const current = await query('SELECT name FROM sysmauad.stock_items WHERE id = $1', [id]);
+    const itemName = current.rows[0]?.name || id;
     await query('DELETE FROM sysmauad.stock_items WHERE id = $1', [id]);
+
+    recordAuditLog({
+      level: 'warn',
+      category: 'stock',
+      action: 'stock_item_deleted',
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string,
+      details: { id, name: itemName }
+    }).catch(() => {});
+
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -1629,6 +1887,15 @@ app.post('/garment-catalog', async (req: Request, res: Response) => {
        RETURNING *`,
       [id, clothingType.trim(), processName.trim(), Number(unitPrice || 0), Number(defaultRefWeightGrams || 0), corteOs ? corteOs.trim() : null, category || null, notes || null]
     );
+    recordAuditLog({
+      level: 'info',
+      category: 'catalog',
+      action: 'garment_created',
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string,
+      details: { id, clothingType: clothingType.trim(), processName: processName.trim(), unitPrice }
+    }).catch(() => {});
+
     res.status(201).json(mapGarment(result.rows[0]));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -1660,6 +1927,16 @@ app.put('/garment-catalog/:id', async (req: Request, res: Response) => {
         id
       ]
     );
+
+    recordAuditLog({
+      level: 'info',
+      category: 'catalog',
+      action: 'garment_updated',
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string,
+      details: { id, clothingType: clothingType !== undefined ? clothingType.trim() : row.clothing_type }
+    }).catch(() => {});
+
     res.json(mapGarment(result.rows[0]));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -1669,7 +1946,19 @@ app.put('/garment-catalog/:id', async (req: Request, res: Response) => {
 app.delete('/garment-catalog/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const current = await query('SELECT clothing_type FROM sysmauad.garment_catalog WHERE id = $1', [id]);
+    const clothingType = current.rows[0]?.clothing_type || id;
     await query('DELETE FROM sysmauad.garment_catalog WHERE id = $1', [id]);
+
+    recordAuditLog({
+      level: 'warn',
+      category: 'catalog',
+      action: 'garment_deleted',
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string,
+      details: { id, clothingType }
+    }).catch(() => {});
+
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -1702,6 +1991,15 @@ app.post('/passadores', async (req: Request, res: Response) => {
        RETURNING *`,
       [pId, name.trim(), phone || null, Number(totalPiecesIroned || 0), Number(ratePerPiece ?? 0.15), active !== undefined ? Boolean(active) : true]
     );
+    recordAuditLog({
+      level: 'info',
+      category: 'ironing',
+      action: 'passador_created',
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string,
+      details: { id: pId, name: name.trim(), ratePerPiece: Number(ratePerPiece ?? 0.15) }
+    }).catch(() => {});
+
     res.status(201).json(mapPassador(result.rows[0]));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -1730,6 +2028,16 @@ app.put('/passadores/:id', async (req: Request, res: Response) => {
         id
       ]
     );
+
+    recordAuditLog({
+      level: 'info',
+      category: 'ironing',
+      action: 'passador_updated',
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string,
+      details: { id, name: name !== undefined ? name.trim() : row.name, active }
+    }).catch(() => {});
+
     res.json(mapPassador(result.rows[0]));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -1739,7 +2047,19 @@ app.put('/passadores/:id', async (req: Request, res: Response) => {
 app.delete('/passadores/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const current = await query('SELECT name FROM sysmauad.passadores WHERE id = $1', [id]);
+    const passadorName = current.rows[0]?.name || id;
     await query('DELETE FROM sysmauad.passadores WHERE id = $1', [id]);
+
+    recordAuditLog({
+      level: 'warn',
+      category: 'ironing',
+      action: 'passador_deleted',
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string,
+      details: { id, name: passadorName }
+    }).catch(() => {});
+
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -2402,7 +2722,21 @@ app.post('/finance/boletos/audit-view', async (req: Request, res: Response) => {
 app.delete('/orders/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const ordRes = await query('SELECT os_number, client_name FROM sysmauad.orders WHERE id = $1', [id]);
+    const osNumber = ordRes.rows[0]?.os_number || id;
+    const clientName = ordRes.rows[0]?.client_name;
+
     await query('DELETE FROM sysmauad.orders WHERE id = $1', [id]);
+
+    recordAuditLog({
+      level: 'warn',
+      category: 'orders',
+      action: 'order_deleted',
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string,
+      details: { orderId: id, osNumber, clientName }
+    }).catch(() => {});
+
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -2431,6 +2765,15 @@ app.post('/suppliers', async (req: Request, res: Response) => {
        RETURNING *`,
       [id, name.trim(), cnpj || null, phone || null, email || null, contactPerson || null, notes || null]
     );
+    recordAuditLog({
+      level: 'info',
+      category: 'suppliers',
+      action: 'supplier_created',
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string,
+      details: { id, name: name.trim(), cnpj, phone }
+    }).catch(() => {});
+
     res.status(201).json(mapSupplier(result.rows[0]));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -2460,6 +2803,16 @@ app.put('/suppliers/:id', async (req: Request, res: Response) => {
         id
       ]
     );
+
+    recordAuditLog({
+      level: 'info',
+      category: 'suppliers',
+      action: 'supplier_updated',
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string,
+      details: { id, name: name !== undefined ? name.trim() : row.name }
+    }).catch(() => {});
+
     res.json(mapSupplier(result.rows[0]));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -2469,7 +2822,19 @@ app.put('/suppliers/:id', async (req: Request, res: Response) => {
 app.delete('/suppliers/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const current = await query('SELECT name FROM sysmauad.suppliers WHERE id = $1', [id]);
+    const supName = current.rows[0]?.name || id;
     await query('DELETE FROM sysmauad.suppliers WHERE id = $1', [id]);
+
+    recordAuditLog({
+      level: 'warn',
+      category: 'suppliers',
+      action: 'supplier_deleted',
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string,
+      details: { id, name: supName }
+    }).catch(() => {});
+
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -2525,6 +2890,22 @@ app.post('/insumo-entries', async (req: Request, res: Response) => {
       );
     }
 
+    recordAuditLog({
+      level: 'info',
+      category: 'stock',
+      action: 'insumo_entry_created',
+      userName: entryData.operatorName || 'Operador',
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string,
+      details: {
+        id,
+        productName: entryData.productName,
+        quantity: entryData.quantity,
+        supplierName: entryData.supplierName,
+        totalValue
+      }
+    }).catch(() => {});
+
     res.status(201).json(mapInsumoEntry(result.rows[0]));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -2556,6 +2937,15 @@ app.post('/receitas-lavado', async (req: Request, res: Response) => {
       [id, name.trim(), description || null, JSON.stringify(fases || []), now, now]
     );
 
+    recordAuditLog({
+      level: 'info',
+      category: 'recipes',
+      action: 'receita_created',
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string,
+      details: { id, name: name.trim(), fasesCount: (fases || []).length }
+    }).catch(() => {});
+
     res.status(201).json(mapReceita(result.rows[0]));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -2585,6 +2975,15 @@ app.put('/receitas-lavado/:id', async (req: Request, res: Response) => {
       ]
     );
 
+    recordAuditLog({
+      level: 'info',
+      category: 'recipes',
+      action: 'receita_updated',
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string,
+      details: { id, name: name !== undefined ? name.trim() : row.name }
+    }).catch(() => {});
+
     res.json(mapReceita(result.rows[0]));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -2594,7 +2993,19 @@ app.put('/receitas-lavado/:id', async (req: Request, res: Response) => {
 app.delete('/receitas-lavado/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const current = await query('SELECT name FROM sysmauad.receitas_lavado WHERE id = $1', [id]);
+    const recName = current.rows[0]?.name || id;
     await query('DELETE FROM sysmauad.receitas_lavado WHERE id = $1', [id]);
+
+    recordAuditLog({
+      level: 'warn',
+      category: 'recipes',
+      action: 'receita_deleted',
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string,
+      details: { id, name: recName }
+    }).catch(() => {});
+
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -3315,11 +3726,12 @@ app.delete('/backups/:filename', (req: Request, res: Response) => {
 // ----------------------------------------------------
 app.get('/audit/logs', async (req: Request, res: Response) => {
   try {
-    const { level, category, search, limit, offset } = req.query;
+    const { level, category, search, limit, offset, tab } = req.query;
     const result = await getAuditLogs({
       level: level ? String(level) : undefined,
       category: category ? String(category) : undefined,
       search: search ? String(search) : undefined,
+      tab: tab ? String(tab) : undefined,
       limit: limit ? parseInt(String(limit), 10) : 50,
       offset: offset ? parseInt(String(offset), 10) : 0
     });

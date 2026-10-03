@@ -20,11 +20,38 @@ import {
   User,
   Globe,
   Activity,
-  Layers
+  Layers,
+  LogIn,
+  LogOut,
+  Edit3,
+  PlusCircle,
+  Clock,
+  UserCheck,
+  UserX,
+  Monitor
 } from 'lucide-react';
+
+interface ActiveSessionItem {
+  sessionId: string;
+  userId: string;
+  userName: string;
+  userRole: string;
+  ipAddress?: string;
+  userAgent?: string;
+  createdAt: string;
+  lastActivityAt: string;
+}
 
 export const AuditLogsView: React.FC = () => {
   const { user } = useAuth();
+
+  // Tab de Auditoria: 'access' | 'changes' | 'all'
+  const [activeTab, setActiveTab] = useState<'access' | 'changes' | 'all'>('access');
+
+  // Sessões ativas conectadas agora
+  const [activeSessions, setActiveSessions] = useState<ActiveSessionItem[]>([]);
+  const [isLoadingSessions, setIsLoadingSessions] = useState<boolean>(false);
+  const [terminatingSessionId, setTerminatingSessionId] = useState<string | null>(null);
 
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [stats, setStats] = useState<AuditStats | null>(null);
@@ -49,6 +76,40 @@ export const AuditLogsView: React.FC = () => {
   const [isPurging, setIsPurging] = useState<boolean>(false);
   const [purgeSuccessMsg, setPurgeSuccessMsg] = useState<string | null>(null);
 
+  // Busca sessões ativas
+  const fetchActiveSessions = useCallback(async () => {
+    setIsLoadingSessions(true);
+    try {
+      const res = await fetch('/api/auth/sessions/active');
+      if (res.ok) {
+        const data = await res.json();
+        setActiveSessions(data.sessions || []);
+      }
+    } catch (err) {
+      console.error('[AuditView] Erro ao buscar sessões ativas:', err);
+    } finally {
+      setIsLoadingSessions(false);
+    }
+  }, []);
+
+  // Encerrar sessão ativa forçadamente pelo admin
+  const handleTerminateSession = async (sessionId: string, userName: string) => {
+    if (!window.confirm(`Deseja realmente desconectar a sessão do usuário "${userName}"?`)) return;
+    setTerminatingSessionId(sessionId);
+    try {
+      const res = await fetch(`/api/auth/sessions/${sessionId}/terminate`, {
+        method: 'POST'
+      });
+      if (res.ok) {
+        await Promise.all([fetchActiveSessions(), fetchLogs()]);
+      }
+    } catch (err) {
+      console.error('[AuditView] Erro ao encerrar sessão:', err);
+    } finally {
+      setTerminatingSessionId(null);
+    }
+  };
+
   // Busca logs e estatísticas da API
   const fetchLogs = useCallback(async () => {
     setIsLoading(true);
@@ -56,7 +117,8 @@ export const AuditLogsView: React.FC = () => {
       const offset = (currentPage - 1) * pageSize;
       const queryParams = new URLSearchParams({
         limit: String(pageSize),
-        offset: String(offset)
+        offset: String(offset),
+        tab: activeTab
       });
 
       if (selectedLevel !== 'all') queryParams.append('level', selectedLevel);
@@ -83,20 +145,29 @@ export const AuditLogsView: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [currentPage, selectedLevel, selectedCategory, searchTerm]);
+  }, [currentPage, selectedLevel, selectedCategory, searchTerm, activeTab]);
 
   useEffect(() => {
     fetchLogs();
   }, [fetchLogs]);
+
+  useEffect(() => {
+    if (activeTab === 'access') {
+      fetchActiveSessions();
+    }
+  }, [activeTab, fetchActiveSessions]);
 
   // Auto-refresh a cada 15 segundos se ativado
   useEffect(() => {
     if (!autoRefresh) return;
     const interval = setInterval(() => {
       fetchLogs();
+      if (activeTab === 'access') {
+        fetchActiveSessions();
+      }
     }, 15000);
     return () => clearInterval(interval);
-  }, [autoRefresh, fetchLogs]);
+  }, [autoRefresh, fetchLogs, activeTab, fetchActiveSessions]);
 
   // Executa purga de logs antigos
   const handlePurgeLogs = async () => {
@@ -144,7 +215,116 @@ export const AuditLogsView: React.FC = () => {
     setTimeout(() => setCopiedDetail(false), 2000);
   };
 
-  // Helper de badges visuais por nível — usa cores que funcionam em ambos os temas
+  // Tradução amigável de categorias
+  const getCategoryLabel = (category: string) => {
+    switch (category) {
+      case 'auth': return 'Acesso / Autenticação';
+      case 'orders': return 'Ordens de Serviço';
+      case 'clients': return 'Clientes';
+      case 'users': return 'Usuários';
+      case 'stock': return 'Estoque';
+      case 'finance': return 'Financeiro';
+      case 'receitas': return 'Receitas de Lavado';
+      case 'passadores': return 'Passadoria';
+      case 'suppliers': return 'Fornecedores';
+      case 'security': return 'Segurança';
+      case 'client_portal': return 'Portal do Cliente';
+      case 'system': return 'Sistema';
+      default: return category;
+    }
+  };
+
+  // Badges contextuais de Ação
+  const renderActionBadge = (action: string) => {
+    if (action === 'login_success') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+          <LogIn className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+          Login com Sucesso
+        </span>
+      );
+    }
+    if (action === 'logout') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700">
+          <LogOut className="w-3 h-3 text-slate-500" />
+          Logout / Saída
+        </span>
+      );
+    }
+    if (action === 'session_expired_timeout') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+          <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+          Sessão Expirada (15m)
+        </span>
+      );
+    }
+    if (action === 'login_denied_concurrent_session') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800">
+          <ShieldAlert className="w-3 h-3 text-rose-600 dark:text-rose-400" />
+          Conexão Duplicada Bloqueada
+        </span>
+      );
+    }
+    if (action === 'session_terminated_by_admin') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800">
+          <LogOut className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+          Desconectado por Admin
+        </span>
+      );
+    }
+    if (action.includes('password') || action.includes('failed') || action === 'login_blocked_brute_force') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 border border-red-300 dark:border-red-800">
+          <UserX className="w-3 h-3 text-red-600 dark:text-red-400" />
+          Falha de Acesso
+        </span>
+      );
+    }
+    if (action.startsWith('create_') || action.includes('_created') || action === 'create') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+          <PlusCircle className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+          Criação
+        </span>
+      );
+    }
+    if (action.startsWith('update_') || action.includes('_updated') || action === 'update') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-sky-100 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-800">
+          <Edit3 className="w-3 h-3 text-sky-600 dark:text-sky-400" />
+          Alteração
+        </span>
+      );
+    }
+    if (action.startsWith('delete_') || action.includes('_deleted') || action === 'delete') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800">
+          <Trash2 className="w-3 h-3 text-rose-600 dark:text-rose-400" />
+          Exclusão
+        </span>
+      );
+    }
+    if (action.includes('baixa') || action.includes('payment')) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+          <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+          Baixa Financeira
+        </span>
+      );
+    }
+
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+        {action}
+      </span>
+    );
+  };
+
+  // Helper de badges visuais por nível
   const renderLevelBadge = (level: string) => {
     switch (level) {
       case 'security':
@@ -178,7 +358,27 @@ export const AuditLogsView: React.FC = () => {
     }
   };
 
-  const totalPages = Math.ceil(totalCount / pageSize) || 1;
+  // Helper para resumir os detalhes do log
+  const renderDetailsSummary = (log: AuditLog) => {
+    const d = log.details;
+    if (!d) return '-';
+
+    if (d.message) return d.message;
+    if (d.reason) return d.reason;
+    if (d.description) return d.description;
+
+    // Resumos específicos de entidades
+    if (d.osNumber) return `OS #${d.osNumber}${d.clientName ? ` • ${d.clientName}` : ''}`;
+    if (d.clientName) return `Cliente: ${d.clientName}`;
+    if (d.userName) return `Usuário: ${d.userName}`;
+    if (d.productName) return `Produto: ${d.productName} (${d.quantity ?? ''})`;
+    if (d.recipeName) return `Receita: ${d.recipeName}`;
+    if (d.passadorName) return `Passador: ${d.passadorName}`;
+    if (d.supplierName) return `Fornecedor: ${d.supplierName}`;
+    if (d.changes && Array.isArray(d.changes)) return `Campos alterados: ${d.changes.join(', ')}`;
+
+    return JSON.stringify(d).slice(0, 80);
+  };
 
   // Proteção: apenas Super Admin pode visualizar
   const isAuthorized = user?.id === 'super-admin-root';
@@ -210,7 +410,7 @@ export const AuditLogsView: React.FC = () => {
                 Auditoria &amp; Logs do Sistema
               </h1>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Rastreabilidade de processos, ações por usuário e proteção contra intrusões &amp; força bruta
+                Rastreabilidade de acessos, alterações cadastrais, sessões ativas e proteção do sistema
               </p>
             </div>
           </div>
@@ -234,10 +434,13 @@ export const AuditLogsView: React.FC = () => {
 
           {/* Manual Refresh */}
           <button
-            onClick={() => fetchLogs()}
+            onClick={() => {
+              fetchLogs();
+              if (activeTab === 'access') fetchActiveSessions();
+            }}
             disabled={isLoading}
             className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold transition-colors disabled:opacity-50"
-            title="Recarregar logs"
+            title="Recarregar dados"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-sky-500 dark:text-sky-400' : ''}`} />
             <span>Atualizar</span>
@@ -335,6 +538,158 @@ export const AuditLogsView: React.FC = () => {
         </div>
       </div>
 
+      {/* TABS DE AUDITORIA: ACESSOS VS ALTERAÇÕES VS TODOS */}
+      <div className="flex items-center gap-1 border-b border-slate-200 dark:border-slate-800 pt-2">
+        <button
+          onClick={() => { setActiveTab('access'); setCurrentPage(1); }}
+          className={`flex items-center gap-2 px-4 py-3 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer ${
+            activeTab === 'access'
+              ? 'border-sky-600 text-sky-600 dark:text-sky-400 bg-sky-50/50 dark:bg-sky-950/20 rounded-t-xl'
+              : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          <UserCheck className="w-4 h-4" />
+          <span>Logs de Acesso &amp; Sessões</span>
+          {activeSessions.length > 0 && (
+            <span className="ml-1.5 px-2 py-0.5 rounded-full text-[10px] bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 font-extrabold border border-emerald-300 dark:border-emerald-800">
+              {activeSessions.length} online
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => { setActiveTab('changes'); setCurrentPage(1); }}
+          className={`flex items-center gap-2 px-4 py-3 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer ${
+            activeTab === 'changes'
+              ? 'border-sky-600 text-sky-600 dark:text-sky-400 bg-sky-50/50 dark:bg-sky-950/20 rounded-t-xl'
+              : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          <Edit3 className="w-4 h-4" />
+          <span>Alterações do Sistema</span>
+        </button>
+
+        <button
+          onClick={() => { setActiveTab('all'); setCurrentPage(1); }}
+          className={`flex items-center gap-2 px-4 py-3 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer ${
+            activeTab === 'all'
+              ? 'border-sky-600 text-sky-600 dark:text-sky-400 bg-sky-50/50 dark:bg-sky-950/20 rounded-t-xl'
+              : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          <Layers className="w-4 h-4" />
+          <span>Todos os Registros</span>
+        </button>
+      </div>
+
+      {/* PAINEL DE SESSÕES ATIVAS CONECTADAS AGORA (Exibido na aba de acessos) */}
+      {activeTab === 'access' && (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-3 transition-colors">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800/80 pb-3">
+            <div className="flex items-center gap-2.5">
+              <span className="relative flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+              </span>
+              <h2 className="text-sm font-bold text-slate-900 dark:text-white">
+                Usuários Conectados Agora ({activeSessions.length})
+              </h2>
+              <span className="text-[11px] text-slate-400">
+                • Timeout de inatividade: 15 minutos • Sessão única por usuário
+              </span>
+            </div>
+            <button
+              onClick={() => fetchActiveSessions()}
+              disabled={isLoadingSessions}
+              className="text-xs text-sky-600 dark:text-sky-400 hover:underline flex items-center gap-1 font-semibold self-start sm:self-auto"
+            >
+              <RefreshCw className={`w-3 h-3 ${isLoadingSessions ? 'animate-spin' : ''}`} />
+              Atualizar Conexões
+            </button>
+          </div>
+
+          {activeSessions.length === 0 ? (
+            <div className="py-6 text-center text-slate-400 text-xs">
+              Nenhuma sessão de usuário ativa conectada no momento.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {activeSessions.map((s) => {
+                const loginDate = new Date(s.createdAt).toLocaleString('pt-BR', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  timeZone: 'America/Sao_Paulo'
+                });
+                const lastActivity = new Date(s.lastActivityAt).toLocaleTimeString('pt-BR', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit',
+                  timeZone: 'America/Sao_Paulo'
+                });
+                const isCurrentSelf = s.sessionId === sessionStorage.getItem('sysmauad-session-id');
+
+                return (
+                  <div
+                    key={s.sessionId}
+                    className={`p-3.5 rounded-xl border flex flex-col justify-between transition-all ${
+                      isCurrentSelf
+                        ? 'bg-sky-50/50 dark:bg-sky-950/20 border-sky-300 dark:border-sky-800'
+                        : 'bg-slate-50 dark:bg-slate-950/50 border-slate-200 dark:border-slate-800'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-xs text-slate-900 dark:text-white">
+                            {s.userName}
+                          </span>
+                          {isCurrentSelf && (
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-sky-100 dark:bg-sky-900/60 text-sky-700 dark:text-sky-300">
+                              Você
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-slate-500 uppercase font-mono">
+                          Perfil: {s.userRole}
+                        </span>
+                      </div>
+                      <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="Ativo" />
+                    </div>
+
+                    <div className="space-y-1 text-[11px] text-slate-600 dark:text-slate-400 font-mono mb-3">
+                      <div className="flex items-center gap-1 text-slate-400">
+                        <Globe className="w-3 h-3 text-slate-400 shrink-0" />
+                        <span>IP: {s.ipAddress?.replace(/^::ffff:/, '') || 'Localhost'}</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-slate-400">
+                        <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                        <span>Login: {loginDate}</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-slate-400">
+                        <Activity className="w-3 h-3 text-emerald-500 shrink-0" />
+                        <span>Último pulso: {lastActivity}</span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => handleTerminateSession(s.sessionId, s.userName)}
+                      disabled={terminatingSessionId === s.sessionId}
+                      className="w-full py-1.5 px-2 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50"
+                      title="Derrubar sessão ativa deste usuário"
+                    >
+                      <LogOut className="w-3 h-3" />
+                      <span>{terminatingSessionId === s.sessionId ? 'Desconectando...' : 'Desconectar Sessão'}</span>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Filter Bar */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 space-y-3 transition-colors">
         <div className="flex flex-col md:flex-row items-center justify-between gap-3">
@@ -405,15 +760,16 @@ export const AuditLogsView: React.FC = () => {
               className="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-800 dark:text-slate-200 font-medium focus:outline-none focus:ring-2 focus:ring-sky-500 w-full sm:w-auto transition-colors"
             >
               <option value="all">Todas as Categorias</option>
-              <option value="auth">Autenticação do Sistema</option>
-              <option value="client_portal">Central do Assinante</option>
-              <option value="security">Segurança &amp; Força Bruta</option>
+              <option value="auth">Acesso &amp; Autenticação</option>
               <option value="orders">Ordens de Serviço (OS)</option>
-              <option value="stock">Estoque Químico</option>
+              <option value="clients">Clientes</option>
               <option value="finance">Financeiro / Caixa</option>
+              <option value="stock">Estoque Químico</option>
               <option value="users">Gestão de Usuários</option>
+              <option value="passadores">Passadoria</option>
+              <option value="receitas">Receitas de Lavado</option>
+              <option value="security">Segurança &amp; Força Bruta</option>
               <option value="system">Sistema &amp; Automação</option>
-              <option value="api">API / Backend</option>
             </select>
           </div>
         </div>
@@ -427,7 +783,13 @@ export const AuditLogsView: React.FC = () => {
             type="text"
             value={searchTerm}
             onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-            placeholder="Filtrar por ação, operador, IP ou conteúdo dos detalhes..."
+            placeholder={
+              activeTab === 'access'
+                ? "Buscar por usuário, IP, login, logout ou bloqueios..."
+                : activeTab === 'changes'
+                ? "Buscar por ação (criação, edição, exclusão), operador ou detalhes..."
+                : "Filtrar por ação, operador, IP ou conteúdo dos detalhes..."
+            }
             className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 transition-colors"
           />
           {searchTerm && (
@@ -449,8 +811,8 @@ export const AuditLogsView: React.FC = () => {
               <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 <th className="py-3 px-4">Data / Hora</th>
                 <th className="py-3 px-3">Nível</th>
-                <th className="py-3 px-3">Usuário / Origem</th>
-                <th className="py-3 px-3">Categoria &amp; Ação</th>
+                <th className="py-3 px-3">Usuário / Operador</th>
+                <th className="py-3 px-3">Módulo &amp; Ação</th>
                 <th className="py-3 px-4">Resumo dos Detalhes</th>
                 <th className="py-3 px-3 text-right">Ação</th>
               </tr>
@@ -461,7 +823,7 @@ export const AuditLogsView: React.FC = () => {
                   <td colSpan={6} className="py-12 text-center text-slate-400">
                     <Layers className="w-8 h-8 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
                     <p className="font-semibold text-sm text-slate-500 dark:text-slate-300">Nenhum registro encontrado</p>
-                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Ajuste os filtros ou verifique se há ações recentes.</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Ajuste os filtros ou selecione outra aba.</p>
                   </td>
                 </tr>
               ) : (
@@ -502,7 +864,7 @@ export const AuditLogsView: React.FC = () => {
 
                       {/* User & IP */}
                       <td className="py-3 px-3">
-                        <div className="font-semibold text-slate-800 dark:text-slate-200 truncate max-w-[140px]">
+                        <div className="font-semibold text-slate-800 dark:text-slate-200 truncate max-w-[150px]">
                           {log.userName || 'Sistema / Anônimo'}
                         </div>
                         {log.ipAddress && (
@@ -515,18 +877,18 @@ export const AuditLogsView: React.FC = () => {
 
                       {/* Category & Action */}
                       <td className="py-3 px-3">
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 uppercase font-mono mr-1.5">
-                          {log.category}
-                        </span>
-                        <span className="font-medium text-slate-700 dark:text-slate-200">
-                          {log.action}
-                        </span>
+                        <div className="flex flex-col gap-1 items-start">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 uppercase font-mono">
+                            {getCategoryLabel(log.category)}
+                          </span>
+                          <div>{renderActionBadge(log.action)}</div>
+                        </div>
                       </td>
 
                       {/* Details Summary */}
                       <td className="py-3 px-4">
-                        <p className="text-slate-500 dark:text-slate-300 truncate max-w-[300px] text-[11px]">
-                          {log.details?.reason || log.details?.message || log.details?.process || JSON.stringify(log.details)}
+                        <p className="text-slate-600 dark:text-slate-300 truncate max-w-[320px] text-[11px]">
+                          {renderDetailsSummary(log)}
                         </p>
                       </td>
 
@@ -555,7 +917,7 @@ export const AuditLogsView: React.FC = () => {
           totalItems={totalCount}
           pageSize={pageSize}
           onPageChange={setCurrentPage}
-          label="logs de auditoria"
+          label="registros de auditoria"
         />
       </div>
 
@@ -598,7 +960,7 @@ export const AuditLogsView: React.FC = () => {
                 <span className="font-mono text-slate-800 dark:text-slate-200">{selectedLog.ipAddress || 'Não registrado'}</span>
               </div>
               <div className="col-span-2">
-                <span className="text-slate-400 block text-[10px] uppercase font-bold">User-Agent / Navegador</span>
+                <span className="text-slate-400 block text-[10px] uppercase font-bold">User-Agent / Dispositivo</span>
                 <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono break-all">{selectedLog.userAgent || 'Não informado'}</span>
               </div>
             </div>

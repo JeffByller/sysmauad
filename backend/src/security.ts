@@ -265,6 +265,7 @@ export async function getAuditLogs(params: {
   level?: string;
   category?: string;
   search?: string;
+  tab?: 'access' | 'changes' | 'all' | string;
   limit?: number;
   offset?: number;
 }): Promise<{ logs: AuditLog[]; total: number }> {
@@ -274,6 +275,27 @@ export async function getAuditLogs(params: {
   const whereClauses: string[] = [];
   const queryParams: any[] = [];
   let paramIdx = 1;
+
+  if (params.tab === 'access') {
+    whereClauses.push(`(
+      category IN ('auth', 'client_portal') OR 
+      action ILIKE '%login%' OR 
+      action ILIKE '%logout%' OR 
+      action ILIKE '%session%' OR 
+      action ILIKE '%brute_force%' OR 
+      action ILIKE '%intrusion%'
+    )`);
+  } else if (params.tab === 'changes') {
+    whereClauses.push(`(
+      category NOT IN ('auth', 'client_portal') AND 
+      action NOT ILIKE '%login%' AND 
+      action NOT ILIKE '%logout%' AND 
+      action NOT ILIKE '%session%' AND 
+      action NOT ILIKE '%brute_force%' AND 
+      action NOT ILIKE '%intrusion%' AND 
+      action NOT ILIKE '%rate_limit%'
+    )`);
+  }
 
   if (params.level && params.level !== 'all') {
     whereClauses.push(`level = $${paramIdx++}`);

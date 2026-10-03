@@ -695,6 +695,24 @@ export async function initDb() {
     CREATE INDEX IF NOT EXISTS idx_shared_reports_expires_at ON sysmauad.shared_reports (expires_at);
   `);
 
+  // 15. Tabela de Sessões Ativas de Usuários (Sessão Única Concorrente e Timeout de Inatividade)
+  await query(`
+    CREATE TABLE IF NOT EXISTS sysmauad.user_sessions (
+      id VARCHAR(100) PRIMARY KEY,
+      user_id VARCHAR(100) NOT NULL,
+      user_name VARCHAR(255),
+      ip_address VARCHAR(100),
+      user_agent TEXT,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      is_active BOOLEAN DEFAULT TRUE,
+      ended_at TIMESTAMP WITH TIME ZONE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_user_sessions_user_active ON sysmauad.user_sessions (user_id, is_active);
+    CREATE INDEX IF NOT EXISTS idx_user_sessions_last_seen ON sysmauad.user_sessions (last_seen_at);
+  `);
+
   // Migrações incrementais seguras
   await query(`
     ALTER TABLE sysmauad.passadores ADD COLUMN IF NOT EXISTS rate_per_piece NUMERIC(10,2) DEFAULT 0.15;

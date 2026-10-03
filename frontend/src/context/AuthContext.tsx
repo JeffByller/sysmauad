@@ -67,7 +67,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     refreshUsers();
   }, []);
 
-  // Inicializa estado de usuário logado
+  // Inicializa estado de usuário logado e sessão
   const [user, setUser] = useState<SystemUser | null>(() => {
     try {
       const saved = sessionStorage.getItem('sysmauad-auth-user');
@@ -77,7 +77,82 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   });
 
+  const [sessionId, setSessionId] = useState<string | null>(() => {
+    try {
+      return sessionStorage.getItem('sysmauad-session-id');
+    } catch {
+      return null;
+    }
+  });
+
   const isSuperAdmin = user?.id === 'super-admin-root';
+
+  const logout = () => {
+    const curSessionId = sessionStorage.getItem('sysmauad-session-id') || sessionId;
+    const curUser = user;
+    if (curSessionId || curUser) {
+      fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: curSessionId,
+          userId: curUser?.id,
+          userName: curUser?.name
+        })
+      }).catch(() => {});
+    }
+    setUser(null);
+    setSessionId(null);
+    sessionStorage.removeItem('sysmauad-auth-user');
+    sessionStorage.removeItem('sysmauad-session-id');
+  };
+
+  // Heartbeat periódico (a cada 60s) para manter a sessão ativa no servidor
+  useEffect(() => {
+    if (!user || !sessionId) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch('/api/auth/heartbeat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId })
+        });
+        const data = await res.json();
+        if (!res.ok || data.sessionExpired) {
+          alert('Sua sessão expirou por inatividade ou foi encerrada. Faça login novamente.');
+          logout();
+        }
+      } catch (err) {
+        // Falha temporária de rede, não desconecta
+      }
+    }, 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [user, sessionId]);
+
+  // Detector de inatividade no navegador (15 minutos)
+  useEffect(() => {
+    if (!user) return;
+
+    let timer: ReturnType<typeof setTimeout>;
+    const resetTimer = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        alert('Sua sessão foi encerrada por inatividade (15 minutos) por medidas de segurança.');
+        logout();
+      }, 15 * 60 * 1000);
+    };
+
+    const events = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart'];
+    events.forEach(evt => window.addEventListener(evt, resetTimer, { passive: true }));
+    resetTimer();
+
+    return () => {
+      clearTimeout(timer);
+      events.forEach(evt => window.removeEventListener(evt, resetTimer));
+    };
+  }, [user, sessionId]);
 
   const login = async (username: string, password: string): Promise<{ success: boolean; message?: string }> => {
     const rawUser = String(username || '').trim();
@@ -89,20 +164,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const normUser = normalizeLogin(rawUser);
 
-    // 1. Verificação do Super Admin Independente (estritamente 'superadmin')
-    const isSuperAdminLogin = normUser === 'superadmin';
-
-    if (isSuperAdminLogin) {
-      if (rawPass === 'm51IqWR48pYNeg' || rawPass === 'admin123' || rawPass === 'mauad2026') {
-        setUser(SUPER_ADMIN_USER);
-        sessionStorage.setItem('sysmauad-auth-user', JSON.stringify(SUPER_ADMIN_USER));
-        return { success: true };
-      } else {
-        return { success: false, message: 'Senha incorreta para o Super Admin.' };
-      }
-    }
-
-    // 2. Tentativa via API Centralizada do Backend
+    // 1. Tentativa via API Centralizada do Backend (com controle de sessão concorrente)
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
@@ -112,28 +174,53 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const data = await res.json();
       if (res.ok && data.success && data.user) {
         const loggedUser: SystemUser = data.user;
+        const newSessionId = data.sessionId || `sess_local_${Date.now()}`;
         setUser(loggedUser);
+        setSessionId(newSessionId);
         sessionStorage.setItem('sysmauad-auth-user', JSON.stringify(loggedUser));
+        sessionStorage.setItem('sysmauad-session-id', newSessionId);
         
-        // Atualiza a lista local de usuários
-        setUsersList(prev => {
-          const idx = prev.findIndex(u => u.id === loggedUser.id);
-          if (idx >= 0) {
-            const next = [...prev];
-            next[idx] = { ...prev[idx], ...loggedUser };
-            return next;
-          }
-          return [...prev, loggedUser];
-        });
+        // Atualiza a lista local de usuários se for operador regular
+        if (loggedUser.id !== 'super-admin-root') {
+          setUsersList(prev => {
+            const idx = prev.findIndex(u => u.id === loggedUser.id);
+            if (idx >= 0) {
+              const next = [...prev];
+              next[idx] = { ...prev[idx], ...loggedUser };
+              return next;
+            }
+            return [...prev, loggedUser];
+          });
+        }
         return { success: true };
-      } else if (res.status === 401 || res.status === 403 || res.status === 404) {
+      } else if (res.status === 409) {
+        // Bloqueio de Sessão Concorrente Ativa
+        return { 
+          success: false, 
+          message: data.message || 'Este usuário já possui uma sessão ativa em outro dispositivo ou navegador.' 
+        };
+      } else if (res.status === 401 || res.status === 403 || res.status === 404 || res.status === 429) {
         return { success: false, message: data.message || 'Credenciais inválidas.' };
       }
     } catch {
-      // Se a chamada de rede falhar, continua para a validação local
+      // Se a chamada de rede falhar completamente (servidor offline), segue para fallback local
     }
 
-    // 3. Fallback de Validação Local (Busca Flexível e Normalizada)
+    // 2. Fallback de Validação Local (Busca Flexível e Normalizada em caso de queda de rede)
+    const isSuperAdminLogin = normUser === 'superadmin';
+    if (isSuperAdminLogin) {
+      if (rawPass === 'm51IqWR48pYNeg' || rawPass === 'admin123' || rawPass === 'mauad2026') {
+        const fallbackSessionId = `sess_local_super_${Date.now()}`;
+        setUser(SUPER_ADMIN_USER);
+        setSessionId(fallbackSessionId);
+        sessionStorage.setItem('sysmauad-auth-user', JSON.stringify(SUPER_ADMIN_USER));
+        sessionStorage.setItem('sysmauad-session-id', fallbackSessionId);
+        return { success: true };
+      } else {
+        return { success: false, message: 'Senha incorreta para o Super Admin.' };
+      }
+    }
+
     const found = usersList.find(u => {
       const uNorm = normalizeLogin(u.username);
       const uRaw = u.username.toLowerCase();
@@ -154,14 +241,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, message: 'Senha incorreta.' };
     }
 
+    const fallbackSessionId = `sess_local_${Date.now()}`;
     setUser(found);
+    setSessionId(fallbackSessionId);
     sessionStorage.setItem('sysmauad-auth-user', JSON.stringify(found));
+    sessionStorage.setItem('sysmauad-session-id', fallbackSessionId);
     return { success: true };
-  };
-
-  const logout = () => {
-    setUser(null);
-    sessionStorage.removeItem('sysmauad-auth-user');
   };
 
   const switchUser = (userId: string) => {
