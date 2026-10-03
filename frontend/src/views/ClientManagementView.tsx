@@ -1394,15 +1394,7 @@ export const ClientManagementView: React.FC = () => {
 
             </div>
 
-            {/* Footer do Modal do Cliente */}
-            <div className="px-5 py-3 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0 text-xs text-slate-500 dark:text-slate-400">
-              <span>
-                Cadastro ID: <code className="font-mono text-[11px]">{editingClient.id}</code>
-              </span>
-              <span className="text-[11px] text-slate-400">
-                {editingClient.name} • {editingClient.companyName || 'Cliente'}
-              </span>
-            </div>
+
           </div>
         </div>
       )}
