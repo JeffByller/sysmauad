@@ -7,7 +7,6 @@ import {
   Shirt, 
   Truck, 
   UserCheck, 
-  Layers, 
   ListFilter, 
   CheckCircle2, 
   Clock, 
@@ -33,9 +32,6 @@ export const PassadorReportView: React.FC = () => {
   const [lavadoStatusFilter, setLavadoStatusFilter] = useState<
     'todos' | 'recebido' | 'em_andamento' | 'pronto' | 'entregue' | 'na_lavanderia'
   >('todos');
-
-  // Modo de visualização/impressão: Completo, Apenas Lista de Pedidos ou Apenas Resumo de Lavados
-  const [lavadoViewMode, setLavadoViewMode] = useState<'completo' | 'pedidos' | 'processos'>('completo');
 
   // Filtros de Unidade (Individual vs Geral)
   const [selectedPassadorId, setSelectedPassadorId] = useState<string>('all');
@@ -318,14 +314,6 @@ export const PassadorReportView: React.FC = () => {
       case 'entregue': return '4. ENTREGUES (SAÍDAS)';
       case 'na_lavanderia': return 'NA LAVANDERIA (NÃO ENTREGUES / EM ABERTO)';
       default: return 'TODOS OS STATUS (GERAL)';
-    }
-  };
-
-  const getViewModeLabel = (mode: typeof lavadoViewMode) => {
-    switch (mode) {
-      case 'pedidos': return 'LISTAGEM DETALHADA';
-      case 'processos': return 'RESUMO CONSOLIDADO POR PROCESSO DE LAVADO';
-      default: return 'COMPLETO (RESUMO DE LAVADOS + LISTA DE PEDIDOS)';
     }
   };
 
@@ -679,64 +667,6 @@ export const PassadorReportView: React.FC = () => {
                 </button>
               </div>
             </div>
-
-            {/* Linha 2: Modo de Impressão e Resumo Rápido */}
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
-              <div className="flex items-center gap-2">
-                <span className="text-slate-500 dark:text-slate-400 font-bold uppercase text-[11px] flex items-center gap-1">
-                  <Layers className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
-                  Formato de Impressão:
-                </span>
-                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setLavadoViewMode('completo')}
-                    className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
-                      lavadoViewMode === 'completo'
-                        ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                    }`}
-                  >
-                    Completo (Resumo + Lista)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setLavadoViewMode('pedidos')}
-                    className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
-                      lavadoViewMode === 'pedidos'
-                        ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                    }`}
-                  >
-                    Lista de Pedidos / Lotes
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setLavadoViewMode('processos')}
-                    className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
-                      lavadoViewMode === 'processos'
-                        ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                    }`}
-                  >
-                    Apenas Resumo de Lavados
-                  </button>
-                </div>
-              </div>
-
-              {/* Indicadores rápidos de Lotes, Peças e Kg */}
-              <div className="flex items-center gap-4 text-xs font-mono">
-                <span className="text-slate-600 dark:text-slate-300">
-                  Lotes: <strong className="text-slate-900 dark:text-slate-100 font-bold">{filteredOrders.length}</strong>
-                </span>
-                <span className="text-slate-600 dark:text-slate-300">
-                  Peças: <strong className="text-sky-700 dark:text-sky-400 font-bold">{totalLavadoPieces.toLocaleString('pt-BR')}</strong>
-                </span>
-                <span className="text-slate-600 dark:text-slate-300">
-                  Peso: <strong className="text-slate-900 dark:text-slate-100 font-bold">{totalLavadoKg.toFixed(2)} kg</strong>
-                </span>
-              </div>
-            </div>
           </div>
         )}
 
@@ -999,61 +929,56 @@ export const PassadorReportView: React.FC = () => {
             ) : (
               <>
                 {/* 1. SEÇÃO CONSOLIDADA POR PROCESSO / LAVADO */}
-                {(lavadoViewMode === 'completo' || lavadoViewMode === 'processos') && (
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between items-center font-bold text-xs pb-1 border-b border-slate-300">
-                      <span>CONSOLIDADO POR PROCESSO DE LAVADO</span>
-                      <span className="text-[10px] text-slate-500 font-normal">DISTRIBUIÇÃO DA PRODUÇÃO</span>
-                    </div>
-
-                    <div className="grid grid-cols-12 font-bold text-[11px] text-slate-700 py-1 border-b border-dashed border-slate-200">
-                      <span className="col-span-5">LAVADO</span>
-                      <span className="col-span-2 text-center">LOTES</span>
-                      <span className="col-span-2 text-right">PESO (KG)</span>
-                      <span className="col-span-3 text-right">QUANTIDADE (PÇS)</span>
-                    </div>
-
-                    <div className="space-y-1 text-xs">
-                      {processReport.entries.map(([procName, data]) => {
-                        const pct = totalLavadoPieces > 0 ? ((data.pieces / totalLavadoPieces) * 100).toFixed(1) : '0';
-                        return (
-                          <div key={procName} className="grid grid-cols-12 items-center py-0.5 border-b border-dotted border-slate-100 font-mono">
-                            <span className="col-span-5 font-sans font-bold text-slate-800 truncate" title={procName}>
-                              {procName}
-                            </span>
-                            <span className="col-span-2 text-center text-slate-600">
-                              {data.count} lote(s)
-                            </span>
-                            <span className="col-span-2 text-right text-slate-600">
-                              {data.kg.toFixed(2)} kg
-                            </span>
-                            <span className="col-span-3 text-right font-bold text-slate-900">
-                              {data.pieces.toLocaleString('pt-BR')} Pcs <span className="text-[10px] text-slate-400 font-normal">({pct}%)</span>
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    <div className="grid grid-cols-12 items-center pt-1.5 border-t border-slate-300 font-bold text-xs font-mono">
-                      <span className="col-span-5 font-sans">SUBTOTAL:</span>
-                      <span className="col-span-2 text-center">{processReport.totalLotes} lotes</span>
-                      <span className="col-span-2 text-right">{processReport.totalKg.toFixed(2)} kg</span>
-                      <span className="col-span-3 text-right text-sm">TOTAL PECAS: {processReport.totalPieces.toLocaleString('pt-BR')}</span>
-                    </div>
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center font-bold text-xs pb-1 border-b border-slate-300">
+                    <span>CONSOLIDADO POR PROCESSO DE LAVADO</span>
+                    <span className="text-[10px] text-slate-500 font-normal">DISTRIBUIÇÃO DA PRODUÇÃO</span>
                   </div>
-                )}
 
-                {/* Separador se ambos forem exibidos */}
-                {lavadoViewMode === 'completo' && (
-                  <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px] pt-1">
-                    ------------------------------------------------------------------------------------------------------------------------
+                  <div className="grid grid-cols-12 font-bold text-[11px] text-slate-700 py-1 border-b border-dashed border-slate-200">
+                    <span className="col-span-5">LAVADO</span>
+                    <span className="col-span-2 text-center">LOTES</span>
+                    <span className="col-span-2 text-right">PESO (KG)</span>
+                    <span className="col-span-3 text-right">QUANTIDADE (PÇS)</span>
                   </div>
-                )}
+
+                  <div className="space-y-1 text-xs">
+                    {processReport.entries.map(([procName, data]) => {
+                      const pct = totalLavadoPieces > 0 ? ((data.pieces / totalLavadoPieces) * 100).toFixed(1) : '0';
+                      return (
+                        <div key={procName} className="grid grid-cols-12 items-center py-0.5 border-b border-dotted border-slate-100 font-mono">
+                          <span className="col-span-5 font-sans font-bold text-slate-800 truncate" title={procName}>
+                            {procName}
+                          </span>
+                          <span className="col-span-2 text-center text-slate-600">
+                            {data.count} lote(s)
+                          </span>
+                          <span className="col-span-2 text-right text-slate-600">
+                            {data.kg.toFixed(2)} kg
+                          </span>
+                          <span className="col-span-3 text-right font-bold text-slate-900">
+                            {data.pieces.toLocaleString('pt-BR')} Pcs <span className="text-[10px] text-slate-400 font-normal">({pct}%)</span>
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="grid grid-cols-12 items-center pt-1.5 border-t border-slate-300 font-bold text-xs font-mono">
+                    <span className="col-span-5 font-sans">SUBTOTAL:</span>
+                    <span className="col-span-2 text-center">{processReport.totalLotes} lotes</span>
+                    <span className="col-span-2 text-right">{processReport.totalKg.toFixed(2)} kg</span>
+                    <span className="col-span-3 text-right text-sm">TOTAL PECAS: {processReport.totalPieces.toLocaleString('pt-BR')}</span>
+                  </div>
+                </div>
+
+                {/* Separador */}
+                <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px] pt-1">
+                  ------------------------------------------------------------------------------------------------------------------------
+                </div>
 
                 {/* 2. SEÇÃO LISTAGEM DETALHADA DE PEDIDOS / LOTES */}
-                {(lavadoViewMode === 'completo' || lavadoViewMode === 'pedidos') && (
-                  <div className="space-y-1.5">
+                <div className="space-y-1.5">
                     <div className="flex justify-between items-center font-bold text-xs pb-1 border-b border-slate-300">
                       <span>LISTAGEM DETALHADA</span>
                       <span className="text-[10px] text-slate-500 font-normal">{filteredOrders.length} registros</span>
@@ -1075,7 +1000,6 @@ export const PassadorReportView: React.FC = () => {
                       {sortedOrders.map(order => renderOrderRow(order))}
                     </div>
                   </div>
-                )}
 
                 {/* Separador e Totais Finais do Relatório */}
                 <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px] pt-1">
