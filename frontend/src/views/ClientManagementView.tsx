@@ -539,9 +539,9 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({ onNa
   }, [clientOrders, financeStatusFilter, financeSearchTerm]);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 print:p-0 print:m-0 print:max-w-none print:space-y-0">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
+      <div className="no-print flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Gestão de Clientes</h1>
         </div>
@@ -557,14 +557,14 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({ onNa
 
       {/* Success Feedback */}
       {feedbackMsg && (
-        <div className="p-4 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs font-semibold flex items-center gap-2">
+        <div className="no-print p-4 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs font-semibold flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
           <span>{feedbackMsg}</span>
         </div>
       )}
 
       {/* Main Table */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden space-y-4 transition-colors">
+      <div className="no-print bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden space-y-4 transition-colors">
         <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50 dark:bg-slate-800/60">
           <div className="relative flex-1 max-w-md">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
@@ -690,7 +690,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({ onNa
 
       {/* ─── MODAL PRINCIPAL DO CLIENTE COM 5 ABAS (Tarefas 3, 4, 5 e 6) ──────── */}
       {editingClient && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-5 animate-in fade-in duration-150">
+        <div className="no-print fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-5 animate-in fade-in duration-150">
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-4xl w-full h-[88vh] min-h-[560px] max-h-[92vh] flex flex-col overflow-hidden text-slate-900 dark:text-slate-100 transition-colors">
             
             {/* Header do Cliente */}
@@ -1032,6 +1032,18 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({ onNa
                         </button>
                       )}
                     </div>
+
+                    {/* Botão Imprimir Geral da Lista Filtrada */}
+                    <button
+                      type="button"
+                      onClick={() => window.print()}
+                      disabled={filteredClientOrders.length === 0}
+                      className="px-3 py-1.5 bg-slate-900 dark:bg-sky-700 hover:bg-slate-800 dark:hover:bg-sky-600 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs disabled:opacity-40 shrink-0"
+                      title="Imprimir Relatório de Pedidos Filtrados deste Cliente"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      <span>Imprimir</span>
+                    </button>
                   </div>
 
                   {/* Tabela de Pedidos do Cliente */}
@@ -1053,7 +1065,6 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({ onNa
                             <th className="p-3 text-center">Peso</th>
                             <th className="p-3 text-center">Status</th>
                             <th className="p-3 text-center">Data Pronto</th>
-                            <th className="p-3 text-right">Ações</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-mono">
@@ -1103,17 +1114,6 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({ onNa
                                 </td>
                                 <td className="p-3 text-center text-slate-600 dark:text-slate-400">
                                   {readyDate}
-                                </td>
-                                <td className="p-3 text-right">
-                                  <button
-                                    type="button"
-                                    onClick={() => onNavigate?.('order-print', o.id)}
-                                    className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold transition-colors border border-slate-200 dark:border-slate-700 inline-flex items-center gap-1 shadow-xs"
-                                    title="Imprimir OS / Pedido"
-                                  >
-                                    <Printer className="w-3.5 h-3.5 text-sky-600" />
-                                    <span>Imprimir</span>
-                                  </button>
                                 </td>
                               </tr>
                             );
@@ -1555,7 +1555,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({ onNa
 
       {/* ─── MODAL: CADASTRAR NOVO CLIENTE (com E-mail, Segundo Contato e Observação) ─── */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+        <div className="no-print fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden text-slate-900 dark:text-slate-100">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 p-5 shrink-0">
               <h3 className="font-bold text-slate-900 dark:text-slate-100 text-base flex items-center gap-2">
@@ -1722,7 +1722,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({ onNa
 
       {/* ─── MODAL: CONVITE / LINK DO PORTAL DO CLIENTE ─── */}
       {invitedClient && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div className="no-print fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-lg w-full p-6 space-y-5 text-slate-900 dark:text-slate-100">
             {/* Cabeçalho */}
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
@@ -1849,6 +1849,147 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({ onNa
                 <Send className="w-3.5 h-3.5" />
                 {sendingInvite ? 'Enviando WhatsApp...' : 'Disparar pelo WhatsApp'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── FOLHA DE IMPRESSÃO DE PEDIDOS DO CLIENTE (print-only) ─── */}
+      {editingClient && (
+        <div className="print-only bg-white text-black font-sans">
+          <div className="space-y-4 text-xs">
+            {/* Cabeçalho */}
+            <div className="border-b-2 border-black pb-2 flex justify-between items-end">
+              <div>
+                <h1 className="text-xl font-black uppercase tracking-tight text-black leading-none">MAUAD LAVANDERIA</h1>
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-800 block mt-1">
+                  RELATÓRIO DE PEDIDOS • {editingClient.name.toUpperCase()}
+                </span>
+              </div>
+              <div className="text-right text-[11px] font-mono space-y-0.5">
+                <div><strong>Emissão:</strong> {new Date().toLocaleDateString('pt-BR')} às {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+                <div>
+                  <strong>Período:</strong>{' '}
+                  {orderDateStart || orderDateEnd
+                    ? `${orderDateStart ? orderDateStart.split('-').reverse().join('/') : 'Início'} até ${orderDateEnd ? orderDateEnd.split('-').reverse().join('/') : 'Fim'}`
+                    : 'Geral'}
+                </div>
+                {orderStatusFilter !== 'todos' && (
+                  <div>
+                    <strong>Status:</strong>{' '}
+                    {orderStatusFilter === 'recebido'
+                      ? 'Recebido'
+                      : orderStatusFilter === 'em_andamento'
+                      ? 'Em Andamento'
+                      : orderStatusFilter === 'pronto'
+                      ? 'Pronto'
+                      : 'Entregue'}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Dados do Cliente */}
+            <div className="p-2.5 border border-black rounded bg-slate-50 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              <div>
+                <span className="font-bold text-[10px] uppercase text-slate-500 block">Razão Social / Nome</span>
+                <strong className="text-sm">{editingClient.name}</strong>
+                {editingClient.companyName && editingClient.companyName !== editingClient.name && (
+                  <span className="block text-slate-600 text-xs">({editingClient.companyName})</span>
+                )}
+              </div>
+              <div>
+                <span className="font-bold text-[10px] uppercase text-slate-500 block">WhatsApp / Telefone</span>
+                <span className="font-mono font-semibold">{formatPhone(editingClient.phone) || editingClient.phone || '—'}</span>
+              </div>
+              {editingClient.cnpjCpf && (
+                <div>
+                  <span className="font-bold text-[10px] uppercase text-slate-500 block">CNPJ / CPF</span>
+                  <span className="font-mono">{editingClient.cnpjCpf}</span>
+                </div>
+              )}
+              {editingClient.address && (
+                <div>
+                  <span className="font-bold text-[10px] uppercase text-slate-500 block">Endereço</span>
+                  <span>{editingClient.address}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Tabela de Pedidos */}
+            <table className="w-full border-collapse border border-black text-[11px]">
+              <thead>
+                <tr className="bg-slate-200 border-b border-black text-black">
+                  <th className="border border-black p-1.5 text-left">OS / Entrada</th>
+                  <th className="border border-black p-1.5 text-left">Peça</th>
+                  <th className="border border-black p-1.5 text-left">Lavado</th>
+                  <th className="border border-black p-1.5 text-center">Qtd</th>
+                  <th className="border border-black p-1.5 text-center">Peso</th>
+                  <th className="border border-black p-1.5 text-center">Status</th>
+                  <th className="border border-black p-1.5 text-center">Data Pronto</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedClientOrders.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="border border-black p-4 text-center text-slate-500">
+                      Nenhum pedido encontrado para os filtros selecionados.
+                    </td>
+                  </tr>
+                ) : (
+                  sortedClientOrders.map(ord => {
+                    const entryDate = new Date(ord.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                    const readyEvent = ord.history?.find(h => h.status === 'pronto');
+                    const readyDate = readyEvent
+                      ? new Date(readyEvent.timestamp).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+                      : (ord.status === 'pronto' || ord.status === 'entregue')
+                        ? new Date(ord.updatedAt || ord.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+                        : '—';
+                    const garment = ord.items && ord.items.length > 0
+                      ? ord.items.map(i => i.clothingType).filter(Boolean).join(', ')
+                      : (ord.corteOs ? `Corte ${ord.corteOs}` : 'Peça Padrão');
+                    const process = ord.items && ord.items.length > 0
+                      ? ord.items.map(i => i.process).filter(Boolean).join(', ')
+                      : 'Lavado';
+                    const pieceCount = ord.estimatedPieceCount || ord.items?.reduce((acc, i) => acc + (i.quantity || 0), 0) || 0;
+                    const statusLabel = ord.status === 'recebido' ? '1. Feito' : ord.status === 'em_andamento' ? '2. Andamento' : ord.status === 'pronto' ? '3. Pronto' : '4. Entregue';
+
+                    return (
+                      <tr key={ord.id} className="border-b border-slate-300">
+                        <td className="border border-black p-1.5 font-mono">
+                          <strong>{ord.osNumber}</strong>
+                          <span className="block text-[10px] text-slate-600 font-sans">{entryDate}</span>
+                        </td>
+                        <td className="border border-black p-1.5 font-sans">{garment}</td>
+                        <td className="border border-black p-1.5 font-sans">{process}</td>
+                        <td className="border border-black p-1.5 text-center font-mono font-bold">{pieceCount}</td>
+                        <td className="border border-black p-1.5 text-center font-mono">{(ord.totalWeightKg || 0).toFixed(1)} kg</td>
+                        <td className="border border-black p-1.5 text-center font-sans font-semibold text-[10px] uppercase">{statusLabel}</td>
+                        <td className="border border-black p-1.5 text-center font-mono">{readyDate}</td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+
+            {/* Resumo / Totais no padrão SysMauad */}
+            <div className="p-3 border border-black rounded bg-slate-100 flex items-center justify-between font-mono text-xs">
+              <div>
+                <strong>Total de Lotes:</strong> {sortedClientOrders.length}
+              </div>
+              <div>
+                <strong>Peso Total:</strong> {sortedClientOrders.reduce((acc, o) => acc + (o.totalWeightKg || 0), 0).toFixed(1)} kg
+              </div>
+              <div className="font-bold text-sm">
+                <strong>TOTAL PECAS:</strong> {sortedClientOrders.reduce((acc, o) => acc + (o.estimatedPieceCount || o.items?.reduce((s, i) => s + (i.quantity || 0), 0) || 0), 0).toLocaleString('pt-BR')}
+              </div>
+            </div>
+
+            {/* Assinatura */}
+            <div className="pt-8 text-center">
+              <div className="w-64 border-t border-black mx-auto mb-1"></div>
+              <p className="text-[10px] uppercase font-bold text-slate-700">Assinatura do Responsável</p>
             </div>
           </div>
         </div>
