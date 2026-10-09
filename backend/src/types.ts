@@ -92,6 +92,7 @@ export interface Passador {
   phone?: string;
   totalPiecesIroned: number;
   ratePerPiece?: number;
+  ratePerPieceAfter17?: number;
   createdAt: string;
   active: boolean;
 }
@@ -128,6 +129,8 @@ export interface PassadorLog {
   passadorName: string;
   piecesIroned: number;
   timestamp: string;
+  isAfter17?: boolean;
+  servicePeriod?: 'normal' | 'after_17';
   editCount?: number;
   lastEditedAt?: string;
   lastEditedBy?: string;
@@ -241,6 +244,7 @@ export interface SystemSettings {
   backupRetentionDays: number;
   backupTime: string;
   defaultPassadorRate?: number;
+  defaultPassadorRateAfter17?: number;
   stalledOrderAlertDays?: number;
   reportRetentionDays?: number;
   licenseKey?: string;

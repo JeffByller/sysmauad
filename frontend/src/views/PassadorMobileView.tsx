@@ -45,9 +45,30 @@ export const PassadorMobileView: React.FC<PassadorMobileViewProps> = ({ onOpenSc
   const [piecesIronedInput, setPiecesIronedInput] = useState<string>('');
   const [feedbackMessage, setFeedbackMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  // Helper para verificar se o horário atual de Brasília é após as 17h
+  const isCurrentTimeAfter17 = () => {
+    try {
+      const brHour = parseInt(
+        new Intl.DateTimeFormat('pt-BR', {
+          timeZone: 'America/Sao_Paulo',
+          hour: 'numeric',
+          hour12: false
+        }).format(new Date()),
+        10
+      );
+      return brHour >= 17;
+    } catch {
+      return new Date().getHours() >= 17;
+    }
+  };
+
+  // Turno da passada: depois das 17h (17h às 19h)?
+  const [isAfter17, setIsAfter17] = useState<boolean>(() => isCurrentTimeAfter17());
+
   // Estados de Edição de Passada
   const [editingLog, setEditingLog] = useState<(PassadorLog & { clientName?: string }) | null>(null);
   const [editPiecesInput, setEditPiecesInput] = useState<string>('');
+  const [editIsAfter17, setEditIsAfter17] = useState<boolean>(false);
   const [isSubmittingEdit, setIsSubmittingEdit] = useState<boolean>(false);
 
   // Consulta de produção simplificada: 'hoje' | 'semana'
@@ -87,8 +108,24 @@ export const PassadorMobileView: React.FC<PassadorMobileViewProps> = ({ onOpenSc
     .filter(l => getLocalDateString(l.timestamp) === todayStr)
     .reduce((sum, l) => sum + l.piecesIroned, 0);
 
+  const todayNormal = myLogs
+    .filter(l => getLocalDateString(l.timestamp) === todayStr && !l.isAfter17)
+    .reduce((sum, l) => sum + l.piecesIroned, 0);
+
+  const todayAfter17 = myLogs
+    .filter(l => getLocalDateString(l.timestamp) === todayStr && Boolean(l.isAfter17))
+    .reduce((sum, l) => sum + l.piecesIroned, 0);
+
   const piecesWeek = myLogs
     .filter(l => getLocalDateString(l.timestamp) >= sevenDaysAgo)
+    .reduce((sum, l) => sum + l.piecesIroned, 0);
+
+  const weekNormal = myLogs
+    .filter(l => getLocalDateString(l.timestamp) >= sevenDaysAgo && !l.isAfter17)
+    .reduce((sum, l) => sum + l.piecesIroned, 0);
+
+  const weekAfter17 = myLogs
+    .filter(l => getLocalDateString(l.timestamp) >= sevenDaysAgo && Boolean(l.isAfter17))
     .reduce((sum, l) => sum + l.piecesIroned, 0);
 
   // Logs filtrados pelo período selecionado ('hoje' ou 'semana')
@@ -137,10 +174,11 @@ export const PassadorMobileView: React.FC<PassadorMobileViewProps> = ({ onOpenSc
       }
     }
 
-    const res = registerIroning(activeOrder.id, activePassador.id, activePassador.name, piecesCount);
+    const res = registerIroning(activeOrder.id, activePassador.id, activePassador.name, piecesCount, isAfter17);
     if (res.success) {
       setFeedbackMessage({ type: 'success', text: res.message });
       setPiecesIronedInput('');
+      setIsAfter17(isCurrentTimeAfter17());
     } else {
       setFeedbackMessage({ type: 'error', text: res.message });
     }
@@ -205,6 +243,11 @@ export const PassadorMobileView: React.FC<PassadorMobileViewProps> = ({ onOpenSc
             <span className="text-xl font-black font-mono mt-0.5 block text-emerald-600 dark:text-emerald-400">
               {piecesToday} <span className="text-[11px] font-normal text-slate-500 dark:text-slate-400">pçs</span>
             </span>
+            {todayAfter17 > 0 && todayNormal > 0 && (
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono block mt-0.5">
+                7h-17h: {todayNormal} • +17h: {todayAfter17}
+              </span>
+            )}
           </button>
 
           <button
@@ -220,6 +263,11 @@ export const PassadorMobileView: React.FC<PassadorMobileViewProps> = ({ onOpenSc
             <span className="text-xl font-black font-mono mt-0.5 block text-emerald-600 dark:text-emerald-400">
               {piecesWeek} <span className="text-[11px] font-normal text-slate-500 dark:text-slate-400">pçs</span>
             </span>
+            {weekAfter17 > 0 && weekNormal > 0 && (
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono block mt-0.5">
+                7h-17h: {weekNormal} • +17h: {weekAfter17}
+              </span>
+            )}
           </button>
         </div>
 
@@ -248,8 +296,17 @@ export const PassadorMobileView: React.FC<PassadorMobileViewProps> = ({ onOpenSc
                     className="p-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-mono"
                   >
                     <div className="min-w-0 pr-2">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <strong className="text-slate-900 dark:text-slate-100">{l.osNumber}</strong>
+                        {l.isAfter17 ? (
+                          <span className="text-[9px] font-sans px-1.5 py-0.5 rounded font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+                            17h-19h
+                          </span>
+                        ) : (
+                          <span className="text-[9px] font-sans px-1.5 py-0.5 rounded text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                            7h-17h
+                          </span>
+                        )}
                         {isAlreadyEdited && (
                           <span className="text-[9px] font-sans px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
                             Editado
@@ -286,6 +343,7 @@ export const PassadorMobileView: React.FC<PassadorMobileViewProps> = ({ onOpenSc
                           }
                           setEditingLog(l);
                           setEditPiecesInput(String(l.piecesIroned));
+                          setEditIsAfter17(Boolean(l.isAfter17));
                         }}
                         title={canEdit ? (isAdmin ? 'Editar passada (ADM)' : 'Editar passada (1 única vez permitida)') : 'Limite de 1 edição atingido'}
                         className={`p-2 rounded-lg border transition-all flex items-center justify-center ${
@@ -463,6 +521,44 @@ export const PassadorMobileView: React.FC<PassadorMobileViewProps> = ({ onOpenSc
                 </button>
               ))}
             </div>
+
+            {/* Seleção de Turno / Horário: Depois das 17h */}
+            <div className="pt-2">
+              <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider block mb-1">
+                Horário / Turno de Produção
+              </label>
+              <button
+                type="button"
+                onClick={() => setIsAfter17(!isAfter17)}
+                className={`w-full p-3 rounded-xl border text-left flex items-center justify-between transition-all ${
+                  isAfter17
+                    ? 'bg-amber-50 dark:bg-amber-950/60 border-amber-400 dark:border-amber-600 text-amber-950 dark:text-amber-200 shadow-sm ring-1 ring-amber-400/40'
+                    : 'bg-slate-50 dark:bg-slate-800/60 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className={`p-2 rounded-lg ${isAfter17 ? 'bg-amber-500 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'}`}>
+                    <Clock className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold block">
+                      {isAfter17 ? 'Depois das 17h (17h às 19h)' : 'Normal (7h às 17h)'}
+                    </span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                      {isAfter17 ? 'Adicional de produção ativado' : 'Horário normal de trabalho'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold font-mono ${
+                  isAfter17 
+                    ? 'bg-amber-200/80 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200' 
+                    : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                }`}>
+                  <span>{isAfter17 ? '✓ Após 17h' : '7h às 17h'}</span>
+                </div>
+              </button>
+            </div>
           </div>
 
           <button
@@ -511,7 +607,8 @@ export const PassadorMobileView: React.FC<PassadorMobileViewProps> = ({ onOpenSc
                   newCount,
                   user?.role || 'passador',
                   user?.name || 'Passador',
-                  user?.id || ''
+                  user?.id || '',
+                  editIsAfter17
                 );
                 setIsSubmittingEdit(false);
 
@@ -536,7 +633,7 @@ export const PassadorMobileView: React.FC<PassadorMobileViewProps> = ({ onOpenSc
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-slate-500 dark:text-slate-400">Lançamento anterior:</span>
-                  <span className="font-bold text-amber-600 dark:text-amber-400">{editingLog.piecesIroned} pçs</span>
+                  <span className="font-bold text-amber-600 dark:text-amber-400">{editingLog.piecesIroned} pçs ({editingLog.isAfter17 ? '17h às 19h' : '7h às 17h'})</span>
                 </div>
               </div>
 
@@ -571,6 +668,32 @@ export const PassadorMobileView: React.FC<PassadorMobileViewProps> = ({ onOpenSc
                   required
                   autoFocus
                 />
+              </div>
+
+              {/* Turno na Edição */}
+              <div>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1">
+                  Horário / Turno de Produção
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setEditIsAfter17(!editIsAfter17)}
+                  className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between transition-all ${
+                    editIsAfter17
+                      ? 'bg-amber-50 dark:bg-amber-950/60 border-amber-400 dark:border-amber-600 text-amber-950 dark:text-amber-200'
+                      : 'bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-amber-500" />
+                    <span className="text-xs font-bold">
+                      {editIsAfter17 ? 'Depois das 17h (17h às 19h)' : 'Normal (7h às 17h)'}
+                    </span>
+                  </div>
+                  <span className="text-xs font-bold font-mono text-amber-700 dark:text-amber-300">
+                    {editIsAfter17 ? '✓ Após 17h' : '7h às 17h'}
+                  </span>
+                </button>
               </div>
 
               <div className="flex gap-2 pt-1">

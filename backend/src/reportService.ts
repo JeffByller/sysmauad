@@ -340,10 +340,20 @@ export async function generateAndSaveReport(params: GenerateReportParams) {
     totalPieces = data.totalPieces;
     totalValue = data.totalValue;
 
-    summaryText = `• Total de Peças Passadas: *${totalPieces.toLocaleString('pt-BR')} peças*\n` +
-                  `• Valor Total Produção: *${totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}*\n` +
-                  `• Passadores Ativos: *${data.passadoresSummary.length}*\n` +
-                  `• Total de Registros de Passadoria: *${data.logs.length}*`;
+    if (data.totalAfter17Pieces > 0 && data.totalNormalPieces > 0) {
+      summaryText = `• Total de Peças Passadas: *${totalPieces.toLocaleString('pt-BR')} peças*\n` +
+                    `  - 7h às 17h (Normal): *${data.totalNormalPieces.toLocaleString('pt-BR')} peças*\n` +
+                    `  - 17h às 19h (Adicional): *${data.totalAfter17Pieces.toLocaleString('pt-BR')} peças*\n` +
+                    `• Valor Total Produção: *${totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}*\n` +
+                    `• Passadores Ativos: *${data.passadoresSummary.length}*\n` +
+                    `• Total de Registros de Passadoria: *${data.logs.length}*`;
+    } else {
+      summaryText = `• Total de Peças Passadas: *${totalPieces.toLocaleString('pt-BR')} peças*` +
+                    (data.totalAfter17Pieces > 0 ? ` *(17h às 19h)*\n` : `\n`) +
+                    `• Valor Total Produção: *${totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}*\n` +
+                    `• Passadores Ativos: *${data.passadoresSummary.length}*\n` +
+                    `• Total de Registros de Passadoria: *${data.logs.length}*`;
+    }
 
     htmlContent = buildPassadoresHtml({
       title,
@@ -603,6 +613,10 @@ async function extractPassadoresData(startDate: string, endDate: string, passado
   const passadoresRes = await query('SELECT * FROM sysmauad.passadores WHERE active = TRUE ORDER BY name ASC');
   const passadores = passadoresRes.rows;
 
+  const settingsRes = await query('SELECT default_passador_rate, default_passador_rate_after_17 FROM sysmauad.system_settings WHERE id = $1', ['default']);
+  const defaultRate = Number(settingsRes.rows[0]?.default_passador_rate ?? 0.15);
+  const defaultRateAfter17 = Number(settingsRes.rows[0]?.default_passador_rate_after_17 ?? 0.20);
+
   const ordersRes = await query('SELECT id, os_number, client_name, ironing_logs FROM sysmauad.orders');
   const allLogs: any[] = [];
 
@@ -615,24 +629,39 @@ async function extractPassadoresData(startDate: string, endDate: string, passado
         allLogs.push({
           ...l,
           clientName: o.client_name,
-          osNumber: o.os_number || l.osNumber
+          osNumber: o.os_number || l.osNumber,
+          isAfter17: Boolean(l.isAfter17)
         });
       }
     });
   });
 
   let totalPieces = 0;
+  let totalNormalPieces = 0;
+  let totalAfter17Pieces = 0;
   let totalValue = 0;
 
   const passadoresSummary = passadores
     .filter((p: any) => passadorId === 'all' || p.id === passadorId)
     .map((p: any) => {
       const pLogs = allLogs.filter((l: any) => l.passadorId === p.id || l.passadorName?.toLowerCase() === p.name?.toLowerCase());
-      const pieces = pLogs.reduce((sum: number, l: any) => sum + Number(l.piecesIroned || 0), 0);
-      const rate = Number(p.rate_per_piece ?? 0.15);
-      const value = pieces * rate;
+      const normalLogs = pLogs.filter((l: any) => !l.isAfter17);
+      const after17Logs = pLogs.filter((l: any) => l.isAfter17);
+
+      const normalPieces = normalLogs.reduce((sum: number, l: any) => sum + Number(l.piecesIroned || 0), 0);
+      const after17Pieces = after17Logs.reduce((sum: number, l: any) => sum + Number(l.piecesIroned || 0), 0);
+      const pieces = normalPieces + after17Pieces;
+
+      const rateNormal = Number(p.rate_per_piece ?? defaultRate);
+      const rateAfter17 = Number(p.rate_per_piece_after_17 ?? defaultRateAfter17);
+
+      const valueNormal = normalPieces * rateNormal;
+      const valueAfter17 = after17Pieces * rateAfter17;
+      const value = valueNormal + valueAfter17;
 
       totalPieces += pieces;
+      totalNormalPieces += normalPieces;
+      totalAfter17Pieces += after17Pieces;
       totalValue += value;
 
       return {
@@ -640,7 +669,12 @@ async function extractPassadoresData(startDate: string, endDate: string, passado
         name: p.name,
         phone: p.phone,
         pieces,
-        rate,
+        normalPieces,
+        after17Pieces,
+        rateNormal,
+        rateAfter17,
+        valueNormal,
+        valueAfter17,
         value,
         logCount: pLogs.length
       };
@@ -657,6 +691,8 @@ async function extractPassadoresData(startDate: string, endDate: string, passado
     passadoresSummary,
     logs: filteredLogs,
     totalPieces,
+    totalNormalPieces,
+    totalAfter17Pieces,
     totalValue
   };
 }
@@ -1132,20 +1168,34 @@ function buildLavadosHtml(ctx: any): string {
 function buildPassadoresHtml(ctx: any): string {
   const { title, periodLabel, startDate, endDate, data, token, retentionDays, expiresAt, generatedAt, notes, baseUrl } = ctx;
 
-  const passadoresRows = data.passadoresSummary.map((p: any) => `
-    <tr>
-      <td><strong>${p.name}</strong></td>
-      <td>${p.phone || '—'}</td>
-      <td class="mono text-right">${p.pieces.toLocaleString('pt-BR')}</td>
-      <td class="mono text-right">R$ ${p.rate.toFixed(2)}</td>
-      <td class="mono text-right" style="color: #059669;">R$ ${p.value.toFixed(2)}</td>
-      <td class="mono text-center">${p.logCount}</td>
-    </tr>
-  `).join('');
+  const passadoresRows = data.passadoresSummary.map((p: any) => {
+    const hasBoth = p.normalPieces > 0 && p.after17Pieces > 0;
+    const piecesCol = hasBoth
+      ? `${p.pieces.toLocaleString('pt-BR')}<div style="font-size: 10px; color: #64748b; font-weight: normal;">7h-17h: ${p.normalPieces} | +17h: ${p.after17Pieces}</div>`
+      : `${p.pieces.toLocaleString('pt-BR')}${p.after17Pieces > 0 ? '<div style="font-size: 10px; color: #d97706; font-weight: normal;">(17h às 19h)</div>' : ''}`;
+
+    const rateCol = hasBoth
+      ? `R$ ${p.rateNormal.toFixed(2)} / R$ ${p.rateAfter17.toFixed(2)}`
+      : `R$ ${(p.after17Pieces > 0 ? p.rateAfter17 : p.rateNormal).toFixed(2)}`;
+
+    return `
+      <tr>
+        <td><strong>${p.name}</strong></td>
+        <td>${p.phone || '—'}</td>
+        <td class="mono text-right">${piecesCol}</td>
+        <td class="mono text-right">${rateCol}</td>
+        <td class="mono text-right" style="color: #059669;">R$ ${p.value.toFixed(2)}</td>
+        <td class="mono text-center">${p.logCount}</td>
+      </tr>
+    `;
+  }).join('');
 
   const logRows = data.logs.slice(0, 500).map((l: any) => `
     <tr>
-      <td>${formatLocalDateTimeStr(l.timestamp)}</td>
+      <td>
+        ${formatLocalDateTimeStr(l.timestamp)}
+        ${l.isAfter17 ? ' <span style="font-size: 9px; padding: 2px 4px; border-radius: 4px; background: #fef3c7; color: #92400e; font-weight: bold;">17h às 19h</span>' : ' <span style="font-size: 9px; padding: 2px 4px; border-radius: 4px; background: #f1f5f9; color: #475569;">7h às 17h</span>'}
+      </td>
       <td><strong>${l.passadorName}</strong></td>
       <td class="mono font-bold">${l.osNumber || '—'}</td>
       <td>${l.clientName || '—'}</td>
@@ -1201,7 +1251,7 @@ function buildPassadoresHtml(ctx: any): string {
       <div class="kpi-card">
         <div class="kpi-label">Total de Peças Passadas</div>
         <div class="kpi-val">${data.totalPieces.toLocaleString('pt-BR')}</div>
-        <div class="kpi-sub">Acabamento e passadoria</div>
+        <div class="kpi-sub">${data.totalAfter17Pieces > 0 && data.totalNormalPieces > 0 ? `7h-17h: ${data.totalNormalPieces} • +17h: ${data.totalAfter17Pieces}` : 'Acabamento e passadoria'}</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-label">Valor Total a Pagar</div>
@@ -1544,14 +1594,23 @@ function buildGerencialCompletoHtml(ctx: any): string {
           </tr>
         </thead>
         <tbody>
-          ${passadores.passadoresSummary.map((p: any) => `
-            <tr>
-              <td><strong>${p.name}</strong></td>
-              <td class="mono text-right">${p.pieces.toLocaleString('pt-BR')}</td>
-              <td class="mono text-right">R$ ${p.rate.toFixed(2)}</td>
-              <td class="mono text-right" style="color: #059669;">R$ ${p.value.toFixed(2)}</td>
-            </tr>
-          `).join('') || '<tr><td colspan="4" class="text-center">Sem apontamentos.</td></tr>'}
+          ${passadores.passadoresSummary.map((p: any) => {
+            const hasBoth = p.normalPieces > 0 && p.after17Pieces > 0;
+            const piecesCol = hasBoth
+              ? `${p.pieces.toLocaleString('pt-BR')}<div style="font-size: 10px; color: #64748b; font-weight: normal;">7h-17h: ${p.normalPieces} | +17h: ${p.after17Pieces}</div>`
+              : `${p.pieces.toLocaleString('pt-BR')}${p.after17Pieces > 0 ? '<div style="font-size: 10px; color: #d97706; font-weight: normal;">(17h às 19h)</div>' : ''}`;
+            const rateCol = hasBoth
+              ? `R$ ${p.rateNormal.toFixed(2)} / R$ ${p.rateAfter17.toFixed(2)}`
+              : `R$ ${(p.after17Pieces > 0 ? p.rateAfter17 : p.rateNormal).toFixed(2)}`;
+            return `
+              <tr>
+                <td><strong>${p.name}</strong></td>
+                <td class="mono text-right">${piecesCol}</td>
+                <td class="mono text-right">${rateCol}</td>
+                <td class="mono text-right" style="color: #059669;">R$ ${p.value.toFixed(2)}</td>
+              </tr>
+            `;
+          }).join('') || '<tr><td colspan="4" class="text-center">Sem apontamentos.</td></tr>'}
         </tbody>
       </table>
     </div>

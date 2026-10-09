@@ -21,7 +21,7 @@ import { getDatePresets, getLocalDateString } from '../utils/dateUtils';
 import { OrderStatus, Order } from '../types';
 
 export const PassadorReportView: React.FC = () => {
-  const { passadores, orders, insumoEntries, suppliers } = useOrders();
+  const { passadores, orders, insumoEntries, suppliers, systemSettings } = useOrders();
   const { user } = useAuth();
   const isPassadorUser = user?.role === 'passador';
 
@@ -42,6 +42,17 @@ export const PassadorReportView: React.FC = () => {
   // Exibição e cálculo de Valores no Relatório de Produção por Passador
   const [showValues, setShowValues] = useState<boolean>(false);
   const [passadorRateInput, setPassadorRateInput] = useState<number>(0.15);
+  const [passadorRateAfter17Input, setPassadorRateAfter17Input] = useState<number>(0.20);
+
+  // Sincroniza taxas padrão a partir das configurações do sistema
+  React.useEffect(() => {
+    if (systemSettings?.defaultPassadorRate !== undefined) {
+      setPassadorRateInput(Number(systemSettings.defaultPassadorRate));
+    }
+    if (systemSettings?.defaultPassadorRateAfter17 !== undefined) {
+      setPassadorRateAfter17Input(Number(systemSettings.defaultPassadorRateAfter17));
+    }
+  }, [systemSettings]);
 
   // Filtros de Data (America/Sao_Paulo)
   const { todayStr, firstDayOfMonth, lastDayOfMonth } = useMemo(() => getDatePresets(), []);
@@ -250,12 +261,32 @@ export const PassadorReportView: React.FC = () => {
 
   const passadorReports = activePassadores.map(pas => {
     const pasLogs = allLogs.filter(l => l.passadorId === pas.id || l.passadorName?.toLowerCase() === pas.name?.toLowerCase());
-    const totalPiecesInPeriod = pasLogs.reduce((sum, l) => sum + l.piecesIroned, 0);
+    const normalLogs = pasLogs.filter(l => !l.isAfter17);
+    const after17Logs = pasLogs.filter(l => Boolean(l.isAfter17));
+
+    const normalPieces = normalLogs.reduce((sum, l) => sum + l.piecesIroned, 0);
+    const after17Pieces = after17Logs.reduce((sum, l) => sum + l.piecesIroned, 0);
+    const totalPiecesInPeriod = normalPieces + after17Pieces;
+
     const pieces = pasLogs.length > 0 ? totalPiecesInPeriod : pas.totalPiecesIroned;
+
+    const rateNormal = pas.ratePerPiece !== undefined ? pas.ratePerPiece : passadorRateInput;
+    const rateAfter17 = pas.ratePerPieceAfter17 !== undefined ? pas.ratePerPieceAfter17 : passadorRateAfter17Input;
+
+    const normalValue = normalPieces * rateNormal;
+    const after17Value = after17Pieces * rateAfter17;
+    const totalValue = normalValue + after17Value;
 
     return {
       ...pas,
       totalPiecesInPeriod: pieces,
+      normalPieces,
+      after17Pieces,
+      rateNormal,
+      rateAfter17,
+      normalValue,
+      after17Value,
+      totalValue,
       logs: pasLogs
     };
   });
@@ -270,7 +301,9 @@ export const PassadorReportView: React.FC = () => {
     : passadorReports;
 
   const totalPassadorPieces = displayedPassadores.reduce((sum, p) => sum + p.totalPiecesInPeriod, 0);
-  const totalPassadorValue = totalPassadorPieces * passadorRateInput;
+  const totalNormalPieces = displayedPassadores.reduce((sum, p) => sum + p.normalPieces, 0);
+  const totalAfter17Pieces = displayedPassadores.reduce((sum, p) => sum + p.after17Pieces, 0);
+  const totalPassadorValue = displayedPassadores.reduce((sum, p) => sum + p.totalValue, 0);
 
   // 3. DADOS: Entradas de Insumos / Fornecedores
   const filteredInsumos = insumoEntries.filter(entry => {
@@ -365,16 +398,25 @@ export const PassadorReportView: React.FC = () => {
     );
   };
 
-  const renderPassadorLogRow = (l: any, idx: number) => (
-    <div key={l.id || idx} className="flex justify-between items-center py-1 border-b border-dashed border-slate-200">
-      <span>
-        <strong>{l.osNumber}</strong> • {l.clientName || 'Cliente'} • {new Date(l.timestamp).toLocaleDateString('pt-BR')} às {new Date(l.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-      </span>
-      <div className="text-right font-mono font-bold text-slate-900">
-        +{l.piecesIroned} Pcs
+  const renderPassadorLogRow = (l: any, idx: number) => {
+    const dateStr = new Date(l.timestamp).toLocaleDateString('pt-BR');
+    const timeStr = new Date(l.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const periodTag = l.isAfter17 ? ' • 17h às 19h (Adicional)' : ' • 7h às 17h (Normal)';
+
+    return (
+      <div key={l.id || idx} className="flex justify-between items-center py-1 border-b border-dashed border-slate-200">
+        <span>
+          <strong>{l.osNumber}</strong> • {l.clientName || 'Cliente'} • {dateStr} às {timeStr}
+          <span className={l.isAfter17 ? 'font-bold text-amber-700' : 'text-slate-500'}>
+            {periodTag}
+          </span>
+        </span>
+        <div className="text-right font-mono font-bold text-slate-900">
+          +{l.piecesIroned} Pcs
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderInsumoRow = (entry: any) => (
     <div key={entry.id} className="grid grid-cols-12 items-center py-0.5 border-b border-dashed border-slate-100">
@@ -810,16 +852,29 @@ export const PassadorReportView: React.FC = () => {
               </div>
 
               {showValues && (
-                <div className="flex items-center gap-1.5 ml-1 pl-3 border-l border-slate-200 dark:border-slate-700 font-mono">
-                  <span className="text-xs text-slate-500 font-medium">Valor: R$</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0.00"
-                    value={passadorRateInput}
-                    onChange={e => setPassadorRateInput(parseFloat(e.target.value) || 0)}
-                    className="w-20 px-2 py-0.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-sky-500"
-                  />
+                <div className="flex flex-wrap items-center gap-3 ml-1 pl-3 border-l border-slate-200 dark:border-slate-700 font-mono">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-slate-500 font-medium">7h às 17h: R$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.00"
+                      value={passadorRateInput}
+                      onChange={e => setPassadorRateInput(parseFloat(e.target.value) || 0)}
+                      className="w-20 px-2 py-0.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-sky-500"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-slate-500 font-medium">17h às 19h: R$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.00"
+                      value={passadorRateAfter17Input}
+                      onChange={e => setPassadorRateAfter17Input(parseFloat(e.target.value) || 0)}
+                      className="w-20 px-2 py-0.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-sky-500"
+                    />
+                  </div>
                 </div>
               )}
             </div>
@@ -1027,15 +1082,43 @@ export const PassadorReportView: React.FC = () => {
                 </div>
 
                 <div className="space-y-1 pt-1 font-mono text-xs">
-                  <div className="flex justify-between font-bold text-sm text-slate-900 pt-1 border-t border-slate-300">
-                    <span>TOTAL PECAS:</span>
-                    <span className="text-base font-black">{selectedPassador.totalPiecesInPeriod.toLocaleString('pt-BR')}</span>
-                  </div>
+                  {selectedPassador.normalPieces > 0 && selectedPassador.after17Pieces > 0 ? (
+                    /* Tem ambos os períodos: mostra os 2 dados */
+                    <>
+                      <div className="flex justify-between text-slate-700">
+                        <span>• Turno Normal (7h às 17h):</span>
+                        <span className="font-bold">
+                          {selectedPassador.normalPieces.toLocaleString('pt-BR')} Pcs
+                          {showValues && ` (${Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedPassador.normalValue)})`}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-amber-800">
+                        <span>• Turno Adicional (17h às 19h):</span>
+                        <span className="font-bold">
+                          {selectedPassador.after17Pieces.toLocaleString('pt-BR')} Pcs
+                          {showValues && ` (${Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedPassador.after17Value)})`}
+                        </span>
+                      </div>
+                      <div className="flex justify-between font-bold text-sm text-slate-900 pt-1 border-t border-slate-300">
+                        <span>TOTAL GERAL:</span>
+                        <span className="text-base font-black">{selectedPassador.totalPiecesInPeriod.toLocaleString('pt-BR')} Pcs</span>
+                      </div>
+                    </>
+                  ) : (
+                    /* Só tem 1 período: segue 1 só */
+                    <div className="flex justify-between font-bold text-sm text-slate-900 pt-1 border-t border-slate-300">
+                      <span>
+                        {selectedPassador.after17Pieces > 0 ? 'TOTAL PECAS (17h às 19h):' : 'TOTAL PECAS:'}
+                      </span>
+                      <span className="text-base font-black">{selectedPassador.totalPiecesInPeriod.toLocaleString('pt-BR')} Pcs</span>
+                    </div>
+                  )}
+
                   {showValues && (
                     <div className="flex justify-between font-bold text-sm text-emerald-800 pt-1 border-t border-dotted border-slate-200">
                       <span>Total a Receber:</span>
                       <span className="text-base font-black">
-                        {Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedPassador.totalPiecesInPeriod * passadorRateInput)}
+                        {Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedPassador.totalValue)}
                       </span>
                     </div>
                   )}
@@ -1069,9 +1152,21 @@ export const PassadorReportView: React.FC = () => {
                           <span className="col-span-3 text-center font-mono text-slate-600">
                             {pas.logs.length} lote(s)
                           </span>
-                          <span className="col-span-3 text-right font-mono font-bold text-sm text-slate-900">
-                            {pas.totalPiecesInPeriod.toLocaleString('pt-BR')} Pcs
-                          </span>
+                          <div className="col-span-3 text-right font-mono">
+                            <span className="font-bold text-sm text-slate-900 block">
+                              {pas.totalPiecesInPeriod.toLocaleString('pt-BR')} Pcs
+                            </span>
+                            {pas.normalPieces > 0 && pas.after17Pieces > 0 && (
+                              <span className="text-[10px] text-slate-500 font-normal block">
+                                7h-17h: {pas.normalPieces} • +17h: {pas.after17Pieces}
+                              </span>
+                            )}
+                            {showValues && (
+                              <span className="text-[11px] text-emerald-700 font-semibold block">
+                                {Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pas.totalValue)}
+                              </span>
+                            )}
+                          </div>
                         </div>
 
                         {/* Detalhamento simples dos pedidos passados por ele */}
@@ -1079,7 +1174,10 @@ export const PassadorReportView: React.FC = () => {
                           <div className="pl-4 text-[11px] text-slate-600 space-y-0.5 font-mono">
                             {pas.logs.map(l => (
                               <div key={l.id} className="flex justify-between">
-                                <span>{l.osNumber} • {l.clientName} ({new Date(l.timestamp).toLocaleDateString('pt-BR')})</span>
+                                <span>
+                                  {l.osNumber} • {l.clientName} ({new Date(l.timestamp).toLocaleDateString('pt-BR')})
+                                  {l.isAfter17 ? ' [17h-19h]' : ''}
+                                </span>
                                 <span className="font-semibold">
                                   +{l.piecesIroned} Pcs
                                 </span>
@@ -1096,12 +1194,33 @@ export const PassadorReportView: React.FC = () => {
                   ------------------------------------------------------------------------------------------------------------------------
                 </div>
 
-                <div className="flex justify-between items-baseline gap-2 font-bold text-sm pt-1">
-                  <span className="text-base text-slate-900 font-bold">TOTAL PECAS: {totalPassadorPieces.toLocaleString('pt-BR')}</span>
-                  {showValues && (
-                    <span className="text-base text-emerald-800 font-black">
-                      {Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalPassadorValue)}
-                    </span>
+                <div className="pt-1 font-mono">
+                  {totalNormalPieces > 0 && totalAfter17Pieces > 0 ? (
+                    <>
+                      <div className="flex justify-between text-xs text-slate-600 pb-1">
+                        <span>• 7h às 17h: <strong>{totalNormalPieces.toLocaleString('pt-BR')} Pcs</strong></span>
+                        <span>• 17h às 19h: <strong>{totalAfter17Pieces.toLocaleString('pt-BR')} Pcs</strong></span>
+                      </div>
+                      <div className="flex justify-between items-baseline gap-2 font-bold text-sm pt-1 border-t border-slate-300">
+                        <span className="text-base text-slate-900 font-bold">TOTAL GERAL: {totalPassadorPieces.toLocaleString('pt-BR')} Pcs</span>
+                        {showValues && (
+                          <span className="text-base text-emerald-800 font-black">
+                            {Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalPassadorValue)}
+                          </span>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex justify-between items-baseline gap-2 font-bold text-sm">
+                      <span className="text-base text-slate-900 font-bold">
+                        {totalAfter17Pieces > 0 ? `TOTAL PECAS (17h às 19h): ${totalPassadorPieces.toLocaleString('pt-BR')} Pcs` : `TOTAL PECAS: ${totalPassadorPieces.toLocaleString('pt-BR')} Pcs`}
+                      </span>
+                      {showValues && (
+                        <span className="text-base text-emerald-800 font-black">
+                          {Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalPassadorValue)}
+                        </span>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>

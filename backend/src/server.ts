@@ -181,6 +181,7 @@ function mapPassador(row: any): Passador {
     phone: row.phone || undefined,
     totalPiecesIroned: Number(row.total_pieces_ironed || 0),
     ratePerPiece: Number(row.rate_per_piece !== null && row.rate_per_piece !== undefined ? row.rate_per_piece : 0.15),
+    ratePerPieceAfter17: Number(row.rate_per_piece_after_17 !== null && row.rate_per_piece_after_17 !== undefined ? row.rate_per_piece_after_17 : 0.20),
     createdAt: row.created_at,
     active: Boolean(row.active)
   };
@@ -284,6 +285,7 @@ function mapSettings(row: any): SystemSettings {
     backupRetentionDays: Number(row.backup_retention_days ?? 3),
     backupTime: row.backup_time || '02:00',
     defaultPassadorRate: Number(row.default_passador_rate !== null && row.default_passador_rate !== undefined ? row.default_passador_rate : 0.15),
+    defaultPassadorRateAfter17: Number(row.default_passador_rate_after_17 !== null && row.default_passador_rate_after_17 !== undefined ? row.default_passador_rate_after_17 : 0.20),
     stalledOrderAlertDays: Number(row.stalled_order_alert_days !== null && row.stalled_order_alert_days !== undefined ? row.stalled_order_alert_days : 3),
     reportRetentionDays: Number(row.report_retention_days !== null && row.report_retention_days !== undefined ? row.report_retention_days : 30),
     licenseKey: row.license_key || process.env.LICENSE_KEY || '',
@@ -617,16 +619,21 @@ async function generateSystemReportText(settings: SystemSettings): Promise<strin
     const passadoresRes = await query('SELECT * FROM sysmauad.passadores WHERE active = TRUE');
     const passadores = passadoresRes.rows;
 
-    const passadorMap: Record<string, { name: string; pieces: number; rate: number }> = {};
+    const passadorMap: Record<string, { name: string; pieces: number; normalPieces: number; after17Pieces: number; rateNormal: number; rateAfter17: number }> = {};
     for (const p of passadores) {
       passadorMap[p.id] = {
         name: p.name,
         pieces: 0,
-        rate: Number(p.rate_per_piece ?? settings.defaultPassadorRate ?? 0.15)
+        normalPieces: 0,
+        after17Pieces: 0,
+        rateNormal: Number(p.rate_per_piece ?? settings.defaultPassadorRate ?? 0.15),
+        rateAfter17: Number(p.rate_per_piece_after_17 ?? settings.defaultPassadorRateAfter17 ?? 0.20)
       };
     }
 
     let totalIronedToday = 0;
+    let totalNormalToday = 0;
+    let totalAfter17Today = 0;
 
     for (const o of allOrders) {
       const logs = Array.isArray(o.ironing_logs) ? o.ironing_logs : [];
@@ -634,19 +641,30 @@ async function generateSystemReportText(settings: SystemSettings): Promise<strin
         const logDate = getLocalDate(log.timestamp);
         if (logDate === todayStr) {
           const count = Number(log.piecesIroned || 0);
+          const isAfter = Boolean(log.isAfter17);
           totalIronedToday += count;
+          if (isAfter) totalAfter17Today += count;
+          else totalNormalToday += count;
+
           const pId = log.passadorId;
           if (pId && passadorMap[pId]) {
             passadorMap[pId].pieces += count;
+            if (isAfter) passadorMap[pId].after17Pieces += count;
+            else passadorMap[pId].normalPieces += count;
           } else if (log.passadorName) {
             if (!passadorMap[log.passadorName]) {
               passadorMap[log.passadorName] = {
                 name: log.passadorName,
                 pieces: 0,
-                rate: Number(settings.defaultPassadorRate ?? 0.15)
+                normalPieces: 0,
+                after17Pieces: 0,
+                rateNormal: Number(settings.defaultPassadorRate ?? 0.15),
+                rateAfter17: Number(settings.defaultPassadorRateAfter17 ?? 0.20)
               };
             }
             passadorMap[log.passadorName].pieces += count;
+            if (isAfter) passadorMap[log.passadorName].after17Pieces += count;
+            else passadorMap[log.passadorName].normalPieces += count;
           }
         }
       }
@@ -654,13 +672,16 @@ async function generateSystemReportText(settings: SystemSettings): Promise<strin
 
     let totalIronedValueToday = 0;
     Object.values(passadorMap).forEach(p => {
-      totalIronedValueToday += p.pieces * p.rate;
+      totalIronedValueToday += (p.normalPieces * p.rateNormal) + (p.after17Pieces * p.rateAfter17);
     });
 
     msg += `\n*PASSADORIA E ACABAMENTO*\n`;
     msg += `• Peças passadas hoje: *${totalIronedToday} peças*`;
     if (settings.includeFinancialValues) {
       msg += ` (${fmtMoney(totalIronedValueToday)})`;
+    }
+    if (totalAfter17Today > 0 && totalNormalToday > 0) {
+      msg += `\n  - 7h às 17h: *${totalNormalToday}* | 17h às 19h: *${totalAfter17Today}*`;
     }
     msg += `\n`;
 
@@ -669,8 +690,11 @@ async function generateSystemReportText(settings: SystemSettings): Promise<strin
       if (activePassadoresToday.length > 0) {
         msg += `• Detalhado por passador:\n`;
         for (const p of activePassadoresToday) {
-          const val = p.pieces * p.rate;
+          const val = (p.normalPieces * p.rateNormal) + (p.after17Pieces * p.rateAfter17);
           msg += `   - ${p.name}: *${p.pieces}* peças`;
+          if (p.normalPieces > 0 && p.after17Pieces > 0) {
+            msg += ` (7h-17h: ${p.normalPieces} | +17h: ${p.after17Pieces})`;
+          }
           if (settings.includeFinancialValues) {
             msg += ` (${fmtMoney(val)})`;
           }
@@ -1979,17 +2003,18 @@ app.get('/passadores', async (_req: Request, res: Response) => {
 
 app.post('/passadores', async (req: Request, res: Response) => {
   try {
-    const { id, name, phone, totalPiecesIroned, ratePerPiece, active } = req.body;
+    const { id, name, phone, totalPiecesIroned, ratePerPiece, ratePerPieceAfter17, active } = req.body;
     const pId = id || `pas-${Date.now()}`;
     const result = await query(
-      `INSERT INTO sysmauad.passadores (id, name, phone, total_pieces_ironed, rate_per_piece, active)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO sysmauad.passadores (id, name, phone, total_pieces_ironed, rate_per_piece, rate_per_piece_after_17, active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT (id) DO UPDATE SET 
          name = EXCLUDED.name, 
          phone = EXCLUDED.phone,
-         rate_per_piece = COALESCE(EXCLUDED.rate_per_piece, sysmauad.passadores.rate_per_piece)
+         rate_per_piece = COALESCE(EXCLUDED.rate_per_piece, sysmauad.passadores.rate_per_piece),
+         rate_per_piece_after_17 = COALESCE(EXCLUDED.rate_per_piece_after_17, sysmauad.passadores.rate_per_piece_after_17)
        RETURNING *`,
-      [pId, name.trim(), phone || null, Number(totalPiecesIroned || 0), Number(ratePerPiece ?? 0.15), active !== undefined ? Boolean(active) : true]
+      [pId, name.trim(), phone || null, Number(totalPiecesIroned || 0), Number(ratePerPiece ?? 0.15), Number(ratePerPieceAfter17 ?? 0.20), active !== undefined ? Boolean(active) : true]
     );
     recordAuditLog({
       level: 'info',
@@ -1997,7 +2022,7 @@ app.post('/passadores', async (req: Request, res: Response) => {
       action: 'passador_created',
       ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'] as string,
-      details: { id: pId, name: name.trim(), ratePerPiece: Number(ratePerPiece ?? 0.15) }
+      details: { id: pId, name: name.trim(), ratePerPiece: Number(ratePerPiece ?? 0.15), ratePerPieceAfter17: Number(ratePerPieceAfter17 ?? 0.20) }
     }).catch(() => {});
 
     res.status(201).json(mapPassador(result.rows[0]));
@@ -2009,21 +2034,22 @@ app.post('/passadores', async (req: Request, res: Response) => {
 app.put('/passadores/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, phone, totalPiecesIroned, ratePerPiece, active } = req.body;
+    const { name, phone, totalPiecesIroned, ratePerPiece, ratePerPieceAfter17, active } = req.body;
     const current = await query('SELECT * FROM sysmauad.passadores WHERE id = $1', [id]);
     if (current.rows.length === 0) return res.status(404).json({ error: 'Passador não encontrado.' });
     const row = current.rows[0];
 
     const result = await query(
       `UPDATE sysmauad.passadores 
-       SET name = $1, phone = $2, total_pieces_ironed = $3, rate_per_piece = $4, active = $5, updated_at = NOW()
-       WHERE id = $6
+       SET name = $1, phone = $2, total_pieces_ironed = $3, rate_per_piece = $4, rate_per_piece_after_17 = $5, active = $6, updated_at = NOW()
+       WHERE id = $7
        RETURNING *`,
       [
         name !== undefined ? name.trim() : row.name,
         phone !== undefined ? phone : row.phone,
         totalPiecesIroned !== undefined ? Number(totalPiecesIroned) : row.total_pieces_ironed,
         ratePerPiece !== undefined ? Number(ratePerPiece) : (row.rate_per_piece ?? 0.15),
+        ratePerPieceAfter17 !== undefined ? Number(ratePerPieceAfter17) : (row.rate_per_piece_after_17 ?? 0.20),
         active !== undefined ? Boolean(active) : row.active,
         id
       ]
@@ -2394,7 +2420,7 @@ app.put('/orders/:id/status', async (req: Request, res: Response) => {
 app.post('/orders/:id/ironing', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { passadorId, passadorName, piecesIroned, count: bodyCount } = req.body;
+    const { passadorId, passadorName, piecesIroned, count: bodyCount, isAfter17 } = req.body;
 
     const count = Number(piecesIroned !== undefined ? piecesIroned : (bodyCount || 0));
     if (count <= 0) return res.status(400).json({ success: false, message: 'Quantidade deve ser maior que zero.' });
@@ -2407,6 +2433,7 @@ app.post('/orders/:id/ironing', async (req: Request, res: Response) => {
     const estimated = Number(row.estimated_piece_count || 0);
     const newTotal = currentIroned + count;
 
+    const isAfter17Flag = Boolean(isAfter17);
     const logs = Array.isArray(row.ironing_logs) ? row.ironing_logs : [];
     const newLog = {
       id: `log-${Date.now()}`,
@@ -2415,16 +2442,19 @@ app.post('/orders/:id/ironing', async (req: Request, res: Response) => {
       passadorId,
       passadorName,
       piecesIroned: count,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      isAfter17: isAfter17Flag,
+      servicePeriod: isAfter17Flag ? 'after_17' : 'normal'
     };
     logs.push(newLog);
 
     const history = Array.isArray(row.history) ? row.history : [];
+    const periodLabel = isAfter17Flag ? 'depois das 17h (17h às 19h)' : '7h às 17h';
     history.push({
       timestamp: new Date().toISOString(),
       status: row.status,
       operator: passadorName,
-      note: `Passadoria: +${count} peças passadas (Total: ${newTotal}/${estimated})`
+      note: `Passadoria (${periodLabel}): +${count} peças passadas (Total: ${newTotal}/${estimated})`
     });
 
     const updated = await query(
@@ -2451,12 +2481,13 @@ app.post('/orders/:id/ironing', async (req: Request, res: Response) => {
         passadorId,
         passadorName,
         piecesIroned: count,
+        isAfter17: isAfter17Flag,
         totalIroned: newTotal,
         estimatedPieces: estimated
       }
     }).catch(() => {});
 
-    res.json({ success: true, message: `Registradas ${count} peças para ${passadorName}!`, order: mapOrder(updated.rows[0]) });
+    res.json({ success: true, message: `Registradas ${count} peças para ${passadorName} (${isAfter17Flag ? 'Após 17h' : 'Turno Normal'})!`, order: mapOrder(updated.rows[0]) });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -2465,7 +2496,7 @@ app.post('/orders/:id/ironing', async (req: Request, res: Response) => {
 app.put('/orders/:orderId/ironing/:logId', async (req: Request, res: Response) => {
   try {
     const { orderId, logId } = req.params;
-    const { newPieces, editorRole, editorName, editorId } = req.body;
+    const { newPieces, editorRole, editorName, editorId, isAfter17 } = req.body;
     const pieces = Number(newPieces);
 
     if (isNaN(pieces) || pieces <= 0) {
@@ -2505,10 +2536,14 @@ app.put('/orders/:orderId/ironing/:logId', async (req: Request, res: Response) =
     const currentTotal = Number(row.total_ironed_pieces || 0);
     const newTotalIroned = Math.max(0, currentTotal + diff);
 
+    const updatedIsAfter17 = isAfter17 !== undefined ? Boolean(isAfter17) : Boolean(targetLog.isAfter17);
+
     // Atualiza o log com controle de edição
     logs[logIndex] = {
       ...targetLog,
       piecesIroned: pieces,
+      isAfter17: updatedIsAfter17,
+      servicePeriod: updatedIsAfter17 ? 'after_17' : 'normal',
       editCount: (targetLog.editCount || 0) + 1,
       lastEditedAt: new Date().toISOString(),
       lastEditedBy: editorName || (isAdmin ? 'Administrador' : targetLog.passadorName)
@@ -3054,6 +3089,7 @@ app.put('/settings', async (req: Request, res: Response) => {
     const backupRetentionDays = body.backupRetentionDays !== undefined ? Number(body.backupRetentionDays) : (row.backup_retention_days ?? 3);
     const backupTime = body.backupTime !== undefined ? body.backupTime : (row.backup_time || '02:00');
     const defaultPassadorRate = body.defaultPassadorRate !== undefined ? Number(body.defaultPassadorRate) : Number(row.default_passador_rate ?? 0.15);
+    const defaultPassadorRateAfter17 = body.defaultPassadorRateAfter17 !== undefined ? Number(body.defaultPassadorRateAfter17) : Number(row.default_passador_rate_after_17 ?? 0.20);
     const stalledOrderAlertDays = body.stalledOrderAlertDays !== undefined ? Number(body.stalledOrderAlertDays) : Number(row.stalled_order_alert_days ?? 3);
 
     const result = await query(`
@@ -3064,7 +3100,7 @@ app.put('/settings', async (req: Request, res: Response) => {
         report_header_text, report_footer_text,
         include_financial_values, include_low_stock_alerts, include_operator_breakdown,
         auto_backup_enabled, backup_retention_days, backup_time,
-        default_passador_rate, stalled_order_alert_days,
+        default_passador_rate, default_passador_rate_after_17, stalled_order_alert_days,
         updated_at
       ) VALUES (
         'default', 'sysmauad', $1,
@@ -3073,7 +3109,7 @@ app.put('/settings', async (req: Request, res: Response) => {
         $8, $9,
         $10, $11, $12,
         $13, $14, $15,
-        $16, $17,
+        $16, $17, $18,
         NOW()
       ) ON CONFLICT (id) DO UPDATE SET
         whatsapp_target_phone = EXCLUDED.whatsapp_target_phone,
@@ -3092,6 +3128,7 @@ app.put('/settings', async (req: Request, res: Response) => {
         backup_retention_days = EXCLUDED.backup_retention_days,
         backup_time = EXCLUDED.backup_time,
         default_passador_rate = EXCLUDED.default_passador_rate,
+        default_passador_rate_after_17 = EXCLUDED.default_passador_rate_after_17,
         stalled_order_alert_days = EXCLUDED.stalled_order_alert_days,
         updated_at = NOW()
       RETURNING *
@@ -3112,6 +3149,7 @@ app.put('/settings', async (req: Request, res: Response) => {
       backupRetentionDays,
       backupTime,
       defaultPassadorRate,
+      defaultPassadorRateAfter17,
       stalledOrderAlertDays
     ]);
 

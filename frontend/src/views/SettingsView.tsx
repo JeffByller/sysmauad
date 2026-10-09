@@ -57,6 +57,7 @@ export const SettingsView: React.FC = () => {
     backupRetentionDays: 3,
     backupTime: '02:00',
     defaultPassadorRate: 0.15,
+    defaultPassadorRateAfter17: 0.20,
     stalledOrderAlertDays: 3
   });
 
@@ -1194,23 +1195,48 @@ export const SettingsView: React.FC = () => {
                   </div>
 
                   <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
-                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                      Valor Padrão por Peça Passada (Passadoria):
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-2">
+                      Valores por Peça Passada (Passadoria):
                     </label>
-                    <div className="relative max-w-xs">
-                      <span className="absolute left-3 top-2 text-xs text-slate-400 font-bold">R$</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0.01"
-                        value={settings.defaultPassadorRate ?? 0.15}
-                        onChange={e => setSettings({ ...settings, defaultPassadorRate: parseFloat(e.target.value) || 0.15 })}
-                        className="w-full pl-8 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-sky-500"
-                        placeholder="0.15"
-                      />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md">
+                      <div>
+                        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block mb-1">
+                          Turno Normal (7h às 17h)
+                        </span>
+                        <div className="relative">
+                          <span className="absolute left-3 top-2 text-xs text-slate-400 font-bold">R$</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            value={settings.defaultPassadorRate ?? 0.15}
+                            onChange={e => setSettings({ ...settings, defaultPassadorRate: parseFloat(e.target.value) || 0.15 })}
+                            className="w-full pl-8 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-sky-500"
+                            placeholder="0.15"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block mb-1">
+                          Após 17h (17h às 19h)
+                        </span>
+                        <div className="relative">
+                          <span className="absolute left-3 top-2 text-xs text-slate-400 font-bold">R$</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            value={settings.defaultPassadorRateAfter17 ?? 0.20}
+                            onChange={e => setSettings({ ...settings, defaultPassadorRateAfter17: parseFloat(e.target.value) || 0.20 })}
+                            className="w-full pl-8 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-sky-500"
+                            placeholder="0.20"
+                          />
+                        </div>
+                      </div>
                     </div>
-                    <span className="text-[11px] text-slate-400 block mt-1">
-                      Valor monetário unitário utilizado para apurar o total a pagar da produção de passadoria em relatórios.
+                    <span className="text-[11px] text-slate-400 block mt-1.5">
+                      Valores monetários unitários utilizados para apurar o total a pagar da produção de passadoria em relatórios.
                     </span>
                   </div>
 

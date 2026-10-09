@@ -54,8 +54,8 @@ interface OrderContextType {
     estimatedPieceCount?: number;
     operatorName?: string;
   }) => Promise<{ success: boolean; message: string; order?: Order }>;
-  registerIroning: (orderId: string, passadorId: string, passadorName: string, piecesIroned: number) => { success: boolean; message: string };
-  updateIroningLog: (orderId: string, logId: string, newPieces: number, editorRole: string, editorName: string, editorId: string) => Promise<{ success: boolean; message: string }>;
+  registerIroning: (orderId: string, passadorId: string, passadorName: string, piecesIroned: number, isAfter17?: boolean) => { success: boolean; message: string };
+  updateIroningLog: (orderId: string, logId: string, newPieces: number, editorRole: string, editorName: string, editorId: string, isAfter17?: boolean) => Promise<{ success: boolean; message: string }>;
   registerNewPassador: (name: string, phone?: string) => Passador;
   updatePassador: (id: string, data: Partial<Passador>) => Promise<{ success: boolean; message: string }>;
   addStockItem: (item: Omit<ChemicalStockItem, 'id'>) => ChemicalStockItem;
@@ -226,6 +226,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             name: u.name,
             phone: u.phone || existing.phone,
             ratePerPiece: existing.ratePerPiece !== undefined ? existing.ratePerPiece : 0.15,
+            ratePerPieceAfter17: existing.ratePerPieceAfter17 !== undefined ? existing.ratePerPieceAfter17 : 0.20,
             active: u.active
           });
         } else {
@@ -235,6 +236,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             phone: u.phone,
             totalPiecesIroned: 0,
             ratePerPiece: 0.15,
+            ratePerPieceAfter17: 0.20,
             createdAt: new Date().toISOString().split('T')[0],
             active: u.active
           });
@@ -896,12 +898,19 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  const registerIroning = (orderId: string, passadorId: string, passadorName: string, piecesIroned: number) => {
+  const registerIroning = (
+    orderId: string,
+    passadorId: string,
+    passadorName: string,
+    piecesIroned: number,
+    isAfter17: boolean = false
+  ) => {
     const targetOrder = orders.find(o => o.id === orderId || o.osNumber === orderId);
     if (!targetOrder) {
       return { success: false, message: 'Pedido não encontrado.' };
     }
 
+    const isAfter17Flag = Boolean(isAfter17);
     const newLog: PassadorLog = {
       id: `log-${Date.now()}`,
       orderId: targetOrder.id,
@@ -909,13 +918,16 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       passadorId,
       passadorName,
       piecesIroned,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      isAfter17: isAfter17Flag,
+      servicePeriod: isAfter17Flag ? 'after_17' : 'normal'
     };
 
     setOrders(prev => prev.map(ord => {
       if (ord.id !== targetOrder.id) return ord;
 
       const newTotal = ord.totalIronedPieces + piecesIroned;
+      const periodLabel = isAfter17Flag ? 'depois das 17h (17h às 19h)' : '7h às 17h';
 
       return {
         ...ord,
@@ -927,7 +939,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             timestamp: new Date().toISOString(),
             status: ord.status,
             operator: passadorName,
-            note: `Lançamento de passadoria: +${piecesIroned} peças (Total passado: ${newTotal}/${ord.estimatedPieceCount})`
+            note: `Lançamento de passadoria (${periodLabel}): +${piecesIroned} peças (Total passado: ${newTotal}/${ord.estimatedPieceCount})`
           }
         ]
       };
@@ -944,10 +956,13 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     fetch(`/api/orders/${targetOrder.id}/ironing`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ passadorId, passadorName, count: piecesIroned })
+      body: JSON.stringify({ passadorId, passadorName, count: piecesIroned, isAfter17: isAfter17Flag })
     }).catch(err => console.error('[OrderContext] Erro ao registrar passadoria no PostgreSQL:', err));
 
-    return { success: true, message: `Lançamento de ${piecesIroned} peças registrado para ${passadorName}!` };
+    return { 
+      success: true, 
+      message: `Lançamento de ${piecesIroned} peças registrado para ${passadorName} (${isAfter17Flag ? 'Após 17h' : 'Turno Normal'})!` 
+    };
   };
 
   const updateIroningLog = async (
@@ -956,7 +971,8 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     newPieces: number,
     editorRole: string,
     editorName: string,
-    editorId: string
+    editorId: string,
+    isAfter17?: boolean
   ): Promise<{ success: boolean; message: string }> => {
     if (isNaN(newPieces) || newPieces <= 0) {
       return { success: false, message: 'A quantidade de peças deve ser maior que zero.' };
@@ -988,6 +1004,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const oldPieces = log.piecesIroned;
     const diff = newPieces - oldPieces;
     const newTotal = Math.max(0, targetOrder.totalIronedPieces + diff);
+    const updatedIsAfter17 = isAfter17 !== undefined ? Boolean(isAfter17) : Boolean(log.isAfter17);
 
     // Atualização otimista no estado local
     setOrders(prev => prev.map(ord => {
@@ -1000,6 +1017,8 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           return {
             ...l,
             piecesIroned: newPieces,
+            isAfter17: updatedIsAfter17,
+            servicePeriod: updatedIsAfter17 ? 'after_17' : 'normal',
             editCount: (l.editCount || 0) + 1,
             lastEditedAt: new Date().toISOString(),
             lastEditedBy: editorName || (isAdmin ? 'Administrador' : l.passadorName)
@@ -1011,7 +1030,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             timestamp: new Date().toISOString(),
             status: ord.status,
             operator: editorName || (isAdmin ? 'Administrador' : log.passadorName),
-            note: `Correção de passadoria (${log.passadorName}): alterado de ${oldPieces} para ${newPieces} pçs (Total: ${newTotal}/${ord.estimatedPieceCount})`
+            note: `Correção de passadoria (${log.passadorName}): alterado de ${oldPieces} para ${newPieces} pçs (${updatedIsAfter17 ? '17h às 19h' : '7h às 17h'}) (Total: ${newTotal}/${ord.estimatedPieceCount})`
           }
         ]
       };
@@ -1031,7 +1050,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const res = await fetch(`/api/orders/${targetOrder.id}/ironing/${logId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ newPieces, editorRole, editorName, editorId })
+        body: JSON.stringify({ newPieces, editorRole, editorName, editorId, isAfter17: updatedIsAfter17 })
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
@@ -1062,6 +1081,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       phone,
       totalPiecesIroned: 0,
       ratePerPiece: 0.15,
+      ratePerPieceAfter17: 0.20,
       createdAt: new Date().toISOString().split('T')[0],
       active: true
     };

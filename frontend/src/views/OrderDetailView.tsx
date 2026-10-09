@@ -78,6 +78,7 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
   // Estados para Edição de Passada (Administrador)
   const [editingIroningLog, setEditingIroningLog] = useState<PassadorLog | null>(null);
   const [editIroningPiecesInput, setEditIroningPiecesInput] = useState<string>('');
+  const [editIroningIsAfter17, setEditIroningIsAfter17] = useState<boolean>(false);
   const [isSavingIroning, setIsSavingIroning] = useState<boolean>(false);
 
   // Cálculo de OS Parada (>= stalledOrderAlertDays sem movimentação)
@@ -882,8 +883,17 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
                 {order.ironingLogs.map(log => (
                   <div key={log.id} className="p-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 rounded-xl flex items-center justify-between text-xs">
                     <div>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <strong className="text-slate-900 dark:text-slate-100 block">{log.passadorName}</strong>
+                        {log.isAfter17 ? (
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+                            17h às 19h
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                            7h às 17h
+                          </span>
+                        )}
                         {(log.editCount || 0) > 0 && (
                           <span className="text-[9px] font-sans px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
                             Editado ({log.editCount}x)
@@ -902,8 +912,9 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
                         onClick={() => {
                           setEditingIroningLog(log);
                           setEditIroningPiecesInput(String(log.piecesIroned));
+                          setEditIroningIsAfter17(Boolean(log.isAfter17));
                         }}
-                        title="Corrigir quantidade deste lançamento (Administrador)"
+                        title="Corrigir este lançamento (Administrador)"
                         className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 hover:text-emerald-600 dark:text-slate-300 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
@@ -1512,7 +1523,8 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
                   newCount,
                   'admin',
                   user?.name || 'Administrador',
-                  user?.id || ''
+                  user?.id || '',
+                  editIroningIsAfter17
                 );
                 setIsSavingIroning(false);
 
@@ -1535,6 +1547,12 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
                   <strong className="text-amber-600 dark:text-amber-400">{editingIroningLog.piecesIroned} peças</strong>
                 </div>
                 <div className="flex justify-between">
+                  <span className="text-slate-400">Turno Atual:</span>
+                  <strong className="text-slate-800 dark:text-slate-200">
+                    {editingIroningLog.isAfter17 ? '17h às 19h (+Adicional)' : '7h às 17h (Normal)'}
+                  </strong>
+                </div>
+                <div className="flex justify-between">
                   <span className="text-slate-400">Data/Hora:</span>
                   <span>{new Date(editingIroningLog.timestamp).toLocaleString('pt-BR')}</span>
                 </div>
@@ -1555,6 +1573,36 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
                   required
                   autoFocus
                 />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
+                  Turno de Produção
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditIroningIsAfter17(false)}
+                    className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all ${
+                      !editIroningIsAfter17
+                        ? 'bg-sky-50 dark:bg-sky-950/50 border-sky-300 dark:border-sky-700 text-sky-800 dark:text-sky-300 shadow-sm'
+                        : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                    }`}
+                  >
+                    7h às 17h (Normal)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditIroningIsAfter17(true)}
+                    className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all ${
+                      editIroningIsAfter17
+                        ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 shadow-sm'
+                        : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                    }`}
+                  >
+                    17h às 19h (+Adicional)
+                  </button>
+                </div>
               </div>
 
               <div className="flex gap-2 pt-1">

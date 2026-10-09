@@ -521,6 +521,7 @@ export async function initDb() {
       phone VARCHAR(50),
       total_pieces_ironed INT DEFAULT 0,
       rate_per_piece NUMERIC(10,2) DEFAULT 0.15,
+      rate_per_piece_after_17 NUMERIC(10,2) DEFAULT 0.20,
       active BOOLEAN DEFAULT TRUE,
       created_at VARCHAR(50) DEFAULT TO_CHAR(NOW(), 'YYYY-MM-DD'),
       updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -623,6 +624,7 @@ export async function initDb() {
       backup_retention_days INT DEFAULT 3,
       backup_time VARCHAR(10) DEFAULT '02:00',
       default_passador_rate NUMERIC(10,2) DEFAULT 0.15,
+      default_passador_rate_after_17 NUMERIC(10,2) DEFAULT 0.20,
       updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
     );
   `);
@@ -716,7 +718,9 @@ export async function initDb() {
   // Migrações incrementais seguras
   await query(`
     ALTER TABLE sysmauad.passadores ADD COLUMN IF NOT EXISTS rate_per_piece NUMERIC(10,2) DEFAULT 0.15;
+    ALTER TABLE sysmauad.passadores ADD COLUMN IF NOT EXISTS rate_per_piece_after_17 NUMERIC(10,2) DEFAULT 0.20;
     ALTER TABLE sysmauad.system_settings ADD COLUMN IF NOT EXISTS default_passador_rate NUMERIC(10,2) DEFAULT 0.15;
+    ALTER TABLE sysmauad.system_settings ADD COLUMN IF NOT EXISTS default_passador_rate_after_17 NUMERIC(10,2) DEFAULT 0.20;
     
     -- Campos extras para Clientes e Auditoria
     ALTER TABLE sysmauad.clients ADD COLUMN IF NOT EXISTS email VARCHAR(255);
