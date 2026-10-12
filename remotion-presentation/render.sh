@@ -37,6 +37,20 @@ docker run --rm \
     -v "$(pwd)/public":/app/public \
     sysmauad-remotion-renderer
 
+if [ -f "public/audio/narracao.mp3" ]; then
+    echo ""
+    echo "🔊 Integrando locução gerada via ElevenLabs ao vídeo..."
+    docker run --rm \
+        -v "$(pwd)/out":/app/out \
+        -v "$(pwd)/public":/app/public \
+        --entrypoint ffmpeg \
+        sysmauad-remotion-renderer \
+        -y -i /app/out/sysmauad-apresentacao.mp4 -i /app/public/audio/narracao.mp3 \
+        -c:v copy -c:a aac -b:a 192k -shortest /app/out/sysmauad-temp.mp4
+    mv out/sysmauad-temp.mp4 out/sysmauad-apresentacao.mp4
+    echo "✅ Áudio incorporado com sucesso!"
+fi
+
 echo ""
 echo "=========================================================="
 echo "✅ Renderização concluída com sucesso!"

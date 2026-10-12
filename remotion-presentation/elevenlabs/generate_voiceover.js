@@ -68,7 +68,20 @@ async function generateVoiceover() {
   const req = https.request(options, (res) => {
     if (res.statusCode !== 200) {
       console.error(`❌ Erro da API ElevenLabs: Status ${res.statusCode} ${res.statusMessage}`);
-      res.pipe(process.stderr);
+      let errorBody = '';
+      res.on('data', (chunk) => { errorBody += chunk; });
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(errorBody);
+          console.error('Detalhes:', parsed);
+          if (parsed?.detail?.status === 'missing_permissions') {
+            console.error('\n⚠️ ATENÇÃO: A sua chave de API não possui permissão de Texto para Voz ("text_to_speech").');
+            console.error('👉 Para resolver: acesse https://elevenlabs.io/app/settings/api-keys, crie uma chave marcando a permissão "Full Access" ou "Text to Speech" e execute novamente com a nova chave!\n');
+          }
+        } catch {
+          console.error(errorBody);
+        }
+      });
       return;
     }
 
