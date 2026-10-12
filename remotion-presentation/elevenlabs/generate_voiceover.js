@@ -10,8 +10,8 @@ const path = require('path');
 const https = require('https');
 
 const API_KEY = process.env.ELEVENLABS_API_KEY;
-// ID de voz padrão (ex: Rachel / Daniel / Adam)
-const VOICE_ID = process.env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM'; 
+// ID de voz padrão gratuita (Premade): George ('JBFqnCBsd6RMkjVDRZzb') ou Sarah ('EXAVITQu4vr4xnSDxMaL')
+const VOICE_ID = process.env.ELEVENLABS_VOICE_ID || 'JBFqnCBsd6RMkjVDRZzb'; 
 
 const SCRIPT_TEXT = `No universo dinâmico da indústria têxtil e do jeanswear, a eficiência operacional define o lucro e o crescimento. Conheça o SysMauad: o sistema de gestão definitivo, projetado exclusivamente para lavanderias industriais.
 
@@ -77,6 +77,9 @@ async function generateVoiceover() {
           if (parsed?.detail?.status === 'missing_permissions') {
             console.error('\n⚠️ ATENÇÃO: A sua chave de API não possui permissão de Texto para Voz ("text_to_speech").');
             console.error('👉 Para resolver: acesse https://elevenlabs.io/app/settings/api-keys, crie uma chave marcando a permissão "Full Access" ou "Text to Speech" e execute novamente com a nova chave!\n');
+          } else if (res.statusCode === 402 || parsed?.detail?.code === 'paid_plan_required') {
+            console.error('\n⚠️ ATENÇÃO: A voz selecionada requer uma assinatura paga na ElevenLabs.');
+            console.error('👉 Para resolver no plano gratuito, use uma voz pré-fabricada (Premade) como George (JBFqnCBsd6RMkjVDRZzb) ou Sarah (EXAVITQu4vr4xnSDxMaL).\n');
           }
         } catch {
           console.error(errorBody);
