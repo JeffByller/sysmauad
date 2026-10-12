@@ -887,11 +887,11 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
                         <strong className="text-slate-900 dark:text-slate-100 block">{log.passadorName}</strong>
                         {log.isAfter17 ? (
                           <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
-                            17h às 19h
+                            Produção Adicional (Extra)
                           </span>
                         ) : (
                           <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
-                            7h às 17h
+                            Produção Normal
                           </span>
                         )}
                         {(log.editCount || 0) > 0 && (
@@ -1547,9 +1547,9 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
                   <strong className="text-amber-600 dark:text-amber-400">{editingIroningLog.piecesIroned} peças</strong>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Turno Atual:</span>
+                  <span className="text-slate-400">Tipo Atual:</span>
                   <strong className="text-slate-800 dark:text-slate-200">
-                    {editingIroningLog.isAfter17 ? '17h às 19h (+Adicional)' : '7h às 17h (Normal)'}
+                    {editingIroningLog.isAfter17 ? 'Produção Adicional (Extra)' : 'Produção Normal'}
                   </strong>
                 </div>
                 <div className="flex justify-between">
@@ -1577,7 +1577,7 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
 
               <div>
                 <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
-                  Turno de Produção
+                  Tipo de Produção
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
@@ -1589,7 +1589,7 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
                         : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
                     }`}
                   >
-                    7h às 17h (Normal)
+                    Produção Normal
                   </button>
                   <button
                     type="button"
@@ -1600,7 +1600,7 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
                         : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
                     }`}
                   >
-                    17h às 19h (+Adicional)
+                    Produção Adicional (Extra)
                   </button>
                 </div>
               </div>

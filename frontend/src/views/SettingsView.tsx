@@ -1201,7 +1201,7 @@ export const SettingsView: React.FC = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md">
                       <div>
                         <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block mb-1">
-                          Turno Normal (7h às 17h)
+                          Produção Normal
                         </span>
                         <div className="relative">
                           <span className="absolute left-3 top-2 text-xs text-slate-400 font-bold">R$</span>
@@ -1219,7 +1219,7 @@ export const SettingsView: React.FC = () => {
 
                       <div>
                         <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block mb-1">
-                          Após 17h (17h às 19h)
+                          Produção Adicional (Extra)
                         </span>
                         <div className="relative">
                           <span className="absolute left-3 top-2 text-xs text-slate-400 font-bold">R$</span>

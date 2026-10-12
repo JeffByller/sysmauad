@@ -681,7 +681,7 @@ async function generateSystemReportText(settings: SystemSettings): Promise<strin
       msg += ` (${fmtMoney(totalIronedValueToday)})`;
     }
     if (totalAfter17Today > 0 && totalNormalToday > 0) {
-      msg += `\n  - 7h às 17h: *${totalNormalToday}* | 17h às 19h: *${totalAfter17Today}*`;
+      msg += `\n  - Produção Normal: *${totalNormalToday}* | Adicional (Extra): *${totalAfter17Today}*`;
     }
     msg += `\n`;
 
@@ -693,7 +693,7 @@ async function generateSystemReportText(settings: SystemSettings): Promise<strin
           const val = (p.normalPieces * p.rateNormal) + (p.after17Pieces * p.rateAfter17);
           msg += `   - ${p.name}: *${p.pieces}* peças`;
           if (p.normalPieces > 0 && p.after17Pieces > 0) {
-            msg += ` (7h-17h: ${p.normalPieces} | +17h: ${p.after17Pieces})`;
+            msg += ` (Normal: ${p.normalPieces} | Extra: ${p.after17Pieces})`;
           }
           if (settings.includeFinancialValues) {
             msg += ` (${fmtMoney(val)})`;
@@ -2449,7 +2449,7 @@ app.post('/orders/:id/ironing', async (req: Request, res: Response) => {
     logs.push(newLog);
 
     const history = Array.isArray(row.history) ? row.history : [];
-    const periodLabel = isAfter17Flag ? 'depois das 17h (17h às 19h)' : '7h às 17h';
+    const periodLabel = isAfter17Flag ? 'Produção Adicional (Extra)' : 'Produção Normal';
     history.push({
       timestamp: new Date().toISOString(),
       status: row.status,
@@ -2487,7 +2487,7 @@ app.post('/orders/:id/ironing', async (req: Request, res: Response) => {
       }
     }).catch(() => {});
 
-    res.json({ success: true, message: `Registradas ${count} peças para ${passadorName} (${isAfter17Flag ? 'Após 17h' : 'Turno Normal'})!`, order: mapOrder(updated.rows[0]) });
+    res.json({ success: true, message: `Registradas ${count} peças para ${passadorName} (${isAfter17Flag ? 'Produção Adicional (Extra)' : 'Produção Normal'})!`, order: mapOrder(updated.rows[0]) });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }

@@ -342,14 +342,14 @@ export async function generateAndSaveReport(params: GenerateReportParams) {
 
     if (data.totalAfter17Pieces > 0 && data.totalNormalPieces > 0) {
       summaryText = `• Total de Peças Passadas: *${totalPieces.toLocaleString('pt-BR')} peças*\n` +
-                    `  - 7h às 17h (Normal): *${data.totalNormalPieces.toLocaleString('pt-BR')} peças*\n` +
-                    `  - 17h às 19h (Adicional): *${data.totalAfter17Pieces.toLocaleString('pt-BR')} peças*\n` +
+                    `  - Produção Normal: *${data.totalNormalPieces.toLocaleString('pt-BR')} peças*\n` +
+                    `  - Produção Adicional (Extra): *${data.totalAfter17Pieces.toLocaleString('pt-BR')} peças*\n` +
                     `• Valor Total Produção: *${totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}*\n` +
                     `• Passadores Ativos: *${data.passadoresSummary.length}*\n` +
                     `• Total de Registros de Passadoria: *${data.logs.length}*`;
     } else {
       summaryText = `• Total de Peças Passadas: *${totalPieces.toLocaleString('pt-BR')} peças*` +
-                    (data.totalAfter17Pieces > 0 ? ` *(17h às 19h)*\n` : `\n`) +
+                    (data.totalAfter17Pieces > 0 ? ` *(Produção Adicional/Extra)*\n` : `\n`) +
                     `• Valor Total Produção: *${totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}*\n` +
                     `• Passadores Ativos: *${data.passadoresSummary.length}*\n` +
                     `• Total de Registros de Passadoria: *${data.logs.length}*`;
@@ -1171,8 +1171,8 @@ function buildPassadoresHtml(ctx: any): string {
   const passadoresRows = data.passadoresSummary.map((p: any) => {
     const hasBoth = p.normalPieces > 0 && p.after17Pieces > 0;
     const piecesCol = hasBoth
-      ? `${p.pieces.toLocaleString('pt-BR')}<div style="font-size: 10px; color: #64748b; font-weight: normal;">7h-17h: ${p.normalPieces} | +17h: ${p.after17Pieces}</div>`
-      : `${p.pieces.toLocaleString('pt-BR')}${p.after17Pieces > 0 ? '<div style="font-size: 10px; color: #d97706; font-weight: normal;">(17h às 19h)</div>' : ''}`;
+      ? `${p.pieces.toLocaleString('pt-BR')}<div style="font-size: 10px; color: #64748b; font-weight: normal;">Normal: ${p.normalPieces} | Extra: ${p.after17Pieces}</div>`
+      : `${p.pieces.toLocaleString('pt-BR')}${p.after17Pieces > 0 ? '<div style="font-size: 10px; color: #d97706; font-weight: normal;">(Adicional/Extra)</div>' : ''}`;
 
     const rateCol = hasBoth
       ? `R$ ${p.rateNormal.toFixed(2)} / R$ ${p.rateAfter17.toFixed(2)}`
@@ -1194,7 +1194,7 @@ function buildPassadoresHtml(ctx: any): string {
     <tr>
       <td>
         ${formatLocalDateTimeStr(l.timestamp)}
-        ${l.isAfter17 ? ' <span style="font-size: 9px; padding: 2px 4px; border-radius: 4px; background: #fef3c7; color: #92400e; font-weight: bold;">17h às 19h</span>' : ' <span style="font-size: 9px; padding: 2px 4px; border-radius: 4px; background: #f1f5f9; color: #475569;">7h às 17h</span>'}
+        ${l.isAfter17 ? ' <span style="font-size: 9px; padding: 2px 4px; border-radius: 4px; background: #fef3c7; color: #92400e; font-weight: bold;">Adicional (Extra)</span>' : ' <span style="font-size: 9px; padding: 2px 4px; border-radius: 4px; background: #f1f5f9; color: #475569;">Normal</span>'}
       </td>
       <td><strong>${l.passadorName}</strong></td>
       <td class="mono font-bold">${l.osNumber || '—'}</td>
@@ -1251,7 +1251,7 @@ function buildPassadoresHtml(ctx: any): string {
       <div class="kpi-card">
         <div class="kpi-label">Total de Peças Passadas</div>
         <div class="kpi-val">${data.totalPieces.toLocaleString('pt-BR')}</div>
-        <div class="kpi-sub">${data.totalAfter17Pieces > 0 && data.totalNormalPieces > 0 ? `7h-17h: ${data.totalNormalPieces} • +17h: ${data.totalAfter17Pieces}` : 'Acabamento e passadoria'}</div>
+        <div class="kpi-sub">${data.totalAfter17Pieces > 0 && data.totalNormalPieces > 0 ? `Normal: ${data.totalNormalPieces} • Extra: ${data.totalAfter17Pieces}` : 'Acabamento e passadoria'}</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-label">Valor Total a Pagar</div>
@@ -1597,8 +1597,8 @@ function buildGerencialCompletoHtml(ctx: any): string {
           ${passadores.passadoresSummary.map((p: any) => {
             const hasBoth = p.normalPieces > 0 && p.after17Pieces > 0;
             const piecesCol = hasBoth
-              ? `${p.pieces.toLocaleString('pt-BR')}<div style="font-size: 10px; color: #64748b; font-weight: normal;">7h-17h: ${p.normalPieces} | +17h: ${p.after17Pieces}</div>`
-              : `${p.pieces.toLocaleString('pt-BR')}${p.after17Pieces > 0 ? '<div style="font-size: 10px; color: #d97706; font-weight: normal;">(17h às 19h)</div>' : ''}`;
+              ? `${p.pieces.toLocaleString('pt-BR')}<div style="font-size: 10px; color: #64748b; font-weight: normal;">Normal: ${p.normalPieces} | Extra: ${p.after17Pieces}</div>`
+              : `${p.pieces.toLocaleString('pt-BR')}${p.after17Pieces > 0 ? '<div style="font-size: 10px; color: #d97706; font-weight: normal;">(Adicional/Extra)</div>' : ''}`;
             const rateCol = hasBoth
               ? `R$ ${p.rateNormal.toFixed(2)} / R$ ${p.rateAfter17.toFixed(2)}`
               : `R$ ${(p.after17Pieces > 0 ? p.rateAfter17 : p.rateNormal).toFixed(2)}`;

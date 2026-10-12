@@ -927,7 +927,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (ord.id !== targetOrder.id) return ord;
 
       const newTotal = ord.totalIronedPieces + piecesIroned;
-      const periodLabel = isAfter17Flag ? 'depois das 17h (17h às 19h)' : '7h às 17h';
+      const periodLabel = isAfter17Flag ? 'Produção Adicional (Extra)' : 'Produção Normal';
 
       return {
         ...ord,
@@ -961,7 +961,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     return { 
       success: true, 
-      message: `Lançamento de ${piecesIroned} peças registrado para ${passadorName} (${isAfter17Flag ? 'Após 17h' : 'Turno Normal'})!` 
+      message: `Lançamento de ${piecesIroned} peças registrado para ${passadorName} (${isAfter17Flag ? 'Produção Adicional (Extra)' : 'Produção Normal'})!` 
     };
   };
 
@@ -1030,7 +1030,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             timestamp: new Date().toISOString(),
             status: ord.status,
             operator: editorName || (isAdmin ? 'Administrador' : log.passadorName),
-            note: `Correção de passadoria (${log.passadorName}): alterado de ${oldPieces} para ${newPieces} pçs (${updatedIsAfter17 ? '17h às 19h' : '7h às 17h'}) (Total: ${newTotal}/${ord.estimatedPieceCount})`
+            note: `Correção de passadoria (${log.passadorName}): alterado de ${oldPieces} para ${newPieces} pçs (${updatedIsAfter17 ? 'Produção Adicional (Extra)' : 'Produção Normal'}) (Total: ${newTotal}/${ord.estimatedPieceCount})`
           }
         ]
       };

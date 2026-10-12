@@ -401,7 +401,7 @@ export const PassadorReportView: React.FC = () => {
   const renderPassadorLogRow = (l: any, idx: number) => {
     const dateStr = new Date(l.timestamp).toLocaleDateString('pt-BR');
     const timeStr = new Date(l.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    const periodTag = l.isAfter17 ? ' • 17h às 19h (Adicional)' : ' • 7h às 17h (Normal)';
+    const periodTag = l.isAfter17 ? ' • Produção Adicional (Extra)' : ' • Produção Normal';
 
     return (
       <div key={l.id || idx} className="flex justify-between items-center py-1 border-b border-dashed border-slate-200">
@@ -854,7 +854,7 @@ export const PassadorReportView: React.FC = () => {
               {showValues && (
                 <div className="flex flex-wrap items-center gap-3 ml-1 pl-3 border-l border-slate-200 dark:border-slate-700 font-mono">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-slate-500 font-medium">7h às 17h: R$</span>
+                    <span className="text-xs text-slate-500 font-medium">Produção Normal: R$</span>
                     <input
                       type="number"
                       step="0.01"
@@ -865,7 +865,7 @@ export const PassadorReportView: React.FC = () => {
                     />
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-slate-500 font-medium">17h às 19h: R$</span>
+                    <span className="text-xs text-slate-500 font-medium">Produção Adicional (Extra): R$</span>
                     <input
                       type="number"
                       step="0.01"
@@ -1086,14 +1086,14 @@ export const PassadorReportView: React.FC = () => {
                     /* Tem ambos os períodos: mostra os 2 dados */
                     <>
                       <div className="flex justify-between text-slate-700">
-                        <span>• Turno Normal (7h às 17h):</span>
+                        <span>• Produção Normal:</span>
                         <span className="font-bold">
                           {selectedPassador.normalPieces.toLocaleString('pt-BR')} Pcs
                           {showValues && ` (${Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedPassador.normalValue)})`}
                         </span>
                       </div>
                       <div className="flex justify-between text-amber-800">
-                        <span>• Turno Adicional (17h às 19h):</span>
+                        <span>• Produção Adicional (Extra):</span>
                         <span className="font-bold">
                           {selectedPassador.after17Pieces.toLocaleString('pt-BR')} Pcs
                           {showValues && ` (${Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedPassador.after17Value)})`}
@@ -1108,7 +1108,7 @@ export const PassadorReportView: React.FC = () => {
                     /* Só tem 1 período: segue 1 só */
                     <div className="flex justify-between font-bold text-sm text-slate-900 pt-1 border-t border-slate-300">
                       <span>
-                        {selectedPassador.after17Pieces > 0 ? 'TOTAL PECAS (17h às 19h):' : 'TOTAL PECAS:'}
+                        {selectedPassador.after17Pieces > 0 ? 'TOTAL PECAS (Produção Adicional/Extra):' : 'TOTAL PECAS:'}
                       </span>
                       <span className="text-base font-black">{selectedPassador.totalPiecesInPeriod.toLocaleString('pt-BR')} Pcs</span>
                     </div>
@@ -1158,7 +1158,7 @@ export const PassadorReportView: React.FC = () => {
                             </span>
                             {pas.normalPieces > 0 && pas.after17Pieces > 0 && (
                               <span className="text-[10px] text-slate-500 font-normal block">
-                                7h-17h: {pas.normalPieces} • +17h: {pas.after17Pieces}
+                                Normal: {pas.normalPieces} • Extra: {pas.after17Pieces}
                               </span>
                             )}
                             {showValues && (
@@ -1176,7 +1176,7 @@ export const PassadorReportView: React.FC = () => {
                               <div key={l.id} className="flex justify-between">
                                 <span>
                                   {l.osNumber} • {l.clientName} ({new Date(l.timestamp).toLocaleDateString('pt-BR')})
-                                  {l.isAfter17 ? ' [17h-19h]' : ''}
+                                  {l.isAfter17 ? ' [Extra]' : ''}
                                 </span>
                                 <span className="font-semibold">
                                   +{l.piecesIroned} Pcs
@@ -1198,8 +1198,8 @@ export const PassadorReportView: React.FC = () => {
                   {totalNormalPieces > 0 && totalAfter17Pieces > 0 ? (
                     <>
                       <div className="flex justify-between text-xs text-slate-600 pb-1">
-                        <span>• 7h às 17h: <strong>{totalNormalPieces.toLocaleString('pt-BR')} Pcs</strong></span>
-                        <span>• 17h às 19h: <strong>{totalAfter17Pieces.toLocaleString('pt-BR')} Pcs</strong></span>
+                        <span>• Produção Normal: <strong>{totalNormalPieces.toLocaleString('pt-BR')} Pcs</strong></span>
+                        <span>• Produção Adicional (Extra): <strong>{totalAfter17Pieces.toLocaleString('pt-BR')} Pcs</strong></span>
                       </div>
                       <div className="flex justify-between items-baseline gap-2 font-bold text-sm pt-1 border-t border-slate-300">
                         <span className="text-base text-slate-900 font-bold">TOTAL GERAL: {totalPassadorPieces.toLocaleString('pt-BR')} Pcs</span>
@@ -1213,7 +1213,7 @@ export const PassadorReportView: React.FC = () => {
                   ) : (
                     <div className="flex justify-between items-baseline gap-2 font-bold text-sm">
                       <span className="text-base text-slate-900 font-bold">
-                        {totalAfter17Pieces > 0 ? `TOTAL PECAS (17h às 19h): ${totalPassadorPieces.toLocaleString('pt-BR')} Pcs` : `TOTAL PECAS: ${totalPassadorPieces.toLocaleString('pt-BR')} Pcs`}
+                        {totalAfter17Pieces > 0 ? `TOTAL PECAS (Produção Adicional/Extra): ${totalPassadorPieces.toLocaleString('pt-BR')} Pcs` : `TOTAL PECAS: ${totalPassadorPieces.toLocaleString('pt-BR')} Pcs`}
                       </span>
                       {showValues && (
                         <span className="text-base text-emerald-800 font-black">
