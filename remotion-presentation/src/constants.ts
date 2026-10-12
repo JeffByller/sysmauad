@@ -28,5 +28,6 @@ export const SCENES_TIMING = {
   scene3Solution: { start: 540, duration: 270 }, // 18s - 27s (A Solução)
   scene4Features: { start: 810, duration: 450 }, // 27s - 42s (Funcionalidades & Telas)
   scene5Workflow: { start: 1260, duration: 270 }, // 42s - 51s (Fluxo & Portal)
+  scene5WorkflowPortal: { start: 1260, duration: 270 }, // 42s - 51s (Fluxo & Portal)
   scene6Outro: { start: 1530, duration: 270 }, // 51s - 60s (Resultados & Conclusão)
 };
