@@ -214,6 +214,15 @@ Este repositório possui regras e runbooks especializados configurados em [`.age
 
 ---
 
+## 🎬 Apresentação do Protótipo & Vídeo Remotion
+
+O projeto conta com documentação completa de apresentação executiva e projeto de vídeo programático construído em **React 18 + Remotion** com suporte a narração via **ElevenLabs**:
+
+- 📄 **[Documento de Apresentação e Protótipo](file:///opt/sysmauad/PROTOTIPO_E_APRESENTACAO.md)**: Apresentação detalhada do problema, solução, público-alvo, diagramas de fluxo de ponta a ponta e telas do protótipo.
+- 🎥 **[Projeto do Vídeo Remotion (`remotion-presentation/`)](file:///opt/sysmauad/remotion-presentation/)**: Vídeo em Motion Graphics construído com as diretrizes do [Claude Remotion Skill](https://github.com/haidrrrry/claude-remotion-skill) e integração com ElevenLabs / MCP.
+
+---
+
 ## 📄 Licença
 
 Propriedade de **Mauad Lavanderia Industrial**. Todos os direitos reservados.
