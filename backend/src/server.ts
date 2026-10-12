@@ -36,8 +36,12 @@ import {
   apiRateLimiter,
   recordAuditLog,
   getAuditLogs,
+  getAuditLogById,
   getAuditStats,
-  purgeOldAuditLogs
+  purgeOldAuditLogs,
+  shouldAcceptClientLog,
+  AUDIT_RETENTION_DAYS,
+  AUDIT_MAX_RECORDS
 } from './security';
 import {
   generateAndSaveReport,
@@ -55,6 +59,7 @@ import {
   endSession,
   getActiveSessions,
   cleanupExpiredSessions,
+  purgeEndedSessions,
   SESSION_TIMEOUT_MINUTES
 } from './session';
 
@@ -1288,7 +1293,18 @@ app.post('/auth/logout', async (req: Request, res: Response) => {
 app.get('/auth/sessions/active', async (_req: Request, res: Response) => {
   try {
     const sessions = await getActiveSessions();
-    res.json(sessions);
+    res.json({
+      timeoutMinutes: SESSION_TIMEOUT_MINUTES,
+      sessions: sessions.map(s => ({
+        sessionId: s.id,
+        userId: s.userId,
+        userName: s.userName,
+        userRole: s.userRole,
+        ipAddress: s.ipAddress,
+        createdAt: s.createdAt,
+        lastActivityAt: s.lastSeenAt
+      }))
+    });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -3764,14 +3780,15 @@ app.delete('/backups/:filename', (req: Request, res: Response) => {
 // ----------------------------------------------------
 app.get('/audit/logs', async (req: Request, res: Response) => {
   try {
-    const { level, category, search, limit, offset, tab } = req.query;
+    const { level, category, search, limit, offset, tab, full } = req.query;
     const result = await getAuditLogs({
       level: level ? String(level) : undefined,
       category: category ? String(category) : undefined,
       search: search ? String(search) : undefined,
       tab: tab ? String(tab) : undefined,
-      limit: limit ? parseInt(String(limit), 10) : 50,
-      offset: offset ? parseInt(String(offset), 10) : 0
+      limit: limit ? parseInt(String(limit), 10) || 20 : 20,
+      offset: offset ? parseInt(String(offset), 10) || 0 : 0,
+      full: full === '1'
     });
     res.json(result);
   } catch (err: any) {
@@ -3788,25 +3805,44 @@ app.get('/audit/stats', async (_req: Request, res: Response) => {
   }
 });
 
+// Detalhe completo de um registro (carregado sob demanda ao abrir o modal)
+app.get('/audit/logs/:id', async (req: Request, res: Response) => {
+  try {
+    const log = await getAuditLogById(String(req.params.id));
+    if (!log) return res.status(404).json({ success: false, message: 'Registro não encontrado.' });
+    res.json(log);
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // Endpoint para gravação de logs de processos, erros no frontend e ações de usuário
 app.post('/audit/logs', async (req: Request, res: Response) => {
   try {
     const ip = getClientIp(req);
     const { level, category, action, details, userId, userName } = req.body;
 
-    if (!action) {
+    if (!action || typeof action !== 'string') {
       return res.status(400).json({ success: false, message: 'Campo action é obrigatório.' });
     }
 
+    const safeAction = action.toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 100);
+    const safeLevel = ['info', 'warn', 'error', 'security'].includes(level) ? level : 'info';
+
+    // Evita inundação do banco com o mesmo erro repetido pelo navegador
+    if (!shouldAcceptClientLog(ip, safeAction)) {
+      return res.json({ success: true, skipped: true });
+    }
+
     await recordAuditLog({
-      level: level || 'info',
-      category: category || 'system',
-      action,
+      level: safeLevel,
+      category: typeof category === 'string' ? category : 'system',
+      action: safeAction,
       userId,
       userName,
       ipAddress: ip,
       userAgent: req.headers['user-agent'] as string,
-      details: details || {}
+      details: details && typeof details === 'object' ? details : {}
     });
 
     res.json({ success: true, message: 'Log registrado com sucesso.' });
@@ -3818,10 +3854,12 @@ app.post('/audit/logs', async (req: Request, res: Response) => {
 // Limpeza de logs antigos pelo Super Admin
 app.delete('/audit/logs', async (req: Request, res: Response) => {
   try {
-    const retentionDays = parseInt(String(req.query.retentionDays || '30'), 10);
-    const maxKeep = parseInt(String(req.query.maxKeep || '20000'), 10);
-    const cleaned = await purgeOldAuditLogs(retentionDays, maxKeep);
-    res.json({ success: true, message: `${cleaned} registros antigos de log foram excluídos com sucesso.`, cleaned });
+    const retentionDays = parseInt(String(req.query.retentionDays || AUDIT_RETENTION_DAYS), 10);
+    if (!Number.isInteger(retentionDays) || retentionDays < 1 || retentionDays > 365) {
+      return res.status(400).json({ success: false, message: 'Período de retenção inválido.' });
+    }
+    const cleaned = await purgeOldAuditLogs(retentionDays, AUDIT_MAX_RECORDS);
+    res.json({ success: true, message: `${cleaned} registros antigos foram excluídos.`, cleaned });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -4167,9 +4205,13 @@ function startAutomationScheduler() {
 async function startServer() {
   try {
     await initDb();
-    // Limpeza inicial e rotina periódica de retenção de logs
-    await purgeOldAuditLogs(30, 20000);
-    setInterval(() => purgeOldAuditLogs(30, 20000), 24 * 60 * 60 * 1000);
+    // Limpeza inicial e rotina periódica de retenção de logs e sessões encerradas
+    const runRetention = async () => {
+      await purgeOldAuditLogs(AUDIT_RETENTION_DAYS, AUDIT_MAX_RECORDS);
+      await purgeEndedSessions(AUDIT_RETENTION_DAYS);
+    };
+    await runRetention();
+    setInterval(() => { runRetention().catch(() => {}); }, 24 * 60 * 60 * 1000);
 
     // Limpeza inicial e rotina periódica de relatórios expirados no backlog (a cada 1h)
     purgeExpiredReports().catch(err => console.error('[Reports Backlog] Erro na limpeza inicial:', err.message));

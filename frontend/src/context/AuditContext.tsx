@@ -41,6 +41,24 @@ const AuditContext = createContext<AuditContextType | undefined>(undefined);
 // Tempo de inatividade permitido (30 minutos)
 const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000;
 
+// fetch original do navegador (capturado antes do interceptor global).
+// O envio de logs usa esta referência para não reentrar no interceptor e gerar loop.
+const nativeFetch: typeof window.fetch = window.fetch.bind(window);
+
+// Converte títulos em identificadores estáveis, preservando palavras acentuadas
+const toActionSlug = (text: string) =>
+  text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 80);
+
+// Mesma ação não é reenviada ao servidor dentro desta janela (evita inundar o banco)
+const CLIENT_LOG_DEDUPE_MS = 60 * 1000;
+const recentClientLogs = new Map<string, number>();
+
 export const AuditProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, logout } = useAuth();
   const [notifications, setNotifications] = useState<AuditNotification[]>([]);
@@ -62,8 +80,15 @@ export const AuditProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     action: string;
     details?: any;
   }) => {
+    const now = Date.now();
+    if (logData.level !== 'info') {
+      const last = recentClientLogs.get(logData.action);
+      if (last && now - last < CLIENT_LOG_DEDUPE_MS) return;
+      recentClientLogs.set(logData.action, now);
+    }
+
     const currentUser = userRef.current;
-    fetch('/api/audit/logs', {
+    nativeFetch('/api/audit/logs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -74,8 +99,8 @@ export const AuditProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         userId: currentUser?.id,
         userName: currentUser?.name
       })
-    }).catch(err => {
-      console.warn('[AuditService] Não foi possível persistir log no servidor:', err);
+    }).catch(() => {
+      // Sem conexão: o log é descartado silenciosamente (não gera novo erro)
     });
   }, []);
 
@@ -98,7 +123,7 @@ export const AuditProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     sendLogToBackend({
       level: 'error',
       category,
-      action: `process_error_${processName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+      action: `process_error_${toActionSlug(processName)}`,
       details: {
         process: processName,
         message: errorMsg,
@@ -124,7 +149,7 @@ export const AuditProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     sendLogToBackend({
       level: 'security',
       category: 'security',
-      action: `security_alert_${title.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+      action: `security_alert_${toActionSlug(title)}`,
       details: {
         title,
         message,
@@ -150,7 +175,7 @@ export const AuditProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     sendLogToBackend({
       level: 'warn',
       category: 'system',
-      action: `warning_${title.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+      action: `warning_${toActionSlug(title)}`,
       details: { title, message, ...details }
     });
   }, [sendLogToBackend]);
@@ -233,8 +258,10 @@ export const AuditProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         return response;
       } catch (err: any) {
-        // Falha de rede ou conexão recusada
-        notifyError('Conexão de Rede', err, 'network');
+        // Requisição cancelada pela própria tela não é falha de rede
+        if (err?.name !== 'AbortError') {
+          notifyError('Conexão de Rede', err, 'network');
+        }
         throw err;
       }
     };

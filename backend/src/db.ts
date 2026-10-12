@@ -750,6 +750,15 @@ export async function initDb() {
 
     -- Campo para Chave de Licença do Sistema (BKP-XXXX-XXXX-XXXX-XXXX)
     ALTER TABLE sysmauad.system_settings ADD COLUMN IF NOT EXISTS license_key VARCHAR(255) DEFAULT '';
+
+    -- Auditoria: índices para filtros por ação e nível (mantém consultas rápidas com volume alto)
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON sysmauad.audit_logs (action);
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_level_ts ON sysmauad.audit_logs (level, timestamp DESC);
+
+    -- Auditoria: avisos antigos de "sessão expirada" do navegador não são ameaças
+    UPDATE sysmauad.audit_logs
+       SET level = 'info', category = 'auth'
+     WHERE action = 'security_alert_sess_o_expirada_por_inatividade' AND level = 'security';
   `);
 
   // SEED INICIAL CASO TABELAS ESTEJAM VAZIAS

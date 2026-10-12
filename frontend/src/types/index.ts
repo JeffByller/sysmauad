@@ -352,6 +352,7 @@ export interface AuditLog {
   ipAddress?: string;
   userAgent?: string;
   details?: Record<string, any>;
+  summary?: string;
 }
 
 export interface AuditStats {
@@ -361,7 +362,16 @@ export interface AuditStats {
   warnings: number;
   info: number;
   errorsToday: number;
-  securityToday: number;
+  threats: number;
+  threatsToday: number;
+  loginsToday: number;
+  failedLoginsToday: number;
+  changesToday: number;
+  oldestTimestamp: string | null;
+  storageBytes: number;
+  retentionDays: number;
+  maxRecords: number;
+  categories: { category: string; count: number }[];
 }
 
 

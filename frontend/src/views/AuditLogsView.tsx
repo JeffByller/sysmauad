@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { AuditLog, AuditStats } from '../types';
 import { Pagination } from '../components/common/Pagination';
@@ -17,7 +17,6 @@ import {
   Copy,
   Check,
   Calendar,
-  User,
   Globe,
   Activity,
   Layers,
@@ -28,7 +27,7 @@ import {
   Clock,
   UserCheck,
   UserX,
-  Monitor
+  Database
 } from 'lucide-react';
 
 interface ActiveSessionItem {
@@ -37,10 +36,128 @@ interface ActiveSessionItem {
   userName: string;
   userRole: string;
   ipAddress?: string;
-  userAgent?: string;
   createdAt: string;
   lastActivityAt: string;
 }
+
+// Rótulos legíveis das ações registradas pelo sistema
+const ACTION_LABELS: Record<string, string> = {
+  login_success: 'Login',
+  client_login_success: 'Login do cliente',
+  logout: 'Saída',
+  login_failed: 'Senha incorreta',
+  client_login_failed: 'Login do cliente recusado',
+  login_error: 'Erro no login',
+  client_login_error: 'Erro no login do cliente',
+  inactive_user_login_denied: 'Usuário inativo bloqueado',
+  login_denied_concurrent_session: 'Acesso duplicado bloqueado',
+  session_expired_timeout: 'Sessão expirada',
+  security_alert_sess_o_expirada_por_inatividade: 'Sessão expirada',
+  session_terminated_by_admin: 'Desconectado pelo admin',
+  brute_force_blocked: 'Força bruta bloqueada',
+  login_blocked_brute_force: 'Força bruta bloqueada',
+  intrusion_attempt_blocked: 'Invasão bloqueada',
+  rate_limit_exceeded: 'Excesso de requisições',
+  blocked_client_access_denied: 'Cliente bloqueado',
+  order_created: 'OS criada',
+  order_a_definir_created: 'OS a definir criada',
+  order_relavado_created: 'OS de relavado criada',
+  order_definition_completed: 'OS definida',
+  order_status_updated: 'Status da OS',
+  order_ironed: 'Passadoria lançada',
+  order_ironing_edited: 'Passadoria corrigida',
+  order_weight_edited: 'Peso da OS alterado',
+  order_deleted: 'OS excluída',
+  order_paid: 'Baixa financeira',
+  baixa: 'Baixa financeira',
+  boleto_viewed: 'Boleto visualizado',
+  client_created: 'Cliente criado',
+  client_updated: 'Cliente alterado',
+  user_created: 'Usuário criado',
+  user_updated: 'Usuário alterado',
+  user_deleted: 'Usuário excluído',
+  user_password_changed: 'Senha alterada',
+  garment_created: 'Peça criada',
+  garment_updated: 'Peça alterada',
+  garment_deleted: 'Peça excluída',
+  stock_item_created: 'Insumo criado',
+  stock_item_updated: 'Insumo alterado',
+  stock_item_deleted: 'Insumo excluído',
+  stock_quantity_adjusted: 'Estoque ajustado',
+  insumo_entry_created: 'Entrada de insumo',
+  receita_created: 'Receita criada',
+  receita_updated: 'Receita alterada',
+  receita_deleted: 'Receita excluída',
+  passador_created: 'Passador criado',
+  passador_updated: 'Passador alterado',
+  passador_deleted: 'Passador excluído',
+  supplier_created: 'Fornecedor criado',
+  supplier_updated: 'Fornecedor alterado',
+  supplier_deleted: 'Fornecedor excluído',
+  backup_generate: 'Backup gerado',
+  backup_download: 'Backup baixado',
+  backup_download_unauthorized: 'Download de backup negado',
+  backup_restore_success: 'Backup restaurado',
+  backup_restore_unauthorized: 'Restauração negada',
+  license_key_updated: 'Licença atualizada',
+  license_update_denied: 'Alteração de licença negada',
+  unhandled_server_error: 'Erro no servidor',
+  process_error_comunica__o_com_servidor: 'Falha no servidor',
+  process_error_comunicacao_com_servidor: 'Falha no servidor',
+  process_error_conex_o_de_rede: 'Sem conexão',
+  process_error_conexao_de_rede: 'Sem conexão'
+};
+
+const getActionLabel = (action: string) => {
+  if (ACTION_LABELS[action]) return ACTION_LABELS[action];
+  const pretty = action
+    .replace(/^(process_error_|security_alert_|warning_)/, '')
+    .replace(/_+/g, ' ')
+    .trim();
+  if (action.startsWith('process_error_')) return `Erro: ${pretty}`;
+  return pretty.charAt(0).toUpperCase() + pretty.slice(1);
+};
+
+const CATEGORY_LABELS: Record<string, string> = {
+  auth: 'Acesso',
+  client_portal: 'Portal do Cliente',
+  orders: 'Ordens de Serviço',
+  clients: 'Clientes',
+  client: 'Clientes',
+  users: 'Usuários',
+  stock: 'Estoque',
+  finance: 'Financeiro',
+  receitas: 'Receitas de Lavado',
+  recipes: 'Receitas de Lavado',
+  passadores: 'Passadoria',
+  ironing: 'Passadoria',
+  catalog: 'Peças',
+  suppliers: 'Fornecedores',
+  security: 'Segurança',
+  system: 'Sistema',
+  api: 'Servidor',
+  network: 'Rede',
+  frontend: 'Interface'
+};
+
+const getCategoryLabel = (category: string) => CATEGORY_LABELS[category] || category;
+
+const ROLE_LABELS: Record<string, string> = {
+  superadmin: 'Super Admin',
+  admin: 'Administrador',
+  operador: 'Operador',
+  operator: 'Operador',
+  passador: 'Passador',
+  financeiro: 'Financeiro'
+};
+
+const formatBytes = (bytes: number) => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const formatNumber = (n: number) => new Intl.NumberFormat('pt-BR').format(n);
 
 export const AuditLogsView: React.FC = () => {
   const { user } = useAuth();
@@ -50,6 +167,7 @@ export const AuditLogsView: React.FC = () => {
 
   // Sessões ativas conectadas agora
   const [activeSessions, setActiveSessions] = useState<ActiveSessionItem[]>([]);
+  const [sessionTimeout, setSessionTimeout] = useState<number | null>(null);
   const [isLoadingSessions, setIsLoadingSessions] = useState<boolean>(false);
   const [terminatingSessionId, setTerminatingSessionId] = useState<string | null>(null);
 
@@ -58,16 +176,20 @@ export const AuditLogsView: React.FC = () => {
   const [totalCount, setTotalCount] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [autoRefresh, setAutoRefresh] = useState<boolean>(false);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
+  const logsRequestRef = useRef(0);
 
   // Filtros
   const [selectedLevel, setSelectedLevel] = useState<string>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [debouncedSearch, setDebouncedSearch] = useState<string>('');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const pageSize = 20;
 
-  // Modal de Detalhes
+  // Modal de Detalhes (carregado sob demanda)
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
+  const [isLoadingDetail, setIsLoadingDetail] = useState<boolean>(false);
   const [copiedDetail, setCopiedDetail] = useState<boolean>(false);
 
   // Modal de Limpeza
@@ -76,6 +198,12 @@ export const AuditLogsView: React.FC = () => {
   const [isPurging, setIsPurging] = useState<boolean>(false);
   const [purgeSuccessMsg, setPurgeSuccessMsg] = useState<string | null>(null);
 
+  // Busca só dispara após o usuário parar de digitar (evita uma consulta por tecla)
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchTerm.trim()), 400);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
   // Busca sessões ativas
   const fetchActiveSessions = useCallback(async () => {
     setIsLoadingSessions(true);
@@ -83,7 +211,8 @@ export const AuditLogsView: React.FC = () => {
       const res = await fetch('/api/auth/sessions/active');
       if (res.ok) {
         const data = await res.json();
-        setActiveSessions(data.sessions || []);
+        setActiveSessions(Array.isArray(data.sessions) ? data.sessions : []);
+        if (data.timeoutMinutes) setSessionTimeout(data.timeoutMinutes);
       }
     } catch (err) {
       console.error('[AuditView] Erro ao buscar sessões ativas:', err);
@@ -92,64 +221,59 @@ export const AuditLogsView: React.FC = () => {
     }
   }, []);
 
-  // Encerrar sessão ativa forçadamente pelo admin
-  const handleTerminateSession = async (sessionId: string, userName: string) => {
-    if (!window.confirm(`Deseja realmente desconectar a sessão do usuário "${userName}"?`)) return;
-    setTerminatingSessionId(sessionId);
+  // Indicadores (carregados separadamente: não recalcula a cada página/filtro)
+  const fetchStats = useCallback(async () => {
     try {
-      const res = await fetch(`/api/auth/sessions/${sessionId}/terminate`, {
-        method: 'POST'
-      });
-      if (res.ok) {
-        await Promise.all([fetchActiveSessions(), fetchLogs()]);
-      }
+      const res = await fetch('/api/audit/stats');
+      if (res.ok) setStats(await res.json());
     } catch (err) {
-      console.error('[AuditView] Erro ao encerrar sessão:', err);
-    } finally {
-      setTerminatingSessionId(null);
+      console.error('[AuditView] Falha ao carregar indicadores:', err);
     }
-  };
+  }, []);
 
-  // Busca logs e estatísticas da API
+  const buildFilterParams = useCallback(() => {
+    const params = new URLSearchParams({ tab: activeTab });
+    if (selectedLevel !== 'all') params.append('level', selectedLevel);
+    if (selectedCategory !== 'all') params.append('category', selectedCategory);
+    if (debouncedSearch) params.append('search', debouncedSearch);
+    return params;
+  }, [activeTab, selectedLevel, selectedCategory, debouncedSearch]);
+
+  // Busca a página atual de registros (versão leve, sem detalhes completos)
   const fetchLogs = useCallback(async () => {
+    const requestId = ++logsRequestRef.current;
     setIsLoading(true);
     try {
-      const offset = (currentPage - 1) * pageSize;
-      const queryParams = new URLSearchParams({
-        limit: String(pageSize),
-        offset: String(offset),
-        tab: activeTab
-      });
+      const params = buildFilterParams();
+      params.append('limit', String(pageSize));
+      params.append('offset', String((currentPage - 1) * pageSize));
 
-      if (selectedLevel !== 'all') queryParams.append('level', selectedLevel);
-      if (selectedCategory !== 'all') queryParams.append('category', selectedCategory);
-      if (searchTerm.trim()) queryParams.append('search', searchTerm.trim());
-
-      const [logsRes, statsRes] = await Promise.all([
-        fetch(`/api/audit/logs?${queryParams.toString()}`),
-        fetch('/api/audit/stats')
-      ]);
-
-      if (logsRes.ok) {
-        const data = await logsRes.json();
+      const res = await fetch(`/api/audit/logs?${params.toString()}`);
+      if (res.ok && requestId === logsRequestRef.current) {
+        const data = await res.json();
         setLogs(data.logs || []);
         setTotalCount(data.total || 0);
-      }
-
-      if (statsRes.ok) {
-        const statsData = await statsRes.json();
-        setStats(statsData);
       }
     } catch (err) {
       console.error('[AuditView] Falha ao carregar logs:', err);
     } finally {
-      setIsLoading(false);
+      if (requestId === logsRequestRef.current) setIsLoading(false);
     }
-  }, [currentPage, selectedLevel, selectedCategory, searchTerm, activeTab]);
+  }, [buildFilterParams, currentPage]);
+
+  const refreshAll = useCallback(() => {
+    fetchLogs();
+    fetchStats();
+    if (activeTab === 'access') fetchActiveSessions();
+  }, [fetchLogs, fetchStats, fetchActiveSessions, activeTab]);
 
   useEffect(() => {
     fetchLogs();
   }, [fetchLogs]);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
 
   useEffect(() => {
     if (activeTab === 'access') {
@@ -157,17 +281,34 @@ export const AuditLogsView: React.FC = () => {
     }
   }, [activeTab, fetchActiveSessions]);
 
-  // Auto-refresh a cada 15 segundos se ativado
+  // Auto-refresh a cada 15 segundos se ativado (pausa com a aba do navegador oculta)
   useEffect(() => {
     if (!autoRefresh) return;
     const interval = setInterval(() => {
-      fetchLogs();
-      if (activeTab === 'access') {
-        fetchActiveSessions();
-      }
+      if (document.visibilityState === 'visible') refreshAll();
     }, 15000);
     return () => clearInterval(interval);
-  }, [autoRefresh, fetchLogs, activeTab, fetchActiveSessions]);
+  }, [autoRefresh, refreshAll]);
+
+  // Encerrar sessão ativa forçadamente pelo admin
+  const handleTerminateSession = async (sessionId: string, userName: string) => {
+    if (!window.confirm(`Deseja realmente desconectar a sessão do usuário "${userName}"?`)) return;
+    setTerminatingSessionId(sessionId);
+    try {
+      const res = await fetch(`/api/auth/sessions/${sessionId}/terminate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminName: user?.name })
+      });
+      if (res.ok) {
+        refreshAll();
+      }
+    } catch (err) {
+      console.error('[AuditView] Erro ao encerrar sessão:', err);
+    } finally {
+      setTerminatingSessionId(null);
+    }
+  };
 
   // Executa purga de logs antigos
   const handlePurgeLogs = async () => {
@@ -179,11 +320,12 @@ export const AuditLogsView: React.FC = () => {
       });
       const data = await res.json();
       if (res.ok) {
-        setPurgeSuccessMsg(data.message || 'Logs limpos com sucesso.');
+        setPurgeSuccessMsg(data.message || 'Registros antigos excluídos.');
         setTimeout(() => {
           setIsPurgeModalOpen(false);
           setPurgeSuccessMsg(null);
-          fetchLogs();
+          setCurrentPage(1);
+          refreshAll();
         }, 1500);
       }
     } catch (err: any) {
@@ -193,18 +335,45 @@ export const AuditLogsView: React.FC = () => {
     }
   };
 
-  // Exportar logs como JSON
-  const handleExportJSON = () => {
-    const jsonStr = JSON.stringify(logs, null, 2);
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `sysmauad-auditoria-${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  // Exportar registros do filtro atual (até 1000) com detalhes completos
+  const handleExportJSON = async () => {
+    setIsExporting(true);
+    try {
+      const params = buildFilterParams();
+      params.append('limit', '1000');
+      params.append('full', '1');
+      const res = await fetch(`/api/audit/logs?${params.toString()}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const blob = new Blob([JSON.stringify(data.logs || [], null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+      a.href = url;
+      a.download = `sysmauad-auditoria-${today}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('[AuditView] Erro ao exportar:', err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // Abre o modal e busca o registro completo
+  const handleOpenDetail = async (log: AuditLog) => {
+    setSelectedLog(log);
+    setIsLoadingDetail(true);
+    try {
+      const res = await fetch(`/api/audit/logs/${encodeURIComponent(log.id)}`);
+      if (res.ok) setSelectedLog(await res.json());
+    } catch (err) {
+      console.error('[AuditView] Erro ao carregar detalhes:', err);
+    } finally {
+      setIsLoadingDetail(false);
+    }
   };
 
   // Copiar detalhes do log para a área de transferência
@@ -215,111 +384,103 @@ export const AuditLogsView: React.FC = () => {
     setTimeout(() => setCopiedDetail(false), 2000);
   };
 
-  // Tradução amigável de categorias
-  const getCategoryLabel = (category: string) => {
-    switch (category) {
-      case 'auth': return 'Acesso / Autenticação';
-      case 'orders': return 'Ordens de Serviço';
-      case 'clients': return 'Clientes';
-      case 'users': return 'Usuários';
-      case 'stock': return 'Estoque';
-      case 'finance': return 'Financeiro';
-      case 'receitas': return 'Receitas de Lavado';
-      case 'passadores': return 'Passadoria';
-      case 'suppliers': return 'Fornecedores';
-      case 'security': return 'Segurança';
-      case 'client_portal': return 'Portal do Cliente';
-      case 'system': return 'Sistema';
-      default: return category;
-    }
-  };
-
   // Badges contextuais de Ação
   const renderActionBadge = (action: string) => {
-    if (action === 'login_success') {
+    const label = getActionLabel(action);
+    const base = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase border';
+
+    if (action === 'login_success' || action === 'client_login_success') {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+        <span className={`${base} bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800`}>
           <LogIn className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-          Login com Sucesso
+          {label}
         </span>
       );
     }
     if (action === 'logout') {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700">
+        <span className={`${base} bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700`}>
           <LogOut className="w-3 h-3 text-slate-500" />
-          Logout / Saída
+          {label}
         </span>
       );
     }
-    if (action === 'session_expired_timeout') {
+    if (action === 'session_expired_timeout' || action.includes('sess_o_expirada') || action.includes('sessao_expirada')) {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+        <span className={`${base} bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800`}>
           <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-          Sessão Expirada (15m)
-        </span>
-      );
-    }
-    if (action === 'login_denied_concurrent_session') {
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800">
-          <ShieldAlert className="w-3 h-3 text-rose-600 dark:text-rose-400" />
-          Conexão Duplicada Bloqueada
+          {label}
         </span>
       );
     }
     if (action === 'session_terminated_by_admin') {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800">
+        <span className={`${base} bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-800`}>
           <LogOut className="w-3 h-3 text-purple-600 dark:text-purple-400" />
-          Desconectado por Admin
+          {label}
         </span>
       );
     }
-    if (action.includes('password') || action.includes('failed') || action === 'login_blocked_brute_force') {
+    if (
+      action.includes('brute_force') || action.includes('intrusion') || action.includes('rate_limit') ||
+      action.includes('unauthorized') || action.includes('denied') || action.startsWith('security_alert_')
+    ) {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 border border-red-300 dark:border-red-800">
-          <UserX className="w-3 h-3 text-red-600 dark:text-red-400" />
-          Falha de Acesso
+        <span className={`${base} bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-800`}>
+          <ShieldAlert className="w-3 h-3 text-rose-600 dark:text-rose-400" />
+          {label}
         </span>
       );
     }
-    if (action.startsWith('create_') || action.includes('_created') || action === 'create') {
+    if (action.includes('failed') || action.includes('password') || action.endsWith('_error') || action.startsWith('process_error_')) {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
-          <PlusCircle className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-          Criação
+        <span className={`${base} bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 border-red-300 dark:border-red-800`}>
+          {action.startsWith('process_error_') || action.endsWith('_error')
+            ? <AlertCircle className="w-3 h-3 text-red-600 dark:text-red-400" />
+            : <UserX className="w-3 h-3 text-red-600 dark:text-red-400" />}
+          {label}
         </span>
       );
     }
-    if (action.startsWith('update_') || action.includes('_updated') || action === 'update') {
+    if (action.includes('baixa') || action.includes('paid') || action.includes('payment')) {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-sky-100 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-800">
-          <Edit3 className="w-3 h-3 text-sky-600 dark:text-sky-400" />
-          Alteração
-        </span>
-      );
-    }
-    if (action.startsWith('delete_') || action.includes('_deleted') || action === 'delete') {
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800">
-          <Trash2 className="w-3 h-3 text-rose-600 dark:text-rose-400" />
-          Exclusão
-        </span>
-      );
-    }
-    if (action.includes('baixa') || action.includes('payment')) {
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+        <span className={`${base} bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800`}>
           <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-          Baixa Financeira
+          {label}
+        </span>
+      );
+    }
+    if (action.startsWith('create_') || action.endsWith('_created') || action === 'create') {
+      return (
+        <span className={`${base} bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800`}>
+          <PlusCircle className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+          {label}
+        </span>
+      );
+    }
+    if (action.startsWith('delete_') || action.endsWith('_deleted') || action === 'delete') {
+      return (
+        <span className={`${base} bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-800`}>
+          <Trash2 className="w-3 h-3 text-rose-600 dark:text-rose-400" />
+          {label}
+        </span>
+      );
+    }
+    if (
+      action.startsWith('update_') || action.endsWith('_updated') || action.endsWith('_edited') ||
+      action.endsWith('_adjusted') || action.endsWith('_completed') || action === 'order_ironed' || action === 'update'
+    ) {
+      return (
+        <span className={`${base} bg-sky-100 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border-sky-300 dark:border-sky-800`}>
+          <Edit3 className="w-3 h-3 text-sky-600 dark:text-sky-400" />
+          {label}
         </span>
       );
     }
 
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-        {action}
+      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+        {label}
       </span>
     );
   };
@@ -358,27 +519,6 @@ export const AuditLogsView: React.FC = () => {
     }
   };
 
-  // Helper para resumir os detalhes do log
-  const renderDetailsSummary = (log: AuditLog) => {
-    const d = log.details;
-    if (!d) return '-';
-
-    if (d.message) return d.message;
-    if (d.reason) return d.reason;
-    if (d.description) return d.description;
-
-    // Resumos específicos de entidades
-    if (d.osNumber) return `OS #${d.osNumber}${d.clientName ? ` • ${d.clientName}` : ''}`;
-    if (d.clientName) return `Cliente: ${d.clientName}`;
-    if (d.userName) return `Usuário: ${d.userName}`;
-    if (d.productName) return `Produto: ${d.productName} (${d.quantity ?? ''})`;
-    if (d.recipeName) return `Receita: ${d.recipeName}`;
-    if (d.passadorName) return `Passador: ${d.passadorName}`;
-    if (d.supplierName) return `Fornecedor: ${d.supplierName}`;
-    if (d.changes && Array.isArray(d.changes)) return `Campos alterados: ${d.changes.join(', ')}`;
-
-    return JSON.stringify(d).slice(0, 80);
-  };
 
   // Proteção: apenas Super Admin pode visualizar
   const isAuthorized = user?.id === 'super-admin-root';
@@ -407,10 +547,21 @@ export const AuditLogsView: React.FC = () => {
             </div>
             <div>
               <h1 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight">
-                Auditoria &amp; Logs do Sistema
+                Auditoria
               </h1>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Rastreabilidade de acessos, alterações cadastrais, sessões ativas e proteção do sistema
+              <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 flex-wrap">
+                <Database className="w-3 h-3 shrink-0" />
+                {stats ? (
+                  <span>
+                    {formatNumber(stats.total)} registros • {formatBytes(stats.storageBytes)}
+                    {stats.oldestTimestamp && (
+                      <> • desde {new Date(stats.oldestTimestamp).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</>
+                    )}
+                    {' '}• limpeza automática após {stats.retentionDays} dias
+                  </span>
+                ) : (
+                  <span>Carregando...</span>
+                )}
               </p>
             </div>
           </div>
@@ -434,10 +585,7 @@ export const AuditLogsView: React.FC = () => {
 
           {/* Manual Refresh */}
           <button
-            onClick={() => {
-              fetchLogs();
-              if (activeTab === 'access') fetchActiveSessions();
-            }}
+            onClick={refreshAll}
             disabled={isLoading}
             className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold transition-colors disabled:opacity-50"
             title="Recarregar dados"
@@ -449,12 +597,12 @@ export const AuditLogsView: React.FC = () => {
           {/* Export JSON */}
           <button
             onClick={handleExportJSON}
-            disabled={logs.length === 0}
+            disabled={totalCount === 0 || isExporting}
             className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold transition-colors disabled:opacity-50"
-            title="Exportar logs em JSON"
+            title="Exportar registros do filtro atual (até 1.000)"
           >
-            <Download className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Exportar</span>
+            <Download className={`w-3.5 h-3.5 ${isExporting ? 'animate-pulse' : ''}`} />
+            <span className="hidden sm:inline">{isExporting ? 'Exportando...' : 'Exportar'}</span>
           </button>
 
           {/* Purge Logs */}
@@ -469,71 +617,65 @@ export const AuditLogsView: React.FC = () => {
         </div>
       </div>
 
-      {/* KPI Stats Cards */}
+      {/* KPI Stats Cards (valores reais de hoje, horário de Brasília) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {/* Total Logs */}
+        {/* Acessos hoje */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between transition-colors">
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-            <span className="text-xs font-semibold">Total de Registros</span>
-            <Layers className="w-4 h-4 text-sky-500 dark:text-sky-400" />
+            <span className="text-xs font-semibold">Acessos hoje</span>
+            <LogIn className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black text-slate-900 dark:text-white font-mono">{stats?.total ?? totalCount}</span>
-            <span className="text-[10px] text-slate-400">eventos</span>
-          </div>
-          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-2 flex items-center gap-1 font-medium">
-            Armazenamento leve &amp; indexado
+          <span className="text-2xl font-black text-slate-900 dark:text-white font-mono">
+            {stats ? formatNumber(stats.loginsToday) : '—'}
+          </span>
+          <span className={`text-[10px] mt-2 font-medium ${(stats?.failedLoginsToday ?? 0) > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400'}`}>
+            {stats ? `${formatNumber(stats.failedLoginsToday)} recusados` : ' '}
           </span>
         </div>
 
-        {/* Security Alerts / Brute Force */}
+        {/* Alterações hoje */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between transition-colors">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
+            <span className="text-xs font-semibold">Alterações hoje</span>
+            <Edit3 className="w-4 h-4 text-sky-500 dark:text-sky-400" />
+          </div>
+          <span className="text-2xl font-black text-slate-900 dark:text-white font-mono">
+            {stats ? formatNumber(stats.changesToday) : '—'}
+          </span>
+          <span className="text-[10px] text-slate-400 mt-2 font-medium">
+            OS, cadastros, estoque e financeiro
+          </span>
+        </div>
+
+        {/* Ameaças bloqueadas */}
         <div className={`rounded-2xl p-4 flex flex-col justify-between border transition-colors ${
-          (stats?.security ?? 0) > 0
-            ? 'bg-rose-50 dark:bg-rose-950/30 border-rose-300 dark:border-rose-800/80 shadow-rose-100 dark:shadow-rose-950/30 shadow-lg'
+          (stats?.threatsToday ?? 0) > 0
+            ? 'bg-rose-50 dark:bg-rose-950/30 border-rose-300 dark:border-rose-800/80'
             : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
         }`}>
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-            <span className="text-xs font-semibold">Ameaças &amp; Força Bruta</span>
-            <ShieldAlert className={`w-4 h-4 ${(stats?.security ?? 0) > 0 ? 'text-rose-500 dark:text-rose-400 animate-pulse' : 'text-slate-400 dark:text-slate-500'}`} />
+            <span className="text-xs font-semibold">Ameaças bloqueadas hoje</span>
+            <ShieldAlert className={`w-4 h-4 ${(stats?.threatsToday ?? 0) > 0 ? 'text-rose-500 dark:text-rose-400' : 'text-slate-400 dark:text-slate-500'}`} />
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className={`text-2xl font-black font-mono ${(stats?.security ?? 0) > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`}>
-              {stats?.security ?? 0}
-            </span>
-            <span className="text-[10px] text-slate-400">bloqueios</span>
-          </div>
-          <span className="text-[10px] text-rose-500 dark:text-rose-300 mt-2 font-medium">
-            {stats?.securityToday ?? 0} tentativas hoje
+          <span className={`text-2xl font-black font-mono ${(stats?.threatsToday ?? 0) > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`}>
+            {stats ? formatNumber(stats.threatsToday) : '—'}
+          </span>
+          <span className="text-[10px] text-slate-400 mt-2 font-medium">
+            {stats ? `${formatNumber(stats.threats)} no período guardado` : ' '}
           </span>
         </div>
 
-        {/* Process Errors */}
+        {/* Erros hoje */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between transition-colors">
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-            <span className="text-xs font-semibold">Erros de Processos</span>
-            <AlertCircle className="w-4 h-4 text-red-500 dark:text-red-400" />
+            <span className="text-xs font-semibold">Erros hoje</span>
+            <AlertCircle className={`w-4 h-4 ${(stats?.errorsToday ?? 0) > 0 ? 'text-red-500 dark:text-red-400' : 'text-slate-400 dark:text-slate-500'}`} />
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black text-red-600 dark:text-red-400 font-mono">{stats?.errors ?? 0}</span>
-            <span className="text-[10px] text-slate-400">falhas</span>
-          </div>
-          <span className="text-[10px] text-red-500 dark:text-red-300 mt-2 font-medium">
-            {stats?.errorsToday ?? 0} erros hoje
+          <span className={`text-2xl font-black font-mono ${(stats?.errorsToday ?? 0) > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>
+            {stats ? formatNumber(stats.errorsToday) : '—'}
           </span>
-        </div>
-
-        {/* Operational Actions */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between transition-colors">
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-            <span className="text-xs font-semibold">Ações de Usuários</span>
-            <User className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black text-slate-900 dark:text-white font-mono">{stats?.info ?? 0}</span>
-            <span className="text-[10px] text-slate-400">ações rastreadas</span>
-          </div>
-          <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-2 font-medium">
-            {stats?.warnings ?? 0} alertas registrados
+          <span className="text-[10px] text-slate-400 mt-2 font-medium">
+            {stats ? `${formatNumber(stats.errors)} no período guardado` : ' '}
           </span>
         </div>
       </div>
@@ -652,7 +794,7 @@ export const AuditLogsView: React.FC = () => {
                           )}
                         </div>
                         <span className="text-[10px] text-slate-500 uppercase font-mono">
-                          Perfil: {s.userRole}
+                          Perfil: {ROLE_LABELS[s.userRole?.toLowerCase()] || s.userRole}
                         </span>
                       </div>
                       <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="Ativo" />
@@ -760,16 +902,26 @@ export const AuditLogsView: React.FC = () => {
               className="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-800 dark:text-slate-200 font-medium focus:outline-none focus:ring-2 focus:ring-sky-500 w-full sm:w-auto transition-colors"
             >
               <option value="all">Todas as Categorias</option>
-              <option value="auth">Acesso &amp; Autenticação</option>
-              <option value="orders">Ordens de Serviço (OS)</option>
-              <option value="clients">Clientes</option>
-              <option value="finance">Financeiro / Caixa</option>
-              <option value="stock">Estoque Químico</option>
-              <option value="users">Gestão de Usuários</option>
-              <option value="passadores">Passadoria</option>
-              <option value="receitas">Receitas de Lavado</option>
-              <option value="security">Segurança &amp; Força Bruta</option>
-              <option value="system">Sistema &amp; Automação</option>
+              {stats?.categories && stats.categories.length > 0 ? (
+                stats.categories.map(c => (
+                  <option key={c.category} value={c.category}>
+                    {getCategoryLabel(c.category)} ({c.count})
+                  </option>
+                ))
+              ) : (
+                <>
+                  <option value="auth">Acesso &amp; Autenticação</option>
+                  <option value="orders">Ordens de Serviço (OS)</option>
+                  <option value="clients">Clientes</option>
+                  <option value="finance">Financeiro / Caixa</option>
+                  <option value="stock">Estoque Químico</option>
+                  <option value="users">Gestão de Usuários</option>
+                  <option value="passadores">Passadoria</option>
+                  <option value="receitas">Receitas de Lavado</option>
+                  <option value="security">Segurança &amp; Força Bruta</option>
+                  <option value="system">Sistema &amp; Automação</option>
+                </>
+              )}
             </select>
           </div>
         </div>
@@ -887,15 +1039,15 @@ export const AuditLogsView: React.FC = () => {
 
                       {/* Details Summary */}
                       <td className="py-3 px-4">
-                        <p className="text-slate-600 dark:text-slate-300 truncate max-w-[320px] text-[11px]">
-                          {renderDetailsSummary(log)}
+                        <p className="text-slate-600 dark:text-slate-300 truncate max-w-[320px] text-[11px]" title={log.summary || '-'}>
+                          {log.summary || '-'}
                         </p>
                       </td>
 
                       {/* Action */}
                       <td className="py-3 px-3 text-right whitespace-nowrap">
                         <button
-                          onClick={() => setSelectedLog(log)}
+                          onClick={() => handleOpenDetail(log)}
                           className="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-sky-600 dark:text-sky-400 rounded-lg text-xs font-semibold inline-flex items-center gap-1 transition-colors"
                           title="Inspecionar detalhes completos"
                         >
@@ -979,9 +1131,16 @@ export const AuditLogsView: React.FC = () => {
                 </button>
               </div>
               <div className="flex-1 bg-slate-950 dark:bg-black/60 border border-slate-300 dark:border-slate-800 rounded-xl p-3.5 overflow-auto text-xs font-mono text-slate-100 max-h-64">
-                <pre className="whitespace-pre-wrap break-all">
-                  {JSON.stringify(selectedLog.details, null, 2)}
-                </pre>
+                {isLoadingDetail ? (
+                  <div className="py-8 flex items-center justify-center gap-2 text-slate-400">
+                    <RefreshCw className="w-4 h-4 animate-spin text-sky-400" />
+                    <span>Carregando detalhes do servidor...</span>
+                  </div>
+                ) : (
+                  <pre className="whitespace-pre-wrap break-all">
+                    {JSON.stringify(selectedLog.details || {}, null, 2)}
+                  </pre>
+                )}
               </div>
             </div>
 

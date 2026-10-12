@@ -176,21 +176,24 @@ export async function endSession(sessionId?: string, userId?: string): Promise<v
 /**
  * Retorna a lista de sessões atualmente ativas no sistema.
  */
-export async function getActiveSessions(): Promise<UserSession[]> {
+export async function getActiveSessions(): Promise<(UserSession & { userRole: string })[]> {
   try {
     await cleanupExpiredSessions();
 
     const result = await query(`
-      SELECT * FROM sysmauad.user_sessions
-      WHERE is_active = TRUE 
-        AND last_seen_at > NOW() - (INTERVAL '1 minute' * $1)
-      ORDER BY last_seen_at DESC
+      SELECT s.*, u.role AS user_role
+      FROM sysmauad.user_sessions s
+      LEFT JOIN sysmauad.users u ON u.id = s.user_id
+      WHERE s.is_active = TRUE 
+        AND s.last_seen_at > NOW() - (INTERVAL '1 minute' * $1)
+      ORDER BY s.last_seen_at DESC
     `, [SESSION_TIMEOUT_MINUTES]);
 
     return result.rows.map(row => ({
       id: row.id,
       userId: row.user_id,
       userName: row.user_name,
+      userRole: row.user_role || (row.user_id === 'super-admin-root' ? 'superadmin' : 'operador'),
       ipAddress: row.ip_address,
       userAgent: row.user_agent,
       createdAt: row.created_at,
@@ -201,6 +204,23 @@ export async function getActiveSessions(): Promise<UserSession[]> {
   } catch (err: any) {
     console.error('[Session Manager] Erro ao listar sessões ativas:', err.message);
     return [];
+  }
+}
+
+/**
+ * Remove sessões já encerradas há mais de N dias (o histórico de acessos fica nos logs de auditoria).
+ */
+export async function purgeEndedSessions(retentionDays = 30): Promise<number> {
+  try {
+    const result = await query(`
+      DELETE FROM sysmauad.user_sessions
+      WHERE is_active = FALSE
+        AND COALESCE(ended_at, last_seen_at) < NOW() - (INTERVAL '1 day' * $1)
+    `, [retentionDays]);
+    return result.rowCount || 0;
+  } catch (err: any) {
+    console.error('[Session Manager] Erro ao limpar sessões encerradas:', err.message);
+    return 0;
   }
 }
 
