@@ -101,6 +101,21 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({ onNa
   const [financeSearchTerm, setFinanceSearchTerm] = useState('');
   const [financeStatusFilter, setFinanceStatusFilter] = useState<'todos' | 'aberto' | 'pago'>('todos');
 
+  // Tipo de relatório a imprimir dentro do modal do cliente
+  const [printType, setPrintType] = useState<'pedidos' | 'financeiro'>('pedidos');
+
+  const handlePrintOrders = () => {
+    setPrintType('pedidos');
+    setTimeout(() => window.print(), 50);
+  };
+
+  const handlePrintFinance = () => {
+    setPrintType('financeiro');
+    setTimeout(() => window.print(), 50);
+  };
+
+  const effectivePrintType = activeModalTab === 'financeiro' ? 'financeiro' : (activeModalTab === 'pedidos' ? 'pedidos' : printType);
+
   // Estados de paginação (20 registros por página)
   const [currentPageClients, setCurrentPageClients] = useState(1);
   const [currentOrderPage, setCurrentOrderPage] = useState(1);
@@ -537,6 +552,35 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({ onNa
       return true;
     }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [clientOrders, financeStatusFilter, financeSearchTerm]);
+
+  // Totais financeiros da listagem filtrada para a folha de impressão
+  const financeFilteredTotals = useMemo(() => {
+    let gross = 0;
+    let discounts = 0;
+    let paid = 0;
+    let pending = 0;
+    let pieces = 0;
+    let weight = 0;
+
+    filteredFinanceOrders.forEach(o => {
+      const val = o.totalServiceValue || 0;
+      const desc = o.discountAmount || 0;
+      const net = Math.max(0, val - desc);
+
+      gross += val;
+      discounts += desc;
+      pieces += (o.estimatedPieceCount || 0);
+      weight += (o.totalWeightKg || 0);
+
+      if (o.paymentStatus === 'pago') {
+        paid += (o.finalPaidAmount !== undefined ? o.finalPaidAmount : net);
+      } else {
+        pending += net;
+      }
+    });
+
+    return { gross, discounts, net: gross - discounts, paid, pending, pieces, weight };
+  }, [filteredFinanceOrders]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 print:p-0 print:m-0 print:max-w-none print:space-y-0">
@@ -1036,7 +1080,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({ onNa
                     {/* Botão Imprimir Geral da Lista Filtrada */}
                     <button
                       type="button"
-                      onClick={() => window.print()}
+                      onClick={handlePrintOrders}
                       disabled={filteredClientOrders.length === 0}
                       className="px-3 py-1.5 bg-slate-900 dark:bg-sky-700 hover:bg-slate-800 dark:hover:bg-sky-600 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs disabled:opacity-40 shrink-0"
                       title="Imprimir Relatório de Pedidos Filtrados deste Cliente"
@@ -1196,39 +1240,53 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({ onNa
                       />
                     </div>
 
-                    <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-xs">
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-xs">
+                        <button
+                          type="button"
+                          onClick={() => setFinanceStatusFilter('todos')}
+                          className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
+                            financeStatusFilter === 'todos'
+                              ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                          }`}
+                        >
+                          Todas ({clientOrders.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFinanceStatusFilter('aberto')}
+                          className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
+                            financeStatusFilter === 'aberto'
+                              ? 'bg-amber-500 text-white shadow-xs'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                          }`}
+                        >
+                          Em Aberto ({clientFinanceSummary.openCount})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFinanceStatusFilter('pago')}
+                          className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
+                            financeStatusFilter === 'pago'
+                              ? 'bg-emerald-600 text-white shadow-xs'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                          }`}
+                        >
+                          Pagas ({clientFinanceSummary.paidCount})
+                        </button>
+                      </div>
+
+                      {/* Botão Imprimir Geral da Lista Filtrada */}
                       <button
                         type="button"
-                        onClick={() => setFinanceStatusFilter('todos')}
-                        className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
-                          financeStatusFilter === 'todos'
-                            ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs'
-                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                        }`}
+                        onClick={handlePrintFinance}
+                        disabled={filteredFinanceOrders.length === 0}
+                        className="px-3 py-1.5 bg-slate-900 dark:bg-sky-700 hover:bg-slate-800 dark:hover:bg-sky-600 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs disabled:opacity-40 shrink-0"
+                        title="Imprimir Demonstrativo / Fatura Filtrada deste Cliente"
                       >
-                        Todas ({clientOrders.length})
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setFinanceStatusFilter('aberto')}
-                        className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
-                          financeStatusFilter === 'aberto'
-                            ? 'bg-amber-500 text-white shadow-xs'
-                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                        }`}
-                      >
-                        Em Aberto ({clientFinanceSummary.openCount})
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setFinanceStatusFilter('pago')}
-                        className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
-                          financeStatusFilter === 'pago'
-                            ? 'bg-emerald-600 text-white shadow-xs'
-                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                        }`}
-                      >
-                        Pagas ({clientFinanceSummary.paidCount})
+                        <Printer className="w-3.5 h-3.5" />
+                        <span>Imprimir</span>
                       </button>
                     </div>
                   </div>
@@ -1330,7 +1388,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({ onNa
                                     type="button"
                                     onClick={() => onNavigate?.('order-print', o.id, 'saida')}
                                     className="p-1.5 text-slate-500 hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-slate-800 rounded-lg transition-colors inline-block"
-                                    title="Imprimir Comprovante / OS"
+                                    title="Imprimir OS Individual"
                                   >
                                     <Printer className="w-3.5 h-3.5" />
                                   </button>
@@ -1855,7 +1913,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({ onNa
       )}
 
       {/* ─── FOLHA DE IMPRESSÃO DE PEDIDOS DO CLIENTE (print-only) ─── */}
-      {editingClient && (
+      {editingClient && effectivePrintType === 'pedidos' && (
         <div className="print-only bg-white text-black font-sans">
           <div className="space-y-4 text-xs">
             {/* Cabeçalho */}
@@ -1983,6 +2041,162 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({ onNa
               </div>
               <div className="font-bold text-sm">
                 <strong>TOTAL PECAS:</strong> {sortedClientOrders.reduce((acc, o) => acc + (o.estimatedPieceCount || o.items?.reduce((s, i) => s + (i.quantity || 0), 0) || 0), 0).toLocaleString('pt-BR')}
+              </div>
+            </div>
+
+            {/* Assinatura */}
+            <div className="pt-8 text-center">
+              <div className="w-64 border-t border-black mx-auto mb-1"></div>
+              <p className="text-[10px] uppercase font-bold text-slate-700">Assinatura do Responsável</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── FOLHA DE IMPRESSÃO DO DEMONSTRATIVO FINANCEIRO DO CLIENTE (print-only) ─── */}
+      {editingClient && effectivePrintType === 'financeiro' && (
+        <div className="print-only bg-white text-black font-sans">
+          <div className="space-y-4 text-xs">
+            {/* Cabeçalho */}
+            <div className="border-b-2 border-black pb-2 flex justify-between items-end">
+              <div>
+                <h1 className="text-xl font-black uppercase tracking-tight text-black leading-none">MAUAD LAVANDERIA</h1>
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-800 block mt-1">
+                  {financeStatusFilter === 'aberto'
+                    ? `DEMONSTRATIVO EM ABERTO • ${editingClient.name.toUpperCase()}`
+                    : financeStatusFilter === 'pago'
+                    ? `DEMONSTRATIVO DE FATURAS PAGAS • ${editingClient.name.toUpperCase()}`
+                    : `DEMONSTRATIVO FINANCEIRO CONSOLIDADO • ${editingClient.name.toUpperCase()}`}
+                </span>
+              </div>
+              <div className="text-right text-[11px] font-mono space-y-0.5">
+                <div><strong>Emissão:</strong> {new Date().toLocaleDateString('pt-BR')} às {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+                <div>
+                  <strong>Filtro:</strong>{' '}
+                  {financeStatusFilter === 'aberto' ? 'Em Aberto' : financeStatusFilter === 'pago' ? 'Pagas' : 'Todas as Faturas'}
+                  {financeSearchTerm ? ` (Busca: "${financeSearchTerm}")` : ''}
+                </div>
+                <div><strong>Registros:</strong> {filteredFinanceOrders.length} faturas</div>
+              </div>
+            </div>
+
+            {/* Dados do Cliente */}
+            <div className="p-2.5 border border-black rounded bg-slate-50 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              <div>
+                <span className="font-bold text-[10px] uppercase text-slate-500 block">Razão Social / Nome</span>
+                <strong className="text-sm">{editingClient.name}</strong>
+                {editingClient.companyName && editingClient.companyName !== editingClient.name && (
+                  <span className="block text-slate-600 text-xs">({editingClient.companyName})</span>
+                )}
+              </div>
+              <div>
+                <span className="font-bold text-[10px] uppercase text-slate-500 block">WhatsApp / Telefone</span>
+                <span className="font-mono font-semibold">{formatPhone(editingClient.phone) || editingClient.phone || '—'}</span>
+              </div>
+              {editingClient.cnpjCpf && (
+                <div>
+                  <span className="font-bold text-[10px] uppercase text-slate-500 block">CNPJ / CPF</span>
+                  <span className="font-mono">{editingClient.cnpjCpf}</span>
+                </div>
+              )}
+              {editingClient.address && (
+                <div>
+                  <span className="font-bold text-[10px] uppercase text-slate-500 block">Endereço</span>
+                  <span>{editingClient.address}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Tabela de Faturas Financeiras */}
+            <table className="w-full border-collapse border border-black text-[11px]">
+              <thead>
+                <tr className="bg-slate-200 border-b border-black text-black">
+                  <th className="border border-black p-1.5 text-left">Emissão</th>
+                  <th className="border border-black p-1.5 text-left">OS</th>
+                  <th className="border border-black p-1.5 text-left">Corte / Ref</th>
+                  <th className="border border-black p-1.5 text-left">Peças & Lavado</th>
+                  <th className="border border-black p-1.5 text-right">Peso</th>
+                  <th className="border border-black p-1.5 text-right">Valor Total</th>
+                  <th className="border border-black p-1.5 text-center">Status</th>
+                  <th className="border border-black p-1.5 text-right">Forma / Baixa</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredFinanceOrders.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="border border-black p-4 text-center text-slate-500">
+                      Nenhum registro financeiro encontrado para os filtros selecionados.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredFinanceOrders.map(o => {
+                    const val = o.totalServiceValue || 0;
+                    const discount = o.discountAmount || 0;
+                    const net = Math.max(0, val - discount);
+                    const isPaid = o.paymentStatus === 'pago';
+                    const corte = o.corteOs || o.items?.find(i => i.corteOs)?.corteOs || '—';
+                    const pieceDesc = o.items && o.items.length > 0
+                      ? o.items.map(i => i.clothingType || i.process).filter(Boolean).join(', ')
+                      : 'Lavado';
+
+                    return (
+                      <tr key={o.id} className="border-b border-slate-300">
+                        <td className="border border-black p-1.5 font-mono">{new Date(o.createdAt).toLocaleDateString('pt-BR')}</td>
+                        <td className="border border-black p-1.5 font-mono font-bold">{o.osNumber}</td>
+                        <td className="border border-black p-1.5 font-mono">{corte}</td>
+                        <td className="border border-black p-1.5 font-sans">
+                          <strong>{o.estimatedPieceCount || 0} pçs</strong>
+                          <span className="block text-[10px] text-slate-700">{pieceDesc}</span>
+                        </td>
+                        <td className="border border-black p-1.5 text-right font-mono">{(o.totalWeightKg || 0).toFixed(1)} kg</td>
+                        <td className="border border-black p-1.5 text-right font-mono">
+                          <strong>{net.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
+                          {discount > 0 && (
+                            <span className="block text-[9px] text-rose-700">Desc: -{discount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                          )}
+                        </td>
+                        <td className="border border-black p-1.5 text-center font-bold text-[10px]">
+                          {isPaid ? 'PAGO' : 'ABERTO'}
+                        </td>
+                        <td className="border border-black p-1.5 text-right font-sans text-[10px]">
+                          {isPaid ? (
+                            <div>
+                              <span className="font-bold font-mono">{o.paymentMethod || 'QUITADO'}</span>
+                              {o.paidAt && <span className="block text-slate-600 font-mono">{new Date(o.paidAt).toLocaleDateString('pt-BR')}</span>}
+                            </div>
+                          ) : (
+                            <span className="text-amber-800 font-medium">Pendente</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+
+            {/* Quadro de Totais */}
+            <div className="border-2 border-black p-3 bg-slate-50 flex justify-between items-center text-xs">
+              <div className="space-y-0.5 font-mono">
+                <div><strong>Total de OSs:</strong> {filteredFinanceOrders.length} faturas</div>
+                <div><strong>Total de Peças:</strong> {financeFilteredTotals.pieces.toLocaleString('pt-BR')} peças</div>
+                <div><strong>Peso Total:</strong> {financeFilteredTotals.weight.toFixed(1)} kg</div>
+              </div>
+              <div className="text-right space-y-1 font-mono">
+                <div className="text-slate-700">
+                  Subtotal: <strong>{financeFilteredTotals.gross.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
+                </div>
+                {financeFilteredTotals.discounts > 0 && (
+                  <div className="text-rose-700">
+                    Descontos: <strong>-{financeFilteredTotals.discounts.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
+                  </div>
+                )}
+                <div className="text-emerald-800">
+                  Total Quitado: <strong>{financeFilteredTotals.paid.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
+                </div>
+                <div className="text-base font-extrabold text-black pt-1 border-t border-black">
+                  SALDO EM ABERTO: {financeFilteredTotals.pending.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </div>
               </div>
             </div>
 
