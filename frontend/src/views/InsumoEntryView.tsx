@@ -704,7 +704,7 @@ export const InsumoEntryView: React.FC = () => {
                   <input
                     type="number"
                     min="0.01"
-                    step="0.5"
+                    step="any"
                     value={entQuantity}
                     onChange={e => setEntQuantity(Number(e.target.value))}
                     required

@@ -353,7 +353,7 @@ export const StockView: React.FC = () => {
                   </label>
                   <input
                     type="number"
-                    step="0.5"
+                    step="any"
                     value={currentStock}
                     onChange={e => setCurrentStock(Number(e.target.value))}
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-mono font-bold focus:outline-none focus:ring-2 focus:ring-sky-500"
@@ -366,7 +366,7 @@ export const StockView: React.FC = () => {
                   </label>
                   <input
                     type="number"
-                    step="0.5"
+                    step="any"
                     value={minStockAlert}
                     onChange={e => setMinStockAlert(Number(e.target.value))}
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-mono font-bold focus:outline-none focus:ring-2 focus:ring-sky-500"
