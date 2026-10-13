@@ -18,7 +18,8 @@ import {
   Menu, 
   X, 
   Settings, 
-  ShieldAlert 
+  ShieldAlert,
+  Sparkles
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -59,7 +60,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange }) => {
           {/* Brand Logo & Title */}
           <div 
             className="flex items-center gap-2.5 cursor-pointer shrink-0 select-none mr-2 sm:mr-3" 
-            onClick={() => onTabChange(user?.role === 'passador' ? 'passador-mobile' : 'dashboard')}
+            onClick={() => onTabChange(user?.role === 'passador' ? 'passador-mobile' : user?.role === 'diferenciado' ? 'diferenciado-mobile' : 'dashboard')}
           >
             <img 
               src="/logo.jpg" 
@@ -198,6 +199,22 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange }) => {
               >
                 <QrCode className="w-4 h-4 shrink-0" />
                 <span>Passador</span>
+              </button>
+            )}
+
+            {/* Diferenciado */}
+            {hasPermission('diferenciado-mobile') && (
+              <button
+                onClick={() => onTabChange('diferenciado-mobile')}
+                className={`flex items-center gap-1.5 px-2 xl:px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
+                  currentTab === 'diferenciado-mobile'
+                    ? 'bg-purple-700 text-white shadow-sm'
+                    : 'text-purple-400 hover:bg-slate-800 hover:text-white'
+                }`}
+                title="Modo Diferenciado Mobile"
+              >
+                <Sparkles className="w-4 h-4 shrink-0" />
+                <span>Diferenciado</span>
               </button>
             )}
 
@@ -399,6 +416,18 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange }) => {
                 </button>
               )}
 
+              {hasPermission('diferenciado-mobile') && (
+                <button
+                  onClick={() => handleMobileNav('diferenciado-mobile')}
+                  className={`p-2.5 rounded-xl flex items-center gap-2 font-semibold ${
+                    currentTab === 'diferenciado-mobile' ? 'bg-purple-700 text-white' : 'text-purple-400 hover:bg-slate-800'
+                  }`}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Diferenciado
+                </button>
+              )}
+
               {hasPermission('users') && (
                 <button
                   onClick={() => handleMobileNav('users')}
@@ -496,6 +525,16 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange }) => {
             >
               <QrCode className="w-4 h-4" />
               Passador
+            </button>
+          )}
+
+          {hasPermission('diferenciado-mobile') && (
+            <button
+              onClick={() => onTabChange('diferenciado-mobile')}
+              className={`flex flex-col items-center gap-0.5 ${currentTab === 'diferenciado-mobile' ? 'text-purple-400' : 'text-slate-400'}`}
+            >
+              <Sparkles className="w-4 h-4" />
+              Diferenciado
             </button>
           )}
         </div>

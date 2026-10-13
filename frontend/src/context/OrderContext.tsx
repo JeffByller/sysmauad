@@ -6,6 +6,8 @@ import {
   OrderHistoryEvent,
   Passador, 
   PassadorLog, 
+  Diferenciado,
+  DiferenciadoLog,
   WhatsAppNotification, 
   ChemicalDose, 
   ChemicalStockItem, 
@@ -18,11 +20,13 @@ import {
   PaymentHistoryEntry,
   SystemSettings
 } from '../types';
+import { INITIAL_DIFERENCIADOS } from '../mock/initialData';
 import { useAuth } from './AuthContext';
 
 interface OrderContextType {
   orders: Order[];
   passadores: Passador[];
+  diferenciados: Diferenciado[];
   stockItems: ChemicalStockItem[];
   clients: Client[];
   garmentCatalog: GarmentProcessCatalogItem[];
@@ -53,11 +57,16 @@ interface OrderContextType {
     totalWeightKg?: number;
     estimatedPieceCount?: number;
     operatorName?: string;
+    hasDiferenciado?: boolean;
   }) => Promise<{ success: boolean; message: string; order?: Order }>;
   registerIroning: (orderId: string, passadorId: string, passadorName: string, piecesIroned: number, isAfter17?: boolean) => { success: boolean; message: string };
   updateIroningLog: (orderId: string, logId: string, newPieces: number, editorRole: string, editorName: string, editorId: string, isAfter17?: boolean) => Promise<{ success: boolean; message: string }>;
   registerNewPassador: (name: string, phone?: string) => Passador;
   updatePassador: (id: string, data: Partial<Passador>) => Promise<{ success: boolean; message: string }>;
+  registerDiferenciado: (orderId: string, diferenciadoId: string, diferenciadoName: string, piecesProduced: number, isAfter17?: boolean) => { success: boolean; message: string };
+  updateDiferenciadoLog: (orderId: string, logId: string, newPieces: number, editorRole: string, editorName: string, editorId: string, isAfter17?: boolean) => Promise<{ success: boolean; message: string }>;
+  registerNewDiferenciado: (name: string, phone?: string) => Diferenciado;
+  updateDiferenciado: (id: string, data: Partial<Diferenciado>) => Promise<{ success: boolean; message: string }>;
   addStockItem: (item: Omit<ChemicalStockItem, 'id'>) => ChemicalStockItem;
   updateStockQuantity: (id: string, newQuantity: number) => void;
   updateStockItem: (id: string, updated: Partial<ChemicalStockItem>) => void;
@@ -95,6 +104,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Estados principais conectados diretamente ao PostgreSQL via API
   const [orders, setOrders] = useState<Order[]>([]);
   const [passadores, setPassadores] = useState<Passador[]>([]);
+  const [diferenciados, setDiferenciados] = useState<Diferenciado[]>(INITIAL_DIFERENCIADOS);
   const [stockItems, setStockItems] = useState<ChemicalStockItem[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [garmentCatalog, setGarmentCatalog] = useState<GarmentProcessCatalogItem[]>([]);
@@ -116,6 +126,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const [
         ordersRes,
         passadoresRes,
+        diferenciadosRes,
         stockRes,
         clientsRes,
         garmentRes,
@@ -126,6 +137,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       ] = await Promise.all([
         fetch('/api/orders').catch(() => null),
         fetch('/api/passadores').catch(() => null),
+        fetch('/api/diferenciados').catch(() => null),
         fetch('/api/stock').catch(() => null),
         fetch('/api/clients').catch(() => null),
         fetch('/api/garment-catalog').catch(() => null),
@@ -142,6 +154,10 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (passadoresRes?.ok) {
         const data = await passadoresRes.json();
         if (Array.isArray(data)) setPassadores(data);
+      }
+      if (diferenciadosRes?.ok) {
+        const data = await diferenciadosRes.json();
+        if (Array.isArray(data)) setDiferenciados(data);
       }
       if (stockRes?.ok) {
         const data = await stockRes.json();
@@ -559,6 +575,9 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       status: 'recebido',
       totalIronedPieces: 0,
       ironingLogs: [],
+      hasDiferenciado: Boolean(orderData.hasDiferenciado),
+      totalDiferenciadoPieces: 0,
+      diferenciadoLogs: [],
       isRelavado,
       isADefinir,
       totalServiceValue: (isRelavado || isADefinir) ? 0 : orderData.totalServiceValue,
@@ -810,6 +829,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       totalWeightKg?: number;
       estimatedPieceCount?: number;
       operatorName?: string;
+      hasDiferenciado?: boolean;
     }
   ): Promise<{ success: boolean; message: string; order?: Order }> => {
     const target = orders.find(o => o.id === orderId || o.osNumber === orderId);
@@ -842,6 +862,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       estimatedPieceCount: definitionData.estimatedPieceCount || target.estimatedPieceCount,
       history: updatedHistory,
       notes: definitionData.notes !== undefined ? definitionData.notes : target.notes,
+      hasDiferenciado: definitionData.hasDiferenciado !== undefined ? Boolean(definitionData.hasDiferenciado) : target.hasDiferenciado,
       updatedAt: new Date().toISOString()
     };
 
@@ -1113,6 +1134,223 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       console.error('[OrderContext] Erro ao atualizar passador no PostgreSQL:', err);
     }
     return { success: false, message: 'Erro ao salvar alterações do passador.' };
+  };
+
+  const registerDiferenciado = (
+    orderId: string,
+    diferenciadoId: string,
+    diferenciadoName: string,
+    piecesProduced: number,
+    isAfter17: boolean = false
+  ) => {
+    const targetOrder = orders.find(o => o.id === orderId || o.osNumber === orderId);
+    if (!targetOrder) {
+      return { success: false, message: 'Pedido não encontrado.' };
+    }
+
+    const isAfter17Flag = Boolean(isAfter17);
+    const newLog: DiferenciadoLog = {
+      id: `log-dif-${Date.now()}`,
+      orderId: targetOrder.id,
+      osNumber: targetOrder.osNumber,
+      diferenciadoId,
+      diferenciadoName,
+      piecesProduced,
+      timestamp: new Date().toISOString(),
+      isAfter17: isAfter17Flag,
+      servicePeriod: isAfter17Flag ? 'after_17' : 'normal'
+    };
+
+    setOrders(prev => prev.map(ord => {
+      if (ord.id !== targetOrder.id) return ord;
+
+      const newTotal = (ord.totalDiferenciadoPieces || 0) + piecesProduced;
+      const periodLabel = isAfter17Flag ? 'Produção Adicional (Extra)' : 'Produção Normal';
+
+      return {
+        ...ord,
+        hasDiferenciado: true,
+        totalDiferenciadoPieces: newTotal,
+        diferenciadoLogs: [...(ord.diferenciadoLogs || []), newLog],
+        history: [
+          ...ord.history,
+          {
+            timestamp: new Date().toISOString(),
+            status: ord.status,
+            operator: diferenciadoName,
+            note: `Lançamento de diferenciado (${periodLabel}): +${piecesProduced} peças (Total produzido: ${newTotal}/${ord.estimatedPieceCount})`
+          }
+        ]
+      };
+    }));
+
+    setDiferenciados(prev => prev.map(d => {
+      if (d.id !== diferenciadoId) return d;
+      return {
+        ...d,
+        totalPiecesProduced: (d.totalPiecesProduced || 0) + piecesProduced
+      };
+    }));
+
+    fetch(`/api/orders/${targetOrder.id}/diferenciado`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ diferenciadoId, diferenciadoName, count: piecesProduced, isAfter17: isAfter17Flag })
+    }).catch(err => console.error('[OrderContext] Erro ao registrar diferenciado no PostgreSQL:', err));
+
+    return { 
+      success: true, 
+      message: `Lançamento de ${piecesProduced} peças registrado para ${diferenciadoName} (${isAfter17Flag ? 'Produção Adicional (Extra)' : 'Produção Normal'})!` 
+    };
+  };
+
+  const updateDiferenciadoLog = async (
+    orderId: string,
+    logId: string,
+    newPieces: number,
+    editorRole: string,
+    editorName: string,
+    editorId: string,
+    isAfter17?: boolean
+  ): Promise<{ success: boolean; message: string }> => {
+    if (isNaN(newPieces) || newPieces <= 0) {
+      return { success: false, message: 'A quantidade de peças deve ser maior que zero.' };
+    }
+
+    const targetOrder = orders.find(o => o.id === orderId || o.osNumber === orderId);
+    if (!targetOrder) {
+      return { success: false, message: 'Pedido não encontrado.' };
+    }
+
+    const log = (targetOrder.diferenciadoLogs || []).find(l => l.id === logId);
+    if (!log) {
+      return { success: false, message: 'Registro de diferenciado não encontrado.' };
+    }
+
+    const isAdmin = editorRole === 'admin' || editorRole === 'super-admin';
+    if (!isAdmin) {
+      if (log.diferenciadoId && editorId && log.diferenciadoId !== editorId && log.diferenciadoName !== editorName) {
+        return { success: false, message: 'Você só pode editar seus próprios lançamentos.' };
+      }
+      if ((log.editCount || 0) >= 1) {
+        return {
+          success: false,
+          message: 'Você já realizou a edição permitida (1/1) para este lançamento. Para novas correções, solicite ao Administrador.'
+        };
+      }
+    }
+
+    const oldPieces = log.piecesProduced;
+    const diff = newPieces - oldPieces;
+    const newTotal = Math.max(0, (targetOrder.totalDiferenciadoPieces || 0) + diff);
+    const updatedIsAfter17 = isAfter17 !== undefined ? Boolean(isAfter17) : Boolean(log.isAfter17);
+
+    setOrders(prev => prev.map(ord => {
+      if (ord.id !== targetOrder.id) return ord;
+      return {
+        ...ord,
+        totalDiferenciadoPieces: newTotal,
+        diferenciadoLogs: (ord.diferenciadoLogs || []).map(l => {
+          if (l.id !== logId) return l;
+          return {
+            ...l,
+            piecesProduced: newPieces,
+            isAfter17: updatedIsAfter17,
+            servicePeriod: updatedIsAfter17 ? 'after_17' : 'normal',
+            editCount: (l.editCount || 0) + 1,
+            lastEditedAt: new Date().toISOString(),
+            lastEditedBy: editorName || (isAdmin ? 'Administrador' : l.diferenciadoName)
+          };
+        }),
+        history: [
+          ...ord.history,
+          {
+            timestamp: new Date().toISOString(),
+            status: ord.status,
+            operator: editorName || (isAdmin ? 'Administrador' : log.diferenciadoName),
+            note: `Correção de diferenciado (${log.diferenciadoName}): alterado de ${oldPieces} para ${newPieces} pçs (${updatedIsAfter17 ? 'Produção Adicional (Extra)' : 'Produção Normal'}) (Total: ${newTotal}/${ord.estimatedPieceCount})`
+          }
+        ]
+      };
+    }));
+
+    if (log.diferenciadoId && diff !== 0) {
+      setDiferenciados(prev => prev.map(d => {
+        if (d.id !== log.diferenciadoId) return d;
+        return {
+          ...d,
+          totalPiecesProduced: Math.max(0, (d.totalPiecesProduced || 0) + diff)
+        };
+      }));
+    }
+
+    try {
+      const res = await fetch(`/api/orders/${targetOrder.id}/diferenciado/${logId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newPieces, editorRole, editorName, editorId, isAfter17: updatedIsAfter17 })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return { success: false, message: data.message || 'Erro ao atualizar no servidor.' };
+      }
+      return { success: true, message: data.message || `Lançamento atualizado de ${oldPieces} para ${newPieces} peças!` };
+    } catch (err: any) {
+      console.error('[OrderContext] Erro ao editar diferenciado no backend:', err);
+      return { success: true, message: `Lançamento atualizado para ${newPieces} peças!` };
+    }
+  };
+
+  const registerNewDiferenciado = (name: string, phone?: string): Diferenciado => {
+    const cleanUsername = name.toLowerCase().replace(/\s+/g, '.').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const newUser = addUser({
+      name,
+      username: cleanUsername,
+      password: 'teste',
+      phone,
+      role: 'diferenciado',
+      allowedMenus: ['diferenciado-mobile'],
+      active: true
+    });
+
+    const newDiferenciado: Diferenciado = {
+      id: newUser.id,
+      name,
+      phone,
+      totalPiecesProduced: 0,
+      ratePerPiece: 0.50,
+      ratePerPieceAfter17: 0.60,
+      createdAt: new Date().toISOString().split('T')[0],
+      active: true
+    };
+    setDiferenciados(prev => [...prev, newDiferenciado]);
+
+    fetch('/api/diferenciados', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newDiferenciado)
+    }).catch(err => console.error('[OrderContext] Erro ao salvar diferenciado no PostgreSQL:', err));
+
+    return newDiferenciado;
+  };
+
+  const updateDiferenciado = async (id: string, data: Partial<Diferenciado>): Promise<{ success: boolean; message: string }> => {
+    setDiferenciados(prev => prev.map(d => d.id === id ? { ...d, ...data } : d));
+    try {
+      const res = await fetch(`/api/diferenciados/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setDiferenciados(prev => prev.map(d => d.id === id ? updated : d));
+        return { success: true, message: 'Colaborador do diferenciado atualizado com sucesso!' };
+      }
+    } catch (err) {
+      console.error('[OrderContext] Erro ao atualizar diferenciado no PostgreSQL:', err);
+    }
+    return { success: false, message: 'Erro ao salvar alterações do diferenciado.' };
   };
 
   // Catálogo de peças & processos
@@ -1467,6 +1705,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     <OrderContext.Provider value={{
       orders,
       passadores,
+      diferenciados,
       stockItems,
       clients,
       garmentCatalog,
@@ -1488,6 +1727,10 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       updateIroningLog,
       registerNewPassador,
       updatePassador,
+      registerDiferenciado,
+      updateDiferenciadoLog,
+      registerNewDiferenciado,
+      updateDiferenciado,
       addStockItem,
       updateStockQuantity,
       updateStockItem,

@@ -44,6 +44,7 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ editOrderId, onOrder
   
   // Serviços Diferenciados adicionais combinados na mesma O.S.
   const [extraServices, setExtraServices] = useState<ExtraServiceItem[]>([]);
+  const [hasDiferenciado, setHasDiferenciado] = useState<boolean>(false);
   const [newServiceName, setNewServiceName] = useState('');
   const [newServicePrice, setNewServicePrice] = useState<number | ''>('');
 
@@ -71,6 +72,7 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ editOrderId, onOrder
       setCorteOs(editingOrder.corteOs || '');
       setNotes(editingOrder.notes ? editingOrder.notes.replace(/^\[À DEFINIR\]\s*/, '') : '');
       setIsRelavado(Boolean(editingOrder.isRelavado));
+      setHasDiferenciado(Boolean(editingOrder.hasDiferenciado));
       setIsADefinir(false); // Agora estamos definindo os serviços
 
       // Se já houver itens cadastrados
@@ -144,6 +146,7 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ editOrderId, onOrder
 
   const handleAddExtraService = (name: string, price: number) => {
     if (!name.trim()) return;
+    setHasDiferenciado(true);
     setExtraServices(prev => [
       ...prev,
       { id: `diff-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`, name: name.trim(), unitPrice: Number(price) || 0 }
@@ -300,6 +303,7 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ editOrderId, onOrder
         refPieceWeightGrams: weightPerPieceGrams,
         totalWeightKg,
         estimatedPieceCount: pieceCount,
+        hasDiferenciado: hasDiferenciado || extraServices.length > 0,
         operatorName: user?.name || 'Operador'
       }).then(res => {
         if (res.success && res.order) {
@@ -323,6 +327,7 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ editOrderId, onOrder
       totalServiceValue: isADefinir ? 0 : totalServiceValue,
       isRelavado,
       isADefinir,
+      hasDiferenciado: hasDiferenciado || extraServices.length > 0,
       corteOs: corteOs.trim() || undefined,
       items: allItems,
       chemicalRecipe: isADefinir ? [] : chemicalRecipe,
@@ -445,6 +450,15 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ editOrderId, onOrder
                     : "ENTRADA COMERCIAL (FLUXO NORMAL)"}
               </strong>
             </div>
+
+            {createdOrderSuccess.hasDiferenciado && (
+              <div className="flex justify-between pt-0.5 text-purple-600 dark:text-purple-400">
+                <span className="text-slate-500 font-sans">Etapa Adicional:</span>
+                <strong className="flex items-center gap-1 font-sans">
+                  <Sparkles className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" /> Requer Produção Diferenciada
+                </strong>
+              </div>
+            )}
           </div>
 
           {/* Botões de Ação */}
@@ -852,12 +866,20 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ editOrderId, onOrder
           <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                  Serviços Diferenciados (Opcional — Combinados na mesma O.S.)
-                </h3>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Adicione acabamentos como <strong>Destroyed, Pistolado, Bigode Laser</strong>.
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={hasDiferenciado || extraServices.length > 0}
+                    onChange={e => setHasDiferenciado(e.target.checked)}
+                    className="w-4 h-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
+                  />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                    Requer Produção Diferenciada (Opcional — Etapa Pré-Passadoria)
+                  </h3>
+                </label>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  Adicione acabamentos como <strong>Destroyed, Pistolado, Bigode Laser, Resinagem</strong>.
                 </p>
               </div>
 

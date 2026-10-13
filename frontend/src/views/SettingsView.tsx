@@ -58,6 +58,8 @@ export const SettingsView: React.FC = () => {
     backupTime: '02:00',
     defaultPassadorRate: 0.15,
     defaultPassadorRateAfter17: 0.20,
+    defaultDiferenciadoRate: 0.50,
+    defaultDiferenciadoRateAfter17: 0.60,
     stalledOrderAlertDays: 3
   });
 
@@ -1237,6 +1239,52 @@ export const SettingsView: React.FC = () => {
                     </div>
                     <span className="text-[11px] text-slate-400 block mt-1.5">
                       Valores monetários unitários utilizados para apurar o total a pagar da produção de passadoria em relatórios.
+                    </span>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-2">
+                      Valor Padrão da Produção Diferenciada por Peça:
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md">
+                      <div>
+                        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block mb-1">
+                          Produção Normal
+                        </span>
+                        <div className="relative">
+                          <span className="absolute left-3 top-2 text-xs text-slate-400 font-bold">R$</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            value={settings.defaultDiferenciadoRate ?? 0.50}
+                            onChange={e => setSettings({ ...settings, defaultDiferenciadoRate: parseFloat(e.target.value) || 0.50 })}
+                            className="w-full pl-8 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-purple-500"
+                            placeholder="0.50"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block mb-1">
+                          Produção Adicional (Extra)
+                        </span>
+                        <div className="relative">
+                          <span className="absolute left-3 top-2 text-xs text-slate-400 font-bold">R$</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            value={settings.defaultDiferenciadoRateAfter17 ?? 0.60}
+                            onChange={e => setSettings({ ...settings, defaultDiferenciadoRateAfter17: parseFloat(e.target.value) || 0.60 })}
+                            className="w-full pl-8 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-purple-500"
+                            placeholder="0.60"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-[11px] text-slate-400 block mt-1.5">
+                      Valores monetários unitários utilizados para apurar o total a pagar da produção diferenciada em relatórios.
                     </span>
                   </div>
 

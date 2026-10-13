@@ -15,7 +15,8 @@ import {
   X,
   CheckCircle2,
   Receipt,
-  HelpCircle
+  HelpCircle,
+  Sparkles
 } from 'lucide-react';
 import { Order, OrderStatus } from '../types';
 import { Pagination } from '../components/common/Pagination';
@@ -107,6 +108,8 @@ export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
         matchesStatus = Boolean(ord.isRelavado);
       } else if (statusFilter === 'a_definir') {
         matchesStatus = Boolean(ord.isADefinir);
+      } else if (statusFilter === 'diferenciado') {
+        matchesStatus = Boolean(ord.hasDiferenciado);
       } else {
         matchesStatus = ord.status === statusFilter;
       }
@@ -248,6 +251,7 @@ export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
                 <option value="entregue">4. Entregue</option>
                 <option value="relavados">Relavados</option>
                 <option value="a_definir">À Definir</option>
+                <option value="diferenciado">✨ Diferenciado ({orders.filter(o => o.hasDiferenciado).length})</option>
               </select>
             </div>
           </div>
@@ -339,6 +343,18 @@ export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
             >
               À Definir
             </button>
+
+            <button
+              onClick={() => setStatusFilter('diferenciado')}
+              className={`px-3 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1 ${
+                statusFilter === 'diferenciado'
+                  ? 'bg-purple-700 text-white shadow-xs'
+                  : 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 hover:bg-purple-100'
+              }`}
+            >
+              <Sparkles className="w-3 h-3" />
+              Diferenciado ({orders.filter(o => o.hasDiferenciado).length})
+            </button>
           </div>
         </div>
       </div>
@@ -395,6 +411,12 @@ export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
                                   À Definir
                                 </span>
                               )}
+                              {ord.hasDiferenciado && (
+                                <span className="px-1.5 py-0.5 bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 rounded text-[9px] font-bold uppercase border border-purple-200 dark:border-purple-800 flex items-center gap-0.5" title="Requer Produção Diferenciada">
+                                  <Sparkles className="w-2.5 h-2.5" />
+                                  Diferenciado
+                                </span>
+                              )}
                               {stalledInfo.isStalled && (
                                 <span className="px-1.5 py-0.5 bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 rounded text-[9px] font-bold border border-amber-200 dark:border-amber-800 flex items-center gap-0.5">
                                   <AlertTriangle className="w-2.5 h-2.5" />
@@ -427,7 +449,15 @@ export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
                         </td>
                         <td className="p-3.5 font-bold text-sky-700 dark:text-sky-400 text-xs">{ord.estimatedPieceCount} pçs</td>
                         <td className="p-3.5 text-slate-700 dark:text-slate-300 font-sans text-xs">
-                          {ord.totalIronedPieces} / {ord.estimatedPieceCount} pçs
+                          <div>
+                            <span className="text-slate-700 dark:text-slate-300 block">{ord.totalIronedPieces} / {ord.estimatedPieceCount} pçs (passadas)</span>
+                            {ord.hasDiferenciado && (
+                              <span className="text-[11px] text-purple-600 dark:text-purple-400 font-semibold flex items-center gap-1 mt-0.5">
+                                <Sparkles className="w-2.5 h-2.5" />
+                                {ord.totalDiferenciadoPieces || 0} / {ord.estimatedPieceCount} pçs (diferenciado)
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="p-3.5 font-sans" onClick={e => e.stopPropagation()}>
                           <div className="flex items-center gap-1.5">
@@ -546,6 +576,12 @@ export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
                               À Definir
                             </span>
                           )}
+                          {ord.hasDiferenciado && (
+                            <span className="px-1.5 py-0.5 bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 rounded text-[10px] font-bold uppercase border border-purple-200 flex items-center gap-0.5">
+                              <Sparkles className="w-2.5 h-2.5" />
+                              Diferenciado
+                            </span>
+                          )}
                           {stalledInfo.isStalled && (
                             <span className="px-1.5 py-0.5 bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 rounded text-[10px] font-bold border border-amber-200">
                               Parada {stalledInfo.days}d
@@ -590,6 +626,11 @@ export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
                         <span className="text-[10px] font-mono text-sky-700 dark:text-sky-400 font-bold block">
                           {ord.estimatedPieceCount} pçs estimadas
                         </span>
+                        {ord.hasDiferenciado && (
+                          <span className="text-[10px] font-mono text-purple-600 dark:text-purple-400 font-semibold block">
+                            Diferenciado: {ord.totalDiferenciadoPieces || 0} pçs
+                          </span>
+                        )}
                       </div>
                     </div>
 

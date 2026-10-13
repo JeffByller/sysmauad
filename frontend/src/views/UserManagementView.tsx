@@ -35,14 +35,14 @@ export const UserManagementView: React.FC = () => {
   const [editUsername, setEditUsername] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editPassword, setEditPassword] = useState('');
-  const [editRole, setEditRole] = useState<'admin' | 'financeiro' | 'operador' | 'passador'>('operador');
+  const [editRole, setEditRole] = useState<'admin' | 'financeiro' | 'operador' | 'passador' | 'diferenciado'>('operador');
 
   // New User Form State
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
-  const [role, setRole] = useState<'admin' | 'financeiro' | 'operador' | 'passador'>('operador');
+  const [role, setRole] = useState<'admin' | 'financeiro' | 'operador' | 'passador' | 'diferenciado'>('operador');
   const [newAllowedMenus, setNewAllowedMenus] = useState<string[]>([
     'dashboard', 'orders', 'stock', 'clients', 'garment-catalog'
   ]);
@@ -117,10 +117,12 @@ export const UserManagementView: React.FC = () => {
     }
   };
 
-  const handleRoleChange = (newRole: 'admin' | 'financeiro' | 'operador' | 'passador') => {
+  const handleRoleChange = (newRole: 'admin' | 'financeiro' | 'operador' | 'passador' | 'diferenciado') => {
     setRole(newRole);
     if (newRole === 'passador') {
       setNewAllowedMenus(['passador-mobile']);
+    } else if (newRole === 'diferenciado') {
+      setNewAllowedMenus(['diferenciado-mobile']);
     } else if (newRole === 'admin') {
       setNewAllowedMenus(ALL_MENU_KEYS.map(m => m.id));
     } else if (newRole === 'financeiro') {
@@ -322,6 +324,7 @@ export const UserManagementView: React.FC = () => {
                   <option value="operador">Operador</option>
                   <option value="financeiro">Financeiro</option>
                   <option value="passador">Passador</option>
+                  <option value="diferenciado">Diferenciado</option>
                   {isSuperAdmin && <option value="admin">Administrador</option>}
                 </select>
               </div>
@@ -418,9 +421,10 @@ export const UserManagementView: React.FC = () => {
                         u.role === 'admin' ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800' :
                         u.role === 'financeiro' ? 'bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800' :
                         u.role === 'passador' ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' :
+                        u.role === 'diferenciado' ? 'bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 border-purple-200 dark:border-purple-800' :
                         'bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300 border border-sky-200 dark:border-sky-800'
                       }`}>
-                        {u.role === 'passador' ? 'Passador' : u.role === 'admin' ? 'Admin' : u.role === 'financeiro' ? 'Financeiro' : 'Operador'}
+                        {u.role === 'passador' ? 'Passador' : u.role === 'diferenciado' ? 'Diferenciado' : u.role === 'admin' ? 'Admin' : u.role === 'financeiro' ? 'Financeiro' : 'Operador'}
                       </span>
                     </td>
                     <td className="p-4 font-sans">
@@ -727,11 +731,17 @@ export const UserManagementView: React.FC = () => {
                   <option value="operador">Operador</option>
                   <option value="financeiro">Financeiro</option>
                   <option value="passador">Passador</option>
+                  <option value="diferenciado">Diferenciado</option>
                   {isSuperAdmin && <option value="admin">Administrador</option>}
                 </select>
                 {editRole === 'passador' && (
                   <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1">
                     Este usuário terá acesso ao modo Passador Mobile (Single Play).
+                  </p>
+                )}
+                {editRole === 'diferenciado' && (
+                  <p className="text-[11px] text-purple-600 dark:text-purple-400 mt-1">
+                    Este usuário terá acesso ao modo Diferenciado Mobile (Single Play).
                   </p>
                 )}
               </div>

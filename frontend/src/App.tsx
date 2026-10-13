@@ -17,6 +17,7 @@ import { OrderPrintView } from './views/OrderPrintView';
 import { OrderListView } from './views/OrderListView';
 import { OrderDetailView } from './views/OrderDetailView';
 import { PassadorMobileView } from './views/PassadorMobileView';
+import { DiferenciadoMobileView } from './views/DiferenciadoMobileView';
 import { PassadorReportView } from './views/PassadorReportView';
 import { StockView } from './views/StockView';
 import { ClientManagementView } from './views/ClientManagementView';
@@ -164,9 +165,16 @@ export const AppContent: React.FC = () => {
     }
   }, [user, currentTab]);
 
-  const [printInitialMode, setPrintInitialMode] = useState<'ambos' | 'nota' | 'receita' | 'saida'>('ambos');
+  // Redireciona operador diferenciado automaticamente para o seu terminal de trabalho
+  useEffect(() => {
+    if (user?.role === 'diferenciado' && currentTab === 'dashboard') {
+      setCurrentTab('diferenciado-mobile');
+    }
+  }, [user, currentTab]);
 
-  const handleNavigate = (tab: string, param?: string, printMode?: 'ambos' | 'nota' | 'receita' | 'saida') => {
+  const [printInitialMode, setPrintInitialMode] = useState<'ambos' | 'nota' | 'receita' | 'saida' | 'passadoria' | 'diferenciado'>('ambos');
+
+  const handleNavigate = (tab: string, param?: string, printMode?: 'ambos' | 'nota' | 'receita' | 'saida' | 'passadoria' | 'diferenciado') => {
     if (param) {
       setSelectedOrderId(param);
     }
@@ -198,7 +206,11 @@ export const AppContent: React.FC = () => {
   const handleQRSelectOrder = (osNumber: string) => {
     setScannedOSNumber(osNumber);
     setSelectedOrderId(osNumber);
-    setCurrentTab('passador-mobile');
+    if (currentTab === 'diferenciado-mobile' || user?.role === 'diferenciado') {
+      setCurrentTab('diferenciado-mobile');
+    } else {
+      setCurrentTab('passador-mobile');
+    }
   };
 
   // Ao pressionar ESC: fecha modais globais ativos (scanner, marcar pronto) sem desviar a rota
@@ -362,6 +374,13 @@ export const AppContent: React.FC = () => {
 
         {currentTab === 'passador-mobile' && (
           <PassadorMobileView
+            onOpenScanner={() => setIsScannerOpen(true)}
+            scannedOSNumber={scannedOSNumber}
+          />
+        )}
+
+        {currentTab === 'diferenciado-mobile' && (
+          <DiferenciadoMobileView
             onOpenScanner={() => setIsScannerOpen(true)}
             scannedOSNumber={scannedOSNumber}
           />

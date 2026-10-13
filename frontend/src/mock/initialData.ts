@@ -1,4 +1,4 @@
-import { Client, Order, Passador, ChemicalStockItem, GarmentProcessCatalogItem, SystemUser } from '../types';
+import { Client, Order, Passador, Diferenciado, ChemicalStockItem, GarmentProcessCatalogItem, SystemUser } from '../types';
 
 export const ALL_MENU_KEYS = [
   { id: 'dashboard', label: 'Painel Inicial' },
@@ -9,6 +9,7 @@ export const ALL_MENU_KEYS = [
   { id: 'finance', label: 'Financeiro / Caixa' },
   { id: 'passador-report', label: 'Relatórios' },
   { id: 'passador-mobile', label: 'Modo Passador Mobile' },
+  { id: 'diferenciado-mobile', label: 'Modo Diferenciado Mobile' },
   { id: 'users', label: 'Gestão de Usuários' },
   { id: 'settings', label: 'Configurações do Sistema' }
 ];
@@ -31,6 +32,16 @@ export const INITIAL_SYSTEM_USERS: SystemUser[] = [
     phone: '81999999999',
     role: 'passador',
     allowedMenus: ['passador-mobile'],
+    active: true
+  },
+  {
+    id: 'usr-diferenciado-teste',
+    name: 'Diferenciado Teste (Beta)',
+    username: 'diferenciado',
+    password: 'teste',
+    phone: '81988888888',
+    role: 'diferenciado',
+    allowedMenus: ['diferenciado-mobile'],
     active: true
   }
 ];
@@ -71,6 +82,19 @@ export const INITIAL_PASSADORES: Passador[] = [
     phone: '81999999999',
     totalPiecesIroned: 50,
     ratePerPiece: 0.15,
+    createdAt: '2026-09-01',
+    active: true
+  }
+];
+
+export const INITIAL_DIFERENCIADOS: Diferenciado[] = [
+  {
+    id: 'usr-diferenciado-teste',
+    name: 'Diferenciado Teste (Beta)',
+    phone: '81988888888',
+    totalPiecesProduced: 0,
+    ratePerPiece: 0.50,
+    ratePerPieceAfter17: 0.60,
     createdAt: '2026-09-01',
     active: true
   }

@@ -528,6 +528,21 @@ export async function initDb() {
     );
   `);
 
+  // 6.1. Tabela de Colaboradores de Produção Diferenciada
+  await query(`
+    CREATE TABLE IF NOT EXISTS sysmauad.diferenciados (
+      id VARCHAR(100) PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      phone VARCHAR(50),
+      total_pieces_produced INT DEFAULT 0,
+      rate_per_piece NUMERIC(10,2) DEFAULT 0.50,
+      rate_per_piece_after_17 NUMERIC(10,2) DEFAULT 0.60,
+      active BOOLEAN DEFAULT TRUE,
+      created_at VARCHAR(50) DEFAULT TO_CHAR(NOW(), 'YYYY-MM-DD'),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+  `);
+
   // 7. Tabela de Pedidos / Ordens de Serviço (OS)
   await query(`
     CREATE TABLE IF NOT EXISTS sysmauad.orders (
@@ -551,6 +566,9 @@ export async function initDb() {
       status VARCHAR(50) NOT NULL DEFAULT 'recebido',
       total_ironed_pieces INT DEFAULT 0,
       ironing_logs JSONB NOT NULL DEFAULT '[]'::jsonb,
+      has_diferenciado BOOLEAN DEFAULT FALSE,
+      total_diferenciado_pieces INT DEFAULT 0,
+      diferenciado_logs JSONB NOT NULL DEFAULT '[]'::jsonb,
       history JSONB NOT NULL DEFAULT '[]'::jsonb,
       notes TEXT,
       is_relavado BOOLEAN DEFAULT FALSE,
@@ -625,6 +643,8 @@ export async function initDb() {
       backup_time VARCHAR(10) DEFAULT '02:00',
       default_passador_rate NUMERIC(10,2) DEFAULT 0.15,
       default_passador_rate_after_17 NUMERIC(10,2) DEFAULT 0.20,
+      default_diferenciado_rate NUMERIC(10,2) DEFAULT 0.50,
+      default_diferenciado_rate_after_17 NUMERIC(10,2) DEFAULT 0.60,
       updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
     );
   `);
@@ -719,8 +739,12 @@ export async function initDb() {
   await query(`
     ALTER TABLE sysmauad.passadores ADD COLUMN IF NOT EXISTS rate_per_piece NUMERIC(10,2) DEFAULT 0.15;
     ALTER TABLE sysmauad.passadores ADD COLUMN IF NOT EXISTS rate_per_piece_after_17 NUMERIC(10,2) DEFAULT 0.20;
+    ALTER TABLE sysmauad.diferenciados ADD COLUMN IF NOT EXISTS rate_per_piece NUMERIC(10,2) DEFAULT 0.50;
+    ALTER TABLE sysmauad.diferenciados ADD COLUMN IF NOT EXISTS rate_per_piece_after_17 NUMERIC(10,2) DEFAULT 0.60;
     ALTER TABLE sysmauad.system_settings ADD COLUMN IF NOT EXISTS default_passador_rate NUMERIC(10,2) DEFAULT 0.15;
     ALTER TABLE sysmauad.system_settings ADD COLUMN IF NOT EXISTS default_passador_rate_after_17 NUMERIC(10,2) DEFAULT 0.20;
+    ALTER TABLE sysmauad.system_settings ADD COLUMN IF NOT EXISTS default_diferenciado_rate NUMERIC(10,2) DEFAULT 0.50;
+    ALTER TABLE sysmauad.system_settings ADD COLUMN IF NOT EXISTS default_diferenciado_rate_after_17 NUMERIC(10,2) DEFAULT 0.60;
     
     -- Campos extras para Clientes e Auditoria
     ALTER TABLE sysmauad.clients ADD COLUMN IF NOT EXISTS email VARCHAR(255);
@@ -738,6 +762,9 @@ export async function initDb() {
     ALTER TABLE sysmauad.orders ADD COLUMN IF NOT EXISTS payment_history JSONB NOT NULL DEFAULT '[]'::jsonb;
     ALTER TABLE sysmauad.orders ADD COLUMN IF NOT EXISTS is_relavado BOOLEAN DEFAULT FALSE;
     ALTER TABLE sysmauad.orders ADD COLUMN IF NOT EXISTS is_a_definir BOOLEAN DEFAULT FALSE;
+    ALTER TABLE sysmauad.orders ADD COLUMN IF NOT EXISTS has_diferenciado BOOLEAN DEFAULT FALSE;
+    ALTER TABLE sysmauad.orders ADD COLUMN IF NOT EXISTS total_diferenciado_pieces INT DEFAULT 0;
+    ALTER TABLE sysmauad.orders ADD COLUMN IF NOT EXISTS diferenciado_logs JSONB NOT NULL DEFAULT '[]'::jsonb;
 
     -- Campo para configuração de dias para alerta de OS parada
     ALTER TABLE sysmauad.system_settings ADD COLUMN IF NOT EXISTS stalled_order_alert_days INT DEFAULT 3;

@@ -7,7 +7,7 @@ export interface SystemUser {
   username: string;
   password?: string;
   phone?: string;
-  role: 'admin' | 'financeiro' | 'operador' | 'passador';
+  role: 'admin' | 'financeiro' | 'operador' | 'passador' | 'diferenciado';
   allowedMenus: string[]; // Menu tab keys e.g. ['dashboard', 'orders', 'stock', 'clients', 'garment-catalog', 'finance', 'passador-report', 'users']
   active: boolean;
 }
@@ -104,6 +104,11 @@ export interface Order {
   totalIronedPieces: number;
   ironingLogs: PassadorLog[];
   
+  // Diferenciado workflow tracking
+  hasDiferenciado?: boolean;
+  totalDiferenciadoPieces?: number;
+  diferenciadoLogs?: DiferenciadoLog[];
+  
   history: OrderHistoryEvent[];
   notes?: string;
   isRelavado?: boolean;
@@ -157,6 +162,17 @@ export interface Passador {
   active: boolean;
 }
 
+export interface Diferenciado {
+  id: string;
+  name: string;
+  phone?: string;
+  totalPiecesProduced: number;
+  ratePerPiece?: number;
+  ratePerPieceAfter17?: number;
+  createdAt: string;
+  active: boolean;
+}
+
 export interface PassadorLog {
   id: string;
   orderId: string;
@@ -164,6 +180,21 @@ export interface PassadorLog {
   passadorId: string;
   passadorName: string;
   piecesIroned: number;
+  timestamp: string;
+  isAfter17?: boolean;
+  servicePeriod?: 'normal' | 'after_17';
+  editCount?: number;
+  lastEditedAt?: string;
+  lastEditedBy?: string;
+}
+
+export interface DiferenciadoLog {
+  id: string;
+  orderId: string;
+  osNumber: string;
+  diferenciadoId: string;
+  diferenciadoName: string;
+  piecesProduced: number;
   timestamp: string;
   isAfter17?: boolean;
   servicePeriod?: 'normal' | 'after_17';
@@ -272,6 +303,8 @@ export interface SystemSettings {
   backupTime: string;
   defaultPassadorRate?: number;
   defaultPassadorRateAfter17?: number;
+  defaultDiferenciadoRate?: number;
+  defaultDiferenciadoRateAfter17?: number;
   stalledOrderAlertDays?: number;
   reportRetentionDays?: number;
   licenseKey?: string;

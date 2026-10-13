@@ -24,7 +24,7 @@ import {
   X,
   HelpCircle
 } from 'lucide-react';
-import { OrderStatus, OrderItem, PassadorLog } from '../types';
+import { OrderStatus, OrderItem, PassadorLog, DiferenciadoLog } from '../types';
 
 interface OrderDetailViewProps {
   orderId: string;
@@ -41,6 +41,7 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
     updateOrderWeight, 
     updateOrderServices,
     updateIroningLog,
+    updateDiferenciadoLog,
     createOrder, 
     calculateChemicals,
     stalledOrderAlertDays
@@ -81,6 +82,12 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
   const [editIroningIsAfter17, setEditIroningIsAfter17] = useState<boolean>(false);
   const [isSavingIroning, setIsSavingIroning] = useState<boolean>(false);
 
+  // Estados para Edição de Diferenciado (Administrador)
+  const [editingDiferenciadoLog, setEditingDiferenciadoLog] = useState<DiferenciadoLog | null>(null);
+  const [editDiferenciadoPiecesInput, setEditDiferenciadoPiecesInput] = useState<string>('');
+  const [editDiferenciadoIsAfter17, setEditDiferenciadoIsAfter17] = useState<boolean>(false);
+  const [isSavingDiferenciado, setIsSavingDiferenciado] = useState<boolean>(false);
+
   // Cálculo de OS Parada (>= stalledOrderAlertDays sem movimentação)
   const lastActivity = (order?.history && order.history.length > 0)
     ? order.history[order.history.length - 1].timestamp
@@ -93,6 +100,10 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (editingDiferenciadoLog) {
+          setEditingDiferenciadoLog(null);
+          return;
+        }
         if (editingIroningLog) {
           setEditingIroningLog(null);
           return;
@@ -118,7 +129,7 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [editingIroningLog, isSaidaModalOpen, isEditServicesModalOpen, isEditWeightModalOpen, isRelavadoModalOpen, onBack]);
+  }, [editingDiferenciadoLog, editingIroningLog, isSaidaModalOpen, isEditServicesModalOpen, isEditWeightModalOpen, isRelavadoModalOpen, onBack]);
 
   const handleOpenEditWeight = () => {
     if (!order) return;
@@ -860,8 +871,74 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
           </div>
         </div>
 
-        {/* Right Column (5 cols): Passadoria, Histórico & QR Code */}
+        {/* Right Column (5 cols): Diferenciado, Passadoria, Histórico & QR Code */}
         <div className="lg:col-span-5 space-y-6">
+          {/* Card: Histórico de Produção Diferenciada */}
+          {(order.hasDiferenciado || (order.diferenciadoLogs && order.diferenciadoLogs.length > 0)) && (
+            <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 transition-colors font-sans">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider font-mono flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                  Produção Diferenciada
+                </h3>
+                <span className="text-xs font-mono font-bold text-purple-700 dark:text-purple-400">
+                  {order.totalDiferenciadoPieces || 0} / {order.estimatedPieceCount} pçs
+                </span>
+              </div>
+
+              {(!order.diferenciadoLogs || order.diferenciadoLogs.length === 0) ? (
+                <div className="p-6 text-center text-slate-400 text-xs border border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
+                  Nenhum lançamento de diferenciado registrado ainda para este pedido.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {order.diferenciadoLogs.map(log => (
+                    <div key={log.id} className="p-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 rounded-xl flex items-center justify-between text-xs">
+                      <div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <strong className="text-slate-900 dark:text-slate-100 block">{log.diferenciadoName}</strong>
+                          {log.isAfter17 ? (
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+                              Produção Adicional (Extra)
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                              Produção Normal
+                            </span>
+                          )}
+                          {(log.editCount || 0) > 0 && (
+                            <span className="text-[9px] font-sans px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                              Editado ({log.editCount}x)
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-slate-400 text-[10px] font-mono">{new Date(log.timestamp).toLocaleString('pt-BR')}</span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold font-mono text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 px-3 py-1 rounded-lg text-sm">
+                          +{log.piecesProduced} pçs
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingDiferenciadoLog(log);
+                            setEditDiferenciadoPiecesInput(String(log.piecesProduced));
+                            setEditDiferenciadoIsAfter17(Boolean(log.isAfter17));
+                          }}
+                          title="Corrigir este lançamento (Administrador)"
+                          className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 hover:text-purple-600 dark:text-slate-300 dark:hover:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/40 transition-colors"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Card: Histórico de Passadoria */}
           <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 transition-colors font-sans">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
@@ -1619,6 +1696,148 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
                   className="flex-1 py-2 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white font-bold text-xs rounded-xl transition-colors shadow-sm"
                 >
                   {isSavingIroning ? 'Salvando...' : 'Salvar Alteração'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Edição de Diferenciado (Administrador) */}
+      {editingDiferenciadoLog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden animate-in zoom-in-95">
+            <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                  Corrigir Produção Diferenciada
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingDiferenciadoLog(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const newCount = parseInt(editDiferenciadoPiecesInput, 10);
+                if (isNaN(newCount) || newCount <= 0) {
+                  setToastMessage('Informe uma quantidade válida de peças.');
+                  setTimeout(() => setToastMessage(null), 3000);
+                  return;
+                }
+
+                setIsSavingDiferenciado(true);
+                const res = await updateDiferenciadoLog(
+                  order.id,
+                  editingDiferenciadoLog.id,
+                  newCount,
+                  'admin',
+                  user?.name || 'Administrador',
+                  user?.id || '',
+                  editDiferenciadoIsAfter17
+                );
+                setIsSavingDiferenciado(false);
+
+                if (res.success) {
+                  setToastMessage(res.message);
+                  setEditingDiferenciadoLog(null);
+                  setTimeout(() => setToastMessage(null), 4000);
+                } else {
+                  setToastMessage(res.message);
+                  setTimeout(() => setToastMessage(null), 4000);
+                }
+              }}
+              className="p-5 space-y-4"
+            >
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1 text-xs font-mono">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Colaborador:</span>
+                  <strong className="text-slate-800 dark:text-slate-200">{editingDiferenciadoLog.diferenciadoName}</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Valor Atual:</span>
+                  <strong className="text-purple-600 dark:text-purple-400">{editingDiferenciadoLog.piecesProduced} peças</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Tipo Atual:</span>
+                  <strong className="text-slate-800 dark:text-slate-200">
+                    {editingDiferenciadoLog.isAfter17 ? 'Produção Adicional (Extra)' : 'Produção Normal'}
+                  </strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Data/Hora:</span>
+                  <span>{new Date(editingDiferenciadoLog.timestamp).toLocaleString('pt-BR')}</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1">
+                  Nova Quantidade de Peças
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="1000"
+                  value={editDiferenciadoPiecesInput}
+                  onChange={e => setEditDiferenciadoPiecesInput(e.target.value.replace(/^0+(?=\d)/, ''))}
+                  onFocus={e => e.target.select()}
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-lg font-mono font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  required
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
+                  Tipo de Produção
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditDiferenciadoIsAfter17(false)}
+                    className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all ${
+                      !editDiferenciadoIsAfter17
+                        ? 'bg-purple-50 dark:bg-purple-950/50 border-purple-300 dark:border-purple-700 text-purple-800 dark:text-purple-300 shadow-sm'
+                        : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                    }`}
+                  >
+                    Produção Normal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditDiferenciadoIsAfter17(true)}
+                    className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all ${
+                      editDiferenciadoIsAfter17
+                        ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 shadow-sm'
+                        : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                    }`}
+                  >
+                    Produção Adicional (Extra)
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setEditingDiferenciadoLog(null)}
+                  className="flex-1 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingDiferenciado}
+                  className="flex-1 py-2 bg-purple-700 hover:bg-purple-800 disabled:opacity-50 text-white font-bold text-xs rounded-xl transition-colors shadow-sm"
+                >
+                  {isSavingDiferenciado ? 'Salvando...' : 'Salvar Alteração'}
                 </button>
               </div>
             </form>

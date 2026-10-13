@@ -1,16 +1,16 @@
 import React, { useState, useMemo } from 'react';
 import { useOrders } from '../context/OrderContext';
 import { QRCodeSVG } from 'qrcode.react';
-import { Printer, ArrowLeft, FileText, FlaskConical, Layers, Receipt, QrCode } from 'lucide-react';
+import { Printer, ArrowLeft, FileText, FlaskConical, Layers, Receipt, QrCode, Sparkles } from 'lucide-react';
 
 interface OrderPrintViewProps {
   orderId: string;
   onBack: () => void;
-  initialMode?: 'ambos' | 'nota' | 'receita' | 'saida' | 'passadoria';
+  initialMode?: 'ambos' | 'nota' | 'receita' | 'saida' | 'passadoria' | 'diferenciado';
 }
 
 export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack, initialMode }) => {
-  const { getOrderById, getOrderByOS, calculateChemicals, orders, passadores } = useOrders();
+  const { getOrderById, getOrderByOS, calculateChemicals, orders, passadores, diferenciados } = useOrders();
   
   // Localiza o pedido com segurança por ID ou por OS
   const order = useMemo(() => {
@@ -18,13 +18,18 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
     return getOrderById(orderId) || getOrderByOS(orderId) || orders.find(o => o.id === orderId || o.osNumber === orderId);
   }, [orderId, getOrderById, getOrderByOS, orders]);
 
-  // Modo de visualização/impressão: 'ambos' | 'nota' | 'receita' | 'saida' | 'passadoria'
-  const [printMode, setPrintMode] = useState<'ambos' | 'nota' | 'receita' | 'saida' | 'passadoria'>(initialMode || 'ambos');
+  // Modo de visualização/impressão: 'ambos' | 'nota' | 'receita' | 'saida' | 'passadoria' | 'diferenciado'
+  const [printMode, setPrintMode] = useState<'ambos' | 'nota' | 'receita' | 'saida' | 'passadoria' | 'diferenciado'>(initialMode || 'ambos');
 
   // Passadores ativos no sistema para preenchimento manual
   const activePassadoresList = useMemo(() => {
     return (passadores || []).filter(p => p.active !== false);
   }, [passadores]);
+
+  // Colaboradores de Diferenciado ativos no sistema para preenchimento manual
+  const activeDiferenciadosList = useMemo(() => {
+    return (diferenciados || []).filter(d => d.active !== false);
+  }, [diferenciados]);
 
   // Fases e produtos da receita técnica calculados por porcentagem sobre o peso total
   // O hook useMemo DEVE SEMPRE rodar no topo, antes de qualquer retorno condicional!
@@ -178,6 +183,18 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
           >
             <QrCode className="w-3.5 h-3.5" />
             Passadoria
+          </button>
+
+          <button
+            onClick={() => setPrintMode('diferenciado')}
+            className={`px-3 py-1.5 rounded-md flex items-center gap-1.5 transition-colors ${
+              printMode === 'diferenciado'
+                ? 'bg-white dark:bg-slate-700 text-purple-700 dark:text-purple-300 font-bold shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+            Diferenciado
           </button>
         </div>
 
@@ -972,6 +989,155 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
               <div className="font-bold text-xs text-slate-900 uppercase">SOMA TOTAL PROCESSADA NO LOTE</div>
               <p className="text-[10px] text-slate-600 leading-snug">
                 Cada passador deve anotar acima a quantidade exata de peças passadas por ele neste lote de O.S. Nº {pureOsNumber}.
+              </p>
+            </div>
+            <div className="col-span-5 text-right font-bold border-l border-slate-300 pl-3">
+              <span className="text-[10px] block text-slate-600">TOTAL GERAL DECLARADO:</span>
+              <div className="inline-block border-2 border-slate-900 rounded px-4 py-1.5 mt-0.5 bg-white text-base font-black">
+                [ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ] PEÇAS
+              </div>
+            </div>
+          </div>
+
+          {/* Rodapé com QR Code */}
+          <div className="pt-4 flex justify-between items-end font-mono text-[10px] uppercase">
+            <div className="text-slate-500 text-[9px]">
+              Documento interno de controle de produção • MAUAD LAVANDERIA
+            </div>
+
+            <div className="flex flex-col items-end justify-center text-[9px] text-slate-600">
+              <div className="p-0.5 border border-black bg-white inline-block mb-0.5">
+                <QRCodeSVG value={order.osNumber || pureOsNumber} size={42} />
+              </div>
+              <span className="font-mono font-bold tracking-tight">O.S. {pureOsNumber}</span>
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* 5. RELATÓRIO DE DIFERENCIADO — CONTROLE MANUAL DE CHÃO DE FÁBRICA*/}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {printMode === 'diferenciado' && (
+        <div className="bg-white text-slate-900 p-6 sm:p-8 rounded-xl border border-slate-300 shadow-md space-y-4 font-mono text-[11px] leading-tight print-sheet print:border-0 print:shadow-none print:rounded-none w-full">
+          
+          {/* Cabeçalho */}
+          <div className="flex justify-between items-baseline font-bold text-xs uppercase pb-1.5 border-b-2 border-slate-900">
+            <span className="text-sm font-black tracking-wider">MAUAD LAVANDERIA</span>
+            <span className="text-sm font-bold tracking-wide">CONTROLE DE PRODUÇÃO DIFERENCIADA</span>
+            <span className="text-[10px]">PÁGINA: 001</span>
+          </div>
+
+          {/* Destaque Central da O.S. e Metadados */}
+          <div className="flex justify-between items-center py-1">
+            <div className="text-[10px] text-left space-y-0.5">
+              <div><span className="font-bold">ENTRADA:</span> {dateShort}</div>
+              <div><span className="font-bold">CLIENTE:</span> {clientNameSafe}</div>
+              <div><span className="font-bold">LOTE:</span> {pureOsNumber}</div>
+            </div>
+
+            <div className="text-center">
+              <div className="text-2xl font-black tracking-widest font-mono text-slate-900">
+                {pureOsNumber}
+              </div>
+              <div className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">
+                ORDEM DE SERVIÇO
+              </div>
+            </div>
+
+            <div className="text-[10px] text-right space-y-0.5">
+              <div>{weekdayFormatted}</div>
+              <div>{dateShort} {timeFormatted}</div>
+              <div><span className="font-bold">CORTE / REF:</span> {order.corteOs || primaryCorteOs || '-'}</div>
+            </div>
+          </div>
+
+          {/* Informações Operacionais da Peça e Quantidade Total */}
+          <div className="border-2 border-slate-900 rounded p-3 bg-slate-50 space-y-2">
+            <div className="grid grid-cols-12 gap-2 text-xs">
+              <div className="col-span-8 flex items-center gap-1.5">
+                <span className="font-bold text-slate-700">TIPO DE PEÇA:</span>
+                <span className="font-black text-slate-900 uppercase">
+                  {order.items && order.items.length > 0 ? order.items.map(it => it.clothingType).filter(Boolean).join(', ') : 'PEÇAS GERAIS'}
+                </span>
+              </div>
+              <div className="col-span-4 text-right">
+                <span className="font-bold text-slate-700">TOTAL ESTIMADO:</span>{' '}
+                <strong className="text-sm font-black text-slate-900">{totalPiecesSafe} PÇS</strong>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-12 gap-2 text-xs pt-1 border-t border-slate-200">
+              <div className="col-span-8 flex items-center gap-1.5">
+                <span className="font-bold text-slate-700">SERVIÇOS DIFERENCIADOS:</span>
+                <span className="font-bold text-slate-900 uppercase">
+                  {order.items && order.items.filter(it => it.serviceType === 'diferenciado').length > 0
+                    ? order.items.filter(it => it.serviceType === 'diferenciado').map(it => it.process).join(', ')
+                    : 'DESTROYED / BIGODE / PISTOLADO / RESINAGEM'}
+                </span>
+              </div>
+              <div className="col-span-4 text-right text-[10px] text-slate-500">
+                PESO TOTAL: {order.totalWeightKg ? `${order.totalWeightKg.toFixed(2)} KG` : '-'}
+              </div>
+            </div>
+
+            {order.notes && (
+              <div className="border-t border-dashed border-slate-300 pt-1 text-[10px]">
+                <strong>OBSERVAÇÕES:</strong> {order.notes}
+              </div>
+            )}
+          </div>
+
+          {/* Divisor com Título Central */}
+          <div className="flex items-center gap-2 w-full my-2">
+            <div className="flex-1 border-b border-dashed border-slate-400"></div>
+            <span className="font-bold text-xs uppercase text-slate-900 px-2 tracking-wide">
+              REGISTRO MANUAL DE PRODUÇÃO DIFERENCIADA
+            </span>
+            <div className="flex-1 border-b border-dashed border-slate-400"></div>
+          </div>
+
+          {/* Tabela de Colaboradores Ativos de Diferenciado */}
+          <div className="border-2 border-slate-900 rounded overflow-hidden">
+            <table className="w-full text-left border-collapse font-mono text-xs">
+              <thead>
+                <tr className="bg-slate-900 text-white uppercase text-[10px] tracking-wider">
+                  <th className="p-2 border-r border-slate-700 w-3/5">NOME DO COLABORADOR(A)</th>
+                  <th className="p-2 w-2/5 text-center">QTD PRODUZIDA (PÇS)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y border-slate-900">
+                {activeDiferenciadosList.length > 0 ? (
+                  activeDiferenciadosList.map((p) => (
+                    <tr key={p.id} className="h-12 border-b border-slate-300">
+                      <td className="p-2 font-bold uppercase text-slate-900 border-r border-slate-300 align-middle">
+                        {p.name}
+                      </td>
+                      <td className="p-2 align-middle text-center">
+                        <div className="w-32 h-8 border border-slate-400 mx-auto rounded flex items-center justify-end px-2 bg-slate-50 text-slate-400 text-[10px]">
+                          [ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ] pçs
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={2} className="p-4 text-center text-slate-500 italic">
+                      Nenhum colaborador ativo cadastrado para produção diferenciada.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Resumo Final de Conferência Manual */}
+          <div className="border border-slate-400 rounded p-3 bg-slate-50 grid grid-cols-12 gap-4 items-center">
+            <div className="col-span-7 space-y-1">
+              <div className="font-bold text-xs text-slate-900 uppercase">SOMA TOTAL PROCESSADA NO LOTE</div>
+              <p className="text-[10px] text-slate-600 leading-snug">
+                Cada operador deve anotar acima a quantidade exata de peças produzidas por ele neste lote de O.S. Nº {pureOsNumber}.
               </p>
             </div>
             <div className="col-span-5 text-right font-bold border-l border-slate-300 pl-3">

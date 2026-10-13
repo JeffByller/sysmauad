@@ -15,18 +15,24 @@ import {
   Scale, 
   CheckCircle,
   Search,
-  X
+  X,
+  Sparkles
 } from 'lucide-react';
 import { getDatePresets, getLocalDateString } from '../utils/dateUtils';
 import { OrderStatus, Order } from '../types';
 
 export const PassadorReportView: React.FC = () => {
-  const { passadores, orders, insumoEntries, suppliers, systemSettings } = useOrders();
+  const { passadores, diferenciados, orders, insumoEntries, suppliers, systemSettings } = useOrders();
   const { user } = useAuth();
   const isPassadorUser = user?.role === 'passador';
+  const isDiferenciadoUser = user?.role === 'diferenciado';
 
   // Sub-aba do relatório
-  const [reportType, setReportType] = useState<'lavados' | 'passadores' | 'fornecedores'>('lavados');
+  const [reportType, setReportType] = useState<'lavados' | 'passadores' | 'diferenciados' | 'fornecedores'>(() => {
+    if (isDiferenciadoUser) return 'diferenciados';
+    if (isPassadorUser) return 'passadores';
+    return 'lavados';
+  });
 
   // Parâmetros operacionais para a aba "Tudo que é Lavado" (correspondentes ao menu Painel)
   const [lavadoStatusFilter, setLavadoStatusFilter] = useState<
@@ -39,7 +45,14 @@ export const PassadorReportView: React.FC = () => {
   const [isPassadorDropdownOpen, setIsPassadorDropdownOpen] = useState<boolean>(false);
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>('all');
 
-  // Exibição e cálculo de Valores no Relatório de Produção por Passador
+  // Filtros de Unidade para Diferenciado
+  const [selectedDiferenciadoId, setSelectedDiferenciadoId] = useState<string>('all');
+  const [diferenciadoSearchTerm, setDiferenciadoSearchTerm] = useState<string>('');
+  const [isDiferenciadoDropdownOpen, setIsDiferenciadoDropdownOpen] = useState<boolean>(false);
+  const [diferenciadoRateInput, setDiferenciadoRateInput] = useState<number>(0.50);
+  const [diferenciadoRateAfter17Input, setDiferenciadoRateAfter17Input] = useState<number>(0.60);
+
+  // Exibição e cálculo de Valores no Relatório de Produção por Passador e Diferenciado
   const [showValues, setShowValues] = useState<boolean>(false);
   const [passadorRateInput, setPassadorRateInput] = useState<number>(0.15);
   const [passadorRateAfter17Input, setPassadorRateAfter17Input] = useState<number>(0.20);
@@ -51,6 +64,12 @@ export const PassadorReportView: React.FC = () => {
     }
     if (systemSettings?.defaultPassadorRateAfter17 !== undefined) {
       setPassadorRateAfter17Input(Number(systemSettings.defaultPassadorRateAfter17));
+    }
+    if (systemSettings?.defaultDiferenciadoRate !== undefined) {
+      setDiferenciadoRateInput(Number(systemSettings.defaultDiferenciadoRate));
+    }
+    if (systemSettings?.defaultDiferenciadoRateAfter17 !== undefined) {
+      setDiferenciadoRateAfter17Input(Number(systemSettings.defaultDiferenciadoRateAfter17));
     }
   }, [systemSettings]);
 
@@ -94,11 +113,29 @@ export const PassadorReportView: React.FC = () => {
     );
   }, [activePassadores, passadorSearchTerm]);
 
+  // Se o usuário logado for operador de diferenciado, restringe aos próprios dados
+  const activeDiferenciados = useMemo(() => {
+    const list = isDiferenciadoUser && user
+      ? diferenciados.filter(d => d.id === user.id || d.name.toLowerCase() === user.name.toLowerCase())
+      : diferenciados;
+    return list.filter(d => d.active !== false);
+  }, [isDiferenciadoUser, user, diferenciados]);
+
+  // Lista filtrada para autocomplete de diferenciados ativos
+  const filteredDiferenciados = useMemo(() => {
+    if (!diferenciadoSearchTerm.trim()) return activeDiferenciados;
+    const term = diferenciadoSearchTerm.toLowerCase().trim();
+    return activeDiferenciados.filter(d =>
+      d.name.toLowerCase().includes(term) || (d.phone && d.phone.includes(term))
+    );
+  }, [activeDiferenciados, diferenciadoSearchTerm]);
+
   // Fecha dropdown de autocomplete ao pressionar ESC
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setIsPassadorDropdownOpen(false);
+        setIsDiferenciadoDropdownOpen(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -305,6 +342,60 @@ export const PassadorReportView: React.FC = () => {
   const totalAfter17Pieces = displayedPassadores.reduce((sum, p) => sum + p.after17Pieces, 0);
   const totalPassadorValue = displayedPassadores.reduce((sum, p) => sum + p.totalValue, 0);
 
+  // 2.1 DADOS: Produção Diferenciada
+  const allDiferenciadoLogs = orders.flatMap(o => (o.diferenciadoLogs || []).map(l => ({ ...l, clientName: o.clientName }))).filter(log => {
+    const logDate = getLocalDateString(log.timestamp);
+    const isAfterStart = !startDate || logDate >= startDate;
+    const isBeforeEnd = !endDate || logDate <= endDate;
+    return isAfterStart && isBeforeEnd;
+  });
+
+  const diferenciadoReports = activeDiferenciados.map(dif => {
+    const difLogs = allDiferenciadoLogs.filter(l => l.diferenciadoId === dif.id || l.diferenciadoName?.toLowerCase() === dif.name?.toLowerCase());
+    const normalLogs = difLogs.filter(l => !l.isAfter17);
+    const after17Logs = difLogs.filter(l => Boolean(l.isAfter17));
+
+    const normalPieces = normalLogs.reduce((sum, l) => sum + l.piecesProduced, 0);
+    const after17Pieces = after17Logs.reduce((sum, l) => sum + l.piecesProduced, 0);
+    const totalPiecesInPeriod = normalPieces + after17Pieces;
+
+    const pieces = difLogs.length > 0 ? totalPiecesInPeriod : (dif.totalPiecesProduced || 0);
+
+    const rateNormal = dif.ratePerPiece !== undefined ? dif.ratePerPiece : diferenciadoRateInput;
+    const rateAfter17 = dif.ratePerPieceAfter17 !== undefined ? dif.ratePerPieceAfter17 : diferenciadoRateAfter17Input;
+
+    const normalValue = normalPieces * rateNormal;
+    const after17Value = after17Pieces * rateAfter17;
+    const totalValue = normalValue + after17Value;
+
+    return {
+      ...dif,
+      totalPiecesInPeriod: pieces,
+      normalPieces,
+      after17Pieces,
+      rateNormal,
+      rateAfter17,
+      normalValue,
+      after17Value,
+      totalValue,
+      logs: difLogs
+    };
+  });
+
+  // Diferenciado individual selecionado (se houver)
+  const selectedDiferenciado = selectedDiferenciadoId !== 'all'
+    ? diferenciadoReports.find(d => d.id === selectedDiferenciadoId || d.name === selectedDiferenciadoId)
+    : null;
+
+  const displayedDiferenciados = selectedDiferenciado
+    ? [selectedDiferenciado]
+    : diferenciadoReports;
+
+  const totalDiferenciadoPieces = displayedDiferenciados.reduce((sum, d) => sum + d.totalPiecesInPeriod, 0);
+  const totalDiferenciadoNormalPieces = displayedDiferenciados.reduce((sum, d) => sum + d.normalPieces, 0);
+  const totalDiferenciadoAfter17Pieces = displayedDiferenciados.reduce((sum, d) => sum + d.after17Pieces, 0);
+  const totalDiferenciadoValue = displayedDiferenciados.reduce((sum, d) => sum + d.totalValue, 0);
+
   // 3. DADOS: Entradas de Insumos / Fornecedores
   const filteredInsumos = insumoEntries.filter(entry => {
     const entryDate = getLocalDateString(entry.enteredAt);
@@ -328,6 +419,11 @@ export const PassadorReportView: React.FC = () => {
     if (!selectedPassador) return [];
     return [...selectedPassador.logs].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   }, [selectedPassador]);
+
+  const sortedDiferenciadoLogs = useMemo(() => {
+    if (!selectedDiferenciado) return [];
+    return [...selectedDiferenciado.logs].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }, [selectedDiferenciado]);
 
   const sortedInsumos = useMemo(() => {
     return [...displayedInsumos].sort((a, b) => new Date(b.enteredAt).getTime() - new Date(a.enteredAt).getTime());
@@ -418,6 +514,26 @@ export const PassadorReportView: React.FC = () => {
     );
   };
 
+  const renderDiferenciadoLogRow = (l: any, idx: number) => {
+    const dateStr = new Date(l.timestamp).toLocaleDateString('pt-BR');
+    const timeStr = new Date(l.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const periodTag = l.isAfter17 ? ' • Produção Adicional (Extra)' : ' • Produção Normal';
+
+    return (
+      <div key={l.id || idx} className="flex justify-between items-center py-1 border-b border-dashed border-slate-200">
+        <span>
+          <strong>{l.osNumber}</strong> • {l.clientName || 'Cliente'} • {dateStr} às {timeStr}
+          <span className={l.isAfter17 ? 'font-bold text-amber-700' : 'text-slate-500'}>
+            {periodTag}
+          </span>
+        </span>
+        <div className="text-right font-mono font-bold text-slate-900">
+          +{l.piecesProduced} Pcs
+        </div>
+      </div>
+    );
+  };
+
   const renderInsumoRow = (entry: any) => (
     <div key={entry.id} className="grid grid-cols-12 items-center py-0.5 border-b border-dashed border-slate-100">
       <span className={selectedSupplier ? 'col-span-3 font-semibold truncate' : 'col-span-4 font-semibold truncate'}>
@@ -447,6 +563,12 @@ export const PassadorReportView: React.FC = () => {
         case 'na_lavanderia': return 'RELATÓRIO DE PEÇAS ATUALMENTE NA LAVANDERIA';
         default: return 'RELATÓRIO DE TUDO QUE É LAVADO — GERAL';
       }
+    }
+    if (reportType === 'diferenciados') {
+      if (selectedDiferenciado) {
+        return 'RELATÓRIO';
+      }
+      return 'RELATÓRIO DE PRODUÇÃO DIFERENCIADA';
     }
     if (reportType === 'passadores') {
       if (selectedPassador) {
@@ -491,33 +613,52 @@ export const PassadorReportView: React.FC = () => {
 
         {/* Seleção do Tipo de Relatório */}
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setReportType('lavados')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 ${
-              reportType === 'lavados'
-                ? 'bg-slate-900 text-white dark:bg-sky-700 dark:text-white'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-            }`}
-          >
-            <Shirt className="w-3.5 h-3.5" />
-            1. Tudo que é Lavado (Por Data)
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setReportType('passadores')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 ${
-              reportType === 'passadores'
-                ? 'bg-slate-900 text-white dark:bg-sky-700 dark:text-white'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-            }`}
-          >
-            <UserCheck className="w-3.5 h-3.5" />
-            2. Passadoria
-          </button>
+          {!isPassadorUser && !isDiferenciadoUser && (
+            <button
+              type="button"
+              onClick={() => setReportType('lavados')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 ${
+                reportType === 'lavados'
+                  ? 'bg-slate-900 text-white dark:bg-sky-700 dark:text-white'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              <Shirt className="w-3.5 h-3.5" />
+              1. Tudo que é Lavado (Por Data)
+            </button>
+          )}
 
           {!isPassadorUser && (
+            <button
+              type="button"
+              onClick={() => setReportType('diferenciados')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 ${
+                reportType === 'diferenciados'
+                  ? 'bg-purple-900 text-white dark:bg-purple-700 dark:text-white'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              {isDiferenciadoUser ? 'Produção Diferenciada' : '2. Diferenciado'}
+            </button>
+          )}
+
+          {!isDiferenciadoUser && (
+            <button
+              type="button"
+              onClick={() => setReportType('passadores')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 ${
+                reportType === 'passadores'
+                  ? 'bg-slate-900 text-white dark:bg-sky-700 dark:text-white'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              <UserCheck className="w-3.5 h-3.5" />
+              {isPassadorUser ? 'Passadoria' : '3. Passadoria'}
+            </button>
+          )}
+
+          {!isPassadorUser && !isDiferenciadoUser && (
             <button
               type="button"
               onClick={() => setReportType('fornecedores')}
@@ -528,7 +669,7 @@ export const PassadorReportView: React.FC = () => {
               }`}
             >
               <Truck className="w-3.5 h-3.5" />
-              3. Entradas / Fornecedores
+              4. Entradas / Fornecedores
             </button>
           )}
         </div>
@@ -881,6 +1022,175 @@ export const PassadorReportView: React.FC = () => {
           </div>
         )}
 
+        {/* OPÇÃO DE FILTRAR POR DIFERENCIADO: CAMPO DE BUSCA (AUTOCOMPLETE) & MOSTRAR VALORES */}
+        {reportType === 'diferenciados' && (
+          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+            {/* Campo de Busca Autocomplete */}
+            <div className="relative flex-1 min-w-[280px] max-w-md">
+              <div className="flex items-center gap-2">
+                <span className="text-slate-500 dark:text-slate-400 font-bold uppercase text-[11px] flex items-center gap-1 shrink-0">
+                  <Sparkles className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                  Colaborador:
+                </span>
+
+                <div className="relative flex-1">
+                  {selectedDiferenciado ? (
+                    <div className="flex items-center justify-between px-3 py-1.5 bg-purple-50 dark:bg-purple-950/60 border border-purple-300 dark:border-purple-800 rounded-xl text-xs font-bold text-purple-900 dark:text-purple-200 shadow-sm">
+                      <div className="flex items-center gap-1.5 truncate">
+                        <Sparkles className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                        <span className="truncate">{selectedDiferenciado.name}</span>
+                        {selectedDiferenciado.phone && (
+                          <span className="text-[10px] text-purple-600/70 font-mono font-normal">({selectedDiferenciado.phone})</span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedDiferenciadoId('all');
+                          setDiferenciadoSearchTerm('');
+                        }}
+                        className="p-1 text-purple-600 hover:text-purple-800 dark:hover:text-purple-100 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900 transition-colors ml-1"
+                        title="Limpar e ver todos os colaboradores"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                      <input
+                        type="text"
+                        placeholder="Buscar colaborador..."
+                        value={diferenciadoSearchTerm}
+                        onChange={e => {
+                          setDiferenciadoSearchTerm(e.target.value);
+                          setIsDiferenciadoDropdownOpen(true);
+                        }}
+                        onFocus={() => setIsDiferenciadoDropdownOpen(true)}
+                        className="w-full pl-8 pr-7 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-purple-500 shadow-sm"
+                      />
+                      {diferenciadoSearchTerm && (
+                        <button
+                          type="button"
+                          onClick={() => setDiferenciadoSearchTerm('')}
+                          className="absolute right-2 top-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                          title="Limpar busca"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Dropdown de Autocomplete */}
+                  {isDiferenciadoDropdownOpen && !selectedDiferenciado && (
+                    <>
+                      <div
+                        className="fixed inset-0 z-10"
+                        onClick={() => setIsDiferenciadoDropdownOpen(false)}
+                      />
+                      <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedDiferenciadoId('all');
+                            setDiferenciadoSearchTerm('');
+                            setIsDiferenciadoDropdownOpen(false);
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs font-bold text-purple-700 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-slate-800 flex items-center justify-between"
+                        >
+                          <span>• Todos os Colaboradores ({activeDiferenciados.length})</span>
+                          {selectedDiferenciadoId === 'all' && <CheckCircle2 className="w-3.5 h-3.5 text-purple-600" />}
+                        </button>
+                        {filteredDiferenciados.length === 0 ? (
+                          <div className="px-3 py-3 text-center text-xs text-slate-400">
+                            Nenhum colaborador encontrado com "{diferenciadoSearchTerm}".
+                          </div>
+                        ) : (
+                          filteredDiferenciados.map(d => (
+                            <button
+                              key={d.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedDiferenciadoId(d.id);
+                                setDiferenciadoSearchTerm('');
+                                setIsDiferenciadoDropdownOpen(false);
+                              }}
+                              className="w-full text-left px-3 py-2 text-xs hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center justify-between"
+                            >
+                              <div>
+                                <span className="font-semibold text-slate-900 dark:text-slate-100 block">{d.name}</span>
+                                {d.phone && <span className="text-[10px] text-slate-400 font-mono">{d.phone}</span>}
+                              </div>
+                              <span className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold font-mono">Ativo</span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Opção "Mostrar valores" com Sim / Não (padrão Não) e campo de valor */}
+            <div className="flex flex-wrap items-center gap-3 bg-slate-50 dark:bg-slate-800/60 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
+              <span className="text-slate-700 dark:text-slate-300 font-bold text-xs">
+                Mostrar valores:
+              </span>
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  <input
+                    type="radio"
+                    name="showValuesRadioDif"
+                    checked={!showValues}
+                    onChange={() => setShowValues(false)}
+                    className="text-purple-600 focus:ring-purple-500 h-3.5 w-3.5"
+                  />
+                  Não
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  <input
+                    type="radio"
+                    name="showValuesRadioDif"
+                    checked={showValues}
+                    onChange={() => setShowValues(true)}
+                    className="text-purple-600 focus:ring-purple-500 h-3.5 w-3.5"
+                  />
+                  Sim
+                </label>
+              </div>
+
+              {showValues && (
+                <div className="flex flex-wrap items-center gap-3 ml-1 pl-3 border-l border-slate-200 dark:border-slate-700 font-mono">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-slate-500 font-medium">Produção Normal: R$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.00"
+                      value={diferenciadoRateInput}
+                      onChange={e => setDiferenciadoRateInput(parseFloat(e.target.value) || 0)}
+                      className="w-20 px-2 py-0.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-slate-500 font-medium">Produção Adicional (Extra): R$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.00"
+                      value={diferenciadoRateAfter17Input}
+                      onChange={e => setDiferenciadoRateAfter17Input(parseFloat(e.target.value) || 0)}
+                      className="w-20 px-2 py-0.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* OPÇÃO DE IMPRIMIR POR UNIDADE: FORNECEDOR INDIVIDUAL */}
         {reportType === 'fornecedores' && (
           <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
@@ -945,9 +1255,14 @@ export const PassadorReportView: React.FC = () => {
           {reportType === 'lavados' && (
             <div><strong>FILTRO OPERACIONAL:</strong> {getStatusFilterLabel(lavadoStatusFilter)}</div>
           )}
+          {reportType === 'diferenciados' && selectedDiferenciado && (
+            <div>
+              <strong>COLABORADOR (DIFERENCIADO):</strong> {selectedDiferenciado.name.toUpperCase()}{selectedDiferenciado.phone ? ` • Tel: ${selectedDiferenciado.phone}` : ''}
+            </div>
+          )}
           {reportType === 'passadores' && selectedPassador && (
             <div>
-              <strong>COLABORADOR:</strong> {selectedPassador.name.toUpperCase()}{selectedPassador.phone ? ` • Tel: ${selectedPassador.phone}` : ''}
+              <strong>COLABORADOR (PASSADORIA):</strong> {selectedPassador.name.toUpperCase()}{selectedPassador.phone ? ` • Tel: ${selectedPassador.phone}` : ''}
             </div>
           )}
           {reportType === 'fornecedores' && selectedSupplier && (
@@ -1051,7 +1366,185 @@ export const PassadorReportView: React.FC = () => {
         )}
 
         {/* ───────────────────────────────────────────────────────────── */}
-        {/* CORPO DO RELATÓRIO 2: PRODUÇÃO POR PASSADOR (INDIVIDUAL OU GERAL) */}
+        {/* CORPO DO RELATÓRIO 2: PRODUÇÃO DIFERENCIADA (INDIVIDUAL OU GERAL) */}
+        {/* ───────────────────────────────────────────────────────────── */}
+        {reportType === 'diferenciados' && (
+          <div className="space-y-3">
+            {selectedDiferenciado ? (
+              /* RELATÓRIO INDIVIDUAL DE DIFERENCIADO */
+              <div className="space-y-2">
+                <div className="flex justify-between font-bold text-xs pb-1 border-b border-slate-300">
+                  <span>HISTÓRICO DE PRODUÇÃO DIFERENCIADA</span>
+                  <span>QUANTIDADE</span>
+                </div>
+
+                <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px]">
+                  ------------------------------------------------------------------------------------------------------------------------
+                </div>
+
+                {selectedDiferenciado.logs.length === 0 ? (
+                  <div className="py-6 text-center text-slate-500">
+                    Nenhuma produção diferenciada registrada para este colaborador no período informado.
+                  </div>
+                ) : (
+                  <div className="space-y-1 text-xs">
+                    {sortedDiferenciadoLogs.map((l, idx) => renderDiferenciadoLogRow(l, idx))}
+                  </div>
+                )}
+
+                <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px] pt-2">
+                  ------------------------------------------------------------------------------------------------------------------------
+                </div>
+
+                <div className="space-y-1 pt-1 font-mono text-xs">
+                  {selectedDiferenciado.normalPieces > 0 && selectedDiferenciado.after17Pieces > 0 ? (
+                    /* Tem ambos os períodos: mostra os 2 dados */
+                    <>
+                      <div className="flex justify-between text-slate-700">
+                        <span>• Produção Normal:</span>
+                        <span className="font-bold">
+                          {selectedDiferenciado.normalPieces.toLocaleString('pt-BR')} Pcs
+                          {showValues && ` (${Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedDiferenciado.normalValue)})`}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-amber-800">
+                        <span>• Produção Adicional (Extra):</span>
+                        <span className="font-bold">
+                          {selectedDiferenciado.after17Pieces.toLocaleString('pt-BR')} Pcs
+                          {showValues && ` (${Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedDiferenciado.after17Value)})`}
+                        </span>
+                      </div>
+                      <div className="flex justify-between font-bold text-sm text-slate-900 pt-1 border-t border-slate-300">
+                        <span>TOTAL GERAL:</span>
+                        <span className="text-base font-black">{selectedDiferenciado.totalPiecesInPeriod.toLocaleString('pt-BR')} Pcs</span>
+                      </div>
+                    </>
+                  ) : (
+                    /* Só tem 1 período */
+                    <div className="flex justify-between font-bold text-sm text-slate-900 pt-1 border-t border-slate-300">
+                      <span>
+                        {selectedDiferenciado.after17Pieces > 0 ? 'TOTAL PECAS (Produção Adicional/Extra):' : 'TOTAL PECAS:'}
+                      </span>
+                      <span className="text-base font-black">{selectedDiferenciado.totalPiecesInPeriod.toLocaleString('pt-BR')} Pcs</span>
+                    </div>
+                  )}
+
+                  {showValues && (
+                    <div className="flex justify-between font-bold text-sm text-emerald-800 pt-1 border-t border-dotted border-slate-200">
+                      <span>Total a Receber:</span>
+                      <span className="text-base font-black">
+                        {Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedDiferenciado.totalValue)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* RELATÓRIO GERAL DE TODOS OS DIFERENCIADOS */
+              <div className="space-y-2">
+                <div className="grid grid-cols-12 font-bold text-xs uppercase pb-1 border-b border-slate-300">
+                  <span className="col-span-6">COLABORADOR</span>
+                  <span className="col-span-3 text-center">LOTES</span>
+                  <span className="col-span-3 text-right">QUANTIDADE</span>
+                </div>
+
+                <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px]">
+                  ------------------------------------------------------------------------------------------------------------------------
+                </div>
+
+                {diferenciadoReports.length === 0 ? (
+                  <div className="py-6 text-center text-slate-500">
+                    Nenhum colaborador de diferenciado com produção registrada no período informado.
+                  </div>
+                ) : (
+                  <div className="space-y-3 text-xs">
+                    {diferenciadoReports.map(dif => (
+                      <div key={dif.id} className="space-y-1 pb-2 border-b border-slate-200">
+                        <div className="grid grid-cols-12 items-center font-bold py-1">
+                          <div className="col-span-6 flex items-center gap-2">
+                            <span className="truncate">{dif.name.toUpperCase()}</span>
+                          </div>
+                          <span className="col-span-3 text-center font-mono text-slate-600">
+                            {dif.logs.length} lote(s)
+                          </span>
+                          <div className="col-span-3 text-right font-mono">
+                            <span className="font-bold text-sm text-slate-900 block">
+                              {dif.totalPiecesInPeriod.toLocaleString('pt-BR')} Pcs
+                            </span>
+                            {dif.normalPieces > 0 && dif.after17Pieces > 0 && (
+                              <span className="text-[10px] text-slate-500 font-normal block">
+                                Normal: {dif.normalPieces} • Extra: {dif.after17Pieces}
+                              </span>
+                            )}
+                            {showValues && (
+                              <span className="text-[11px] text-emerald-700 font-semibold block">
+                                {Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(dif.totalValue)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Detalhamento simples dos pedidos produzidos por ele */}
+                        {dif.logs.length > 0 && (
+                          <div className="pl-4 text-[11px] text-slate-600 space-y-0.5 font-mono">
+                            {dif.logs.map(l => (
+                              <div key={l.id} className="flex justify-between">
+                                <span>
+                                  {l.osNumber} • {l.clientName} ({new Date(l.timestamp).toLocaleDateString('pt-BR')})
+                                  {l.isAfter17 ? ' [Extra]' : ''}
+                                </span>
+                                <span className="font-semibold">
+                                  +{l.piecesProduced} Pcs
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px] pt-2">
+                  ------------------------------------------------------------------------------------------------------------------------
+                </div>
+
+                <div className="pt-1 font-mono">
+                  {totalDiferenciadoNormalPieces > 0 && totalDiferenciadoAfter17Pieces > 0 ? (
+                    <>
+                      <div className="flex justify-between text-xs text-slate-600 pb-1">
+                        <span>• Produção Normal: <strong>{totalDiferenciadoNormalPieces.toLocaleString('pt-BR')} Pcs</strong></span>
+                        <span>• Produção Adicional (Extra): <strong>{totalDiferenciadoAfter17Pieces.toLocaleString('pt-BR')} Pcs</strong></span>
+                      </div>
+                      <div className="flex justify-between items-baseline gap-2 font-bold text-sm pt-1 border-t border-slate-300">
+                        <span className="text-base text-slate-900 font-bold">TOTAL GERAL: {totalDiferenciadoPieces.toLocaleString('pt-BR')} Pcs</span>
+                        {showValues && (
+                          <span className="text-base text-emerald-800 font-black">
+                            {Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalDiferenciadoValue)}
+                          </span>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex justify-between items-baseline gap-2 font-bold text-sm">
+                      <span className="text-base text-slate-900 font-bold">
+                        {totalDiferenciadoAfter17Pieces > 0 ? `TOTAL PECAS (Produção Adicional/Extra): ${totalDiferenciadoPieces.toLocaleString('pt-BR')} Pcs` : `TOTAL PECAS: ${totalDiferenciadoPieces.toLocaleString('pt-BR')} Pcs`}
+                      </span>
+                      {showValues && (
+                        <span className="text-base text-emerald-800 font-black">
+                          {Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalDiferenciadoValue)}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ───────────────────────────────────────────────────────────── */}
+        {/* CORPO DO RELATÓRIO 3: PRODUÇÃO POR PASSADOR (INDIVIDUAL OU GERAL) */}
         {/* ───────────────────────────────────────────────────────────── */}
         {reportType === 'passadores' && (
           <div className="space-y-3">
@@ -1229,7 +1722,7 @@ export const PassadorReportView: React.FC = () => {
         )}
 
         {/* ───────────────────────────────────────────────────────────── */}
-        {/* CORPO DO RELATÓRIO 3: ENTRADAS / FORNECEDORES (INDIVIDUAL OU GERAL) */}
+        {/* CORPO DO RELATÓRIO 4: ENTRADAS / FORNECEDORES (INDIVIDUAL OU GERAL) */}
         {/* ───────────────────────────────────────────────────────────── */}
         {reportType === 'fornecedores' && (
           <div className="space-y-2">

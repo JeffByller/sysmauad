@@ -7,7 +7,7 @@ export interface SystemUser {
   username: string;
   password?: string;
   phone?: string;
-  role: 'admin' | 'financeiro' | 'operador' | 'passador';
+  role: 'admin' | 'financeiro' | 'operador' | 'passador' | 'diferenciado';
   allowedMenus: string[];
   active: boolean;
 }
@@ -97,6 +97,17 @@ export interface Passador {
   active: boolean;
 }
 
+export interface Diferenciado {
+  id: string;
+  name: string;
+  phone?: string;
+  totalPiecesProduced: number;
+  ratePerPiece?: number;
+  ratePerPieceAfter17?: number;
+  createdAt: string;
+  active: boolean;
+}
+
 export interface OrderItem {
   id: string;
   clothingType: string;
@@ -128,6 +139,21 @@ export interface PassadorLog {
   passadorId: string;
   passadorName: string;
   piecesIroned: number;
+  timestamp: string;
+  isAfter17?: boolean;
+  servicePeriod?: 'normal' | 'after_17';
+  editCount?: number;
+  lastEditedAt?: string;
+  lastEditedBy?: string;
+}
+
+export interface DiferenciadoLog {
+  id: string;
+  orderId: string;
+  osNumber: string;
+  diferenciadoId: string;
+  diferenciadoName: string;
+  piecesProduced: number;
   timestamp: string;
   isAfter17?: boolean;
   servicePeriod?: 'normal' | 'after_17';
@@ -172,6 +198,9 @@ export interface Order {
   status: OrderStatus;
   totalIronedPieces: number;
   ironingLogs: PassadorLog[];
+  hasDiferenciado?: boolean;
+  totalDiferenciadoPieces?: number;
+  diferenciadoLogs?: DiferenciadoLog[];
   history: OrderHistoryEvent[];
   notes?: string;
   isRelavado?: boolean;
@@ -245,6 +274,8 @@ export interface SystemSettings {
   backupTime: string;
   defaultPassadorRate?: number;
   defaultPassadorRateAfter17?: number;
+  defaultDiferenciadoRate?: number;
+  defaultDiferenciadoRateAfter17?: number;
   stalledOrderAlertDays?: number;
   reportRetentionDays?: number;
   licenseKey?: string;
@@ -255,7 +286,7 @@ export interface SharedReport {
   id: string;
   token: string;
   title: string;
-  reportType: 'lavados' | 'passadores' | 'fornecedores' | 'gerencial_completo';
+  reportType: 'lavados' | 'passadores' | 'diferenciados' | 'fornecedores' | 'gerencial_completo';
   periodPreset: 'hoje' | 'semana' | 'mes' | 'custom';
   startDate?: string;
   endDate?: string;

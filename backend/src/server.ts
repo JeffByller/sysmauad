@@ -17,6 +17,7 @@ import {
   ChemicalStockItem, 
   GarmentProcessCatalogItem, 
   Passador, 
+  Diferenciado,
   Order, 
   InsumoEntry, 
   Supplier, 
@@ -91,7 +92,7 @@ const SUPER_ADMIN = {
   username: 'superadmin',
   passwords: ['m51IqWR48pYNeg', 'admin123', 'mauad2026'],
   role: 'admin' as const,
-  allowedMenus: ['dashboard', 'orders', 'stock', 'clients', 'garment-catalog', 'finance', 'passador-report', 'users', 'passador-mobile', 'client-portal', 'settings'],
+  allowedMenus: ['dashboard', 'orders', 'stock', 'clients', 'garment-catalog', 'finance', 'passador-report', 'users', 'passador-mobile', 'diferenciado-mobile', 'client-portal', 'settings'],
   active: true
 };
 
@@ -192,6 +193,19 @@ function mapPassador(row: any): Passador {
   };
 }
 
+function mapDiferenciado(row: any): Diferenciado {
+  return {
+    id: row.id,
+    name: row.name,
+    phone: row.phone || undefined,
+    totalPiecesProduced: Number(row.total_pieces_produced || 0),
+    ratePerPiece: Number(row.rate_per_piece !== null && row.rate_per_piece !== undefined ? row.rate_per_piece : 0.50),
+    ratePerPieceAfter17: Number(row.rate_per_piece_after_17 !== null && row.rate_per_piece_after_17 !== undefined ? row.rate_per_piece_after_17 : 0.60),
+    createdAt: row.created_at,
+    active: Boolean(row.active)
+  };
+}
+
 function mapOrder(row: any): Order {
   return {
     id: row.id,
@@ -222,6 +236,9 @@ function mapOrder(row: any): Order {
     status: row.status || 'recebido',
     totalIronedPieces: Number(row.total_ironed_pieces || 0),
     ironingLogs: Array.isArray(row.ironing_logs) ? row.ironing_logs : [],
+    hasDiferenciado: Boolean(row.has_diferenciado),
+    totalDiferenciadoPieces: Number(row.total_diferenciado_pieces || 0),
+    diferenciadoLogs: Array.isArray(row.diferenciado_logs) ? row.diferenciado_logs : [],
     history: Array.isArray(row.history) ? row.history : [],
     notes: row.notes || undefined,
     isRelavado: Boolean(row.is_relavado),
@@ -291,6 +308,8 @@ function mapSettings(row: any): SystemSettings {
     backupTime: row.backup_time || '02:00',
     defaultPassadorRate: Number(row.default_passador_rate !== null && row.default_passador_rate !== undefined ? row.default_passador_rate : 0.15),
     defaultPassadorRateAfter17: Number(row.default_passador_rate_after_17 !== null && row.default_passador_rate_after_17 !== undefined ? row.default_passador_rate_after_17 : 0.20),
+    defaultDiferenciadoRate: Number(row.default_diferenciado_rate !== null && row.default_diferenciado_rate !== undefined ? row.default_diferenciado_rate : 0.50),
+    defaultDiferenciadoRateAfter17: Number(row.default_diferenciado_rate_after_17 !== null && row.default_diferenciado_rate_after_17 !== undefined ? row.default_diferenciado_rate_after_17 : 0.60),
     stalledOrderAlertDays: Number(row.stalled_order_alert_days !== null && row.stalled_order_alert_days !== undefined ? row.stalled_order_alert_days : 3),
     reportRetentionDays: Number(row.report_retention_days !== null && row.report_retention_days !== undefined ? row.report_retention_days : 30),
     licenseKey: row.license_key || process.env.LICENSE_KEY || '',
@@ -426,12 +445,13 @@ async function verifyAdminPassword(password: string): Promise<boolean> {
 
 // Fallback robusto de exportação SQL estruturada caso o binário pg_dump não esteja no ambiente
 async function generateSqlDumpFallback(): Promise<Buffer> {
-  const [users, clients, stock, garments, passadores, orders, suppliers, insumoEntries, receitas, settings] = await Promise.all([
+  const [users, clients, stock, garments, passadores, diferenciados, orders, suppliers, insumoEntries, receitas, settings] = await Promise.all([
     query('SELECT * FROM sysmauad.users'),
     query('SELECT * FROM sysmauad.clients'),
     query('SELECT * FROM sysmauad.stock_items'),
     query('SELECT * FROM sysmauad.garment_catalog'),
     query('SELECT * FROM sysmauad.passadores'),
+    query('SELECT * FROM sysmauad.diferenciados'),
     query('SELECT * FROM sysmauad.orders'),
     query('SELECT * FROM sysmauad.suppliers'),
     query('SELECT * FROM sysmauad.insumo_entries'),
@@ -473,6 +493,7 @@ async function generateSqlDumpFallback(): Promise<Buffer> {
   dumpTable('garment_catalog', garments.rows);
   dumpTable('receitas_lavado', receitas.rows);
   dumpTable('passadores', passadores.rows);
+  dumpTable('diferenciados', diferenciados.rows);
   dumpTable('orders', orders.rows);
 
   return Buffer.from(sql, 'utf-8');
@@ -824,6 +845,19 @@ app.post('/users', async (req: Request, res: Response) => {
       );
     }
 
+    // Se o usuário criado for de produção diferenciada, sincroniza na tabela sysmauad.diferenciados
+    if ((role || 'operador') === 'diferenciado') {
+      await query(
+        `INSERT INTO sysmauad.diferenciados (id, name, phone, total_pieces_produced, rate_per_piece, active)
+         VALUES ($1, $2, $3, 0, 0.50, $4)
+         ON CONFLICT (id) DO UPDATE SET
+           name = EXCLUDED.name,
+           phone = EXCLUDED.phone,
+           active = EXCLUDED.active`,
+        [id, name.trim(), phone ? String(phone).trim() : null, isActive]
+      );
+    }
+
     recordAuditLog({
       level: 'info',
       category: 'users',
@@ -884,6 +918,20 @@ app.put('/users/:id', async (req: Request, res: Response) => {
       await query(
         `INSERT INTO sysmauad.passadores (id, name, phone, total_pieces_ironed, rate_per_piece, active)
          VALUES ($1, $2, $3, 0, 0.15, $4)
+         ON CONFLICT (id) DO UPDATE SET
+           name = EXCLUDED.name,
+           phone = EXCLUDED.phone,
+           active = EXCLUDED.active,
+           updated_at = NOW()`,
+        [id, updatedName, updatedPhone, updatedActive]
+      );
+    }
+
+    // Se o usuário for diferenciado, sincroniza os dados na tabela sysmauad.diferenciados
+    if (updatedRole === 'diferenciado') {
+      await query(
+        `INSERT INTO sysmauad.diferenciados (id, name, phone, total_pieces_produced, rate_per_piece, active)
+         VALUES ($1, $2, $3, 0, 0.50, $4)
          ON CONFLICT (id) DO UPDATE SET
            name = EXCLUDED.name,
            phone = EXCLUDED.phone,
@@ -2109,6 +2157,109 @@ app.delete('/passadores/:id', async (req: Request, res: Response) => {
 });
 
 // ----------------------------------------------------
+// 5.1. DIFERENCIADOS
+// ----------------------------------------------------
+app.get('/diferenciados', async (_req: Request, res: Response) => {
+  try {
+    const result = await query('SELECT * FROM sysmauad.diferenciados ORDER BY name ASC');
+    res.json(result.rows.map(mapDiferenciado));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/diferenciados', async (req: Request, res: Response) => {
+  try {
+    const { id, name, phone, totalPiecesProduced, ratePerPiece, ratePerPieceAfter17, active } = req.body;
+    const dId = id || `dif-${Date.now()}`;
+    const result = await query(
+      `INSERT INTO sysmauad.diferenciados (id, name, phone, total_pieces_produced, rate_per_piece, rate_per_piece_after_17, active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (id) DO UPDATE SET 
+         name = EXCLUDED.name, 
+         phone = EXCLUDED.phone,
+         rate_per_piece = COALESCE(EXCLUDED.rate_per_piece, sysmauad.diferenciados.rate_per_piece),
+         rate_per_piece_after_17 = COALESCE(EXCLUDED.rate_per_piece_after_17, sysmauad.diferenciados.rate_per_piece_after_17)
+       RETURNING *`,
+      [dId, name.trim(), phone || null, Number(totalPiecesProduced || 0), Number(ratePerPiece ?? 0.50), Number(ratePerPieceAfter17 ?? 0.60), active !== undefined ? Boolean(active) : true]
+    );
+    recordAuditLog({
+      level: 'info',
+      category: 'diferenciado',
+      action: 'diferenciado_created',
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string,
+      details: { id: dId, name: name.trim(), ratePerPiece: Number(ratePerPiece ?? 0.50), ratePerPieceAfter17: Number(ratePerPieceAfter17 ?? 0.60) }
+    }).catch(() => {});
+
+    res.status(201).json(mapDiferenciado(result.rows[0]));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/diferenciados/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { name, phone, totalPiecesProduced, ratePerPiece, ratePerPieceAfter17, active } = req.body;
+    const current = await query('SELECT * FROM sysmauad.diferenciados WHERE id = $1', [id]);
+    if (current.rows.length === 0) return res.status(404).json({ error: 'Colaborador do diferenciado não encontrado.' });
+    const row = current.rows[0];
+
+    const result = await query(
+      `UPDATE sysmauad.diferenciados 
+       SET name = $1, phone = $2, total_pieces_produced = $3, rate_per_piece = $4, rate_per_piece_after_17 = $5, active = $6, updated_at = NOW()
+       WHERE id = $7
+       RETURNING *`,
+      [
+        name !== undefined ? name.trim() : row.name,
+        phone !== undefined ? phone : row.phone,
+        totalPiecesProduced !== undefined ? Number(totalPiecesProduced) : row.total_pieces_produced,
+        ratePerPiece !== undefined ? Number(ratePerPiece) : (row.rate_per_piece ?? 0.50),
+        ratePerPieceAfter17 !== undefined ? Number(ratePerPieceAfter17) : (row.rate_per_piece_after_17 ?? 0.60),
+        active !== undefined ? Boolean(active) : row.active,
+        id
+      ]
+    );
+
+    recordAuditLog({
+      level: 'info',
+      category: 'diferenciado',
+      action: 'diferenciado_updated',
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string,
+      details: { id, name: name !== undefined ? name.trim() : row.name, active }
+    }).catch(() => {});
+
+    res.json(mapDiferenciado(result.rows[0]));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/diferenciados/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const current = await query('SELECT name FROM sysmauad.diferenciados WHERE id = $1', [id]);
+    const dName = current.rows[0]?.name || id;
+    await query('DELETE FROM sysmauad.diferenciados WHERE id = $1', [id]);
+
+    recordAuditLog({
+      level: 'warn',
+      category: 'diferenciado',
+      action: 'diferenciado_deleted',
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string,
+      details: { id, name: dName }
+    }).catch(() => {});
+
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------------------
 // 6. PEDIDOS / ORDENS DE SERVIÇO (OS)
 // ----------------------------------------------------
 app.get('/orders', async (_req: Request, res: Response) => {
@@ -2151,14 +2302,16 @@ app.post('/orders', async (req: Request, res: Response) => {
     const corteOs = orderData.corteOs || (Array.isArray(orderData.items) && orderData.items[0]?.corteOs) || null;
     const isRelavado = Boolean(orderData.isRelavado);
     const isADefinir = Boolean(orderData.isADefinir);
+    const hasDiferenciado = Boolean(orderData.hasDiferenciado);
 
     const result = await query(
       `INSERT INTO sysmauad.orders (
          id, os_number, corte_os, client_id, client_name, client_phone, client_address,
          created_at, operator_name, ref_piece_weight_grams, total_weight_kg,
          estimated_piece_count, total_service_value, payment_status, payment_method, discount_amount,
-         items, chemical_recipe, status, total_ironed_pieces, ironing_logs, history, notes, is_relavado, is_a_definir
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
+         items, chemical_recipe, status, total_ironed_pieces, ironing_logs, history, notes, is_relavado, is_a_definir,
+         has_diferenciado, total_diferenciado_pieces, diferenciado_logs
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
        RETURNING *`,
       [
         id,
@@ -2185,7 +2338,10 @@ app.post('/orders', async (req: Request, res: Response) => {
         JSON.stringify(history),
         orderData.notes || null,
         isRelavado,
-        isADefinir
+        isADefinir,
+        hasDiferenciado,
+        0,
+        JSON.stringify([])
       ]
     );
 
@@ -2210,7 +2366,8 @@ app.post('/orders', async (req: Request, res: Response) => {
         estimatedPieceCount: orderData.estimatedPieceCount,
         totalServiceValue: (isRelavado || isADefinir) ? 0 : orderData.totalServiceValue,
         isRelavado,
-        isADefinir
+        isADefinir,
+        hasDiferenciado
       }
     }).catch(() => {});
 
@@ -2231,6 +2388,7 @@ app.put('/orders/:id', async (req: Request, res: Response) => {
     const corteOs = body.corteOs !== undefined ? body.corteOs : row.corte_os;
     const isRelavado = body.isRelavado !== undefined ? Boolean(body.isRelavado) : Boolean(row.is_relavado);
     const isADefinir = body.isADefinir !== undefined ? Boolean(body.isADefinir) : Boolean(row.is_a_definir);
+    const hasDiferenciado = body.hasDiferenciado !== undefined ? Boolean(body.hasDiferenciado) : row.has_diferenciado;
     const status = body.status !== undefined ? body.status : row.status;
     const history = body.history !== undefined ? JSON.stringify(body.history) : (row.history ? JSON.stringify(row.history) : '[]');
 
@@ -2254,8 +2412,9 @@ app.put('/orders/:id', async (req: Request, res: Response) => {
          is_a_definir = $16,
          status = $17,
          history = $18,
+         has_diferenciado = COALESCE($19, has_diferenciado),
          updated_at = NOW()
-       WHERE id = $19
+       WHERE id = $20
        RETURNING *`,
       [
         body.clientId,
@@ -2276,6 +2435,7 @@ app.put('/orders/:id', async (req: Request, res: Response) => {
         isADefinir,
         status,
         history,
+        hasDiferenciado,
         id
       ]
     );
@@ -2609,6 +2769,192 @@ app.put('/orders/:orderId/ironing/:logId', async (req: Request, res: Response) =
     return res.json({
       success: true,
       message: `Lançamento atualizado com sucesso de ${oldPieces} para ${pieces} peças!`,
+      order: mapOrder(updated.rows[0])
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.post('/orders/:id/diferenciado', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { diferenciadoId, diferenciadoName, piecesProduced, count: bodyCount, isAfter17 } = req.body;
+
+    const count = Number(piecesProduced !== undefined ? piecesProduced : (bodyCount || 0));
+    if (count <= 0) return res.status(400).json({ success: false, message: 'Quantidade deve ser maior que zero.' });
+
+    const current = await query('SELECT * FROM sysmauad.orders WHERE id = $1', [id]);
+    if (current.rows.length === 0) return res.status(404).json({ success: false, message: 'Pedido não encontrado.' });
+    const row = current.rows[0];
+
+    const currentProduced = Number(row.total_diferenciado_pieces || 0);
+    const estimated = Number(row.estimated_piece_count || 0);
+    const newTotal = currentProduced + count;
+
+    const isAfter17Flag = Boolean(isAfter17);
+    const logs = Array.isArray(row.diferenciado_logs) ? row.diferenciado_logs : [];
+    const newLog = {
+      id: `log-dif-${Date.now()}`,
+      orderId: id,
+      osNumber: row.os_number,
+      diferenciadoId,
+      diferenciadoName,
+      piecesProduced: count,
+      timestamp: new Date().toISOString(),
+      isAfter17: isAfter17Flag,
+      servicePeriod: isAfter17Flag ? 'after_17' : 'normal'
+    };
+    logs.push(newLog);
+
+    const history = Array.isArray(row.history) ? row.history : [];
+    const periodLabel = isAfter17Flag ? 'Produção Adicional (Extra)' : 'Produção Normal';
+    history.push({
+      timestamp: new Date().toISOString(),
+      status: row.status,
+      operator: diferenciadoName,
+      note: `Diferenciado (${periodLabel}): +${count} peças produzidas (Total: ${newTotal}/${estimated})`
+    });
+
+    const updated = await query(
+      `UPDATE sysmauad.orders SET has_diferenciado = TRUE, total_diferenciado_pieces = $1, diferenciado_logs = $2, history = $3, updated_at = NOW() WHERE id = $4 RETURNING *`,
+      [newTotal, JSON.stringify(logs), JSON.stringify(history), id]
+    );
+
+    // Atualiza estatística do colaborador diferenciado
+    if (diferenciadoId) {
+      await query('UPDATE sysmauad.diferenciados SET total_pieces_produced = total_pieces_produced + $1 WHERE id = $2', [count, diferenciadoId]);
+    }
+
+    const ip = getClientIp(req);
+    recordAuditLog({
+      level: 'info',
+      category: 'orders',
+      action: 'order_diferenciado_produced',
+      userName: diferenciadoName,
+      ipAddress: ip,
+      userAgent: req.headers['user-agent'] as string,
+      details: {
+        orderId: id,
+        osNumber: row.os_number,
+        diferenciadoId,
+        diferenciadoName,
+        piecesProduced: count,
+        isAfter17: isAfter17Flag,
+        totalProduced: newTotal,
+        estimatedPieces: estimated
+      }
+    }).catch(() => {});
+
+    res.json({
+      success: true,
+      message: `Registradas ${count} peças para ${diferenciadoName} (${isAfter17Flag ? 'Produção Adicional (Extra)' : 'Produção Normal'})!`,
+      order: mapOrder(updated.rows[0])
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.put('/orders/:orderId/diferenciado/:logId', async (req: Request, res: Response) => {
+  try {
+    const { orderId, logId } = req.params;
+    const { newPieces, editorRole, editorName, editorId, isAfter17 } = req.body;
+    const pieces = Number(newPieces);
+
+    if (isNaN(pieces) || pieces <= 0) {
+      return res.status(400).json({ success: false, message: 'A quantidade de peças deve ser maior que zero.' });
+    }
+
+    const current = await query('SELECT * FROM sysmauad.orders WHERE id = $1', [orderId]);
+    if (current.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Pedido não encontrado.' });
+    }
+    const row = current.rows[0];
+    const logs = Array.isArray(row.diferenciado_logs) ? row.diferenciado_logs : [];
+    const logIndex = logs.findIndex((l: any) => l.id === logId);
+
+    if (logIndex === -1) {
+      return res.status(404).json({ success: false, message: 'Registro de diferenciado não encontrado.' });
+    }
+
+    const targetLog = logs[logIndex];
+    const isAdmin = editorRole === 'admin' || editorRole === 'super-admin';
+
+    // Validação para perfil Diferenciado
+    if (!isAdmin) {
+      if (targetLog.diferenciadoId && editorId && targetLog.diferenciadoId !== editorId && targetLog.diferenciadoName !== editorName) {
+        return res.status(403).json({ success: false, message: 'Você só pode editar seus próprios lançamentos.' });
+      }
+      if ((targetLog.editCount || 0) >= 1) {
+        return res.status(403).json({
+          success: false,
+          message: 'Você já realizou a edição permitida (1/1) para este lançamento. Para novas alterações, solicite ao Administrador.'
+        });
+      }
+    }
+
+    const oldPieces = Number(targetLog.piecesProduced || 0);
+    const diff = pieces - oldPieces;
+    const currentTotal = Number(row.total_diferenciado_pieces || 0);
+    const newTotalProduced = Math.max(0, currentTotal + diff);
+
+    const updatedIsAfter17 = isAfter17 !== undefined ? Boolean(isAfter17) : Boolean(targetLog.isAfter17);
+
+    logs[logIndex] = {
+      ...targetLog,
+      piecesProduced: pieces,
+      isAfter17: updatedIsAfter17,
+      servicePeriod: updatedIsAfter17 ? 'after_17' : 'normal',
+      editCount: (targetLog.editCount || 0) + 1,
+      lastEditedAt: new Date().toISOString(),
+      lastEditedBy: editorName || (isAdmin ? 'Administrador' : targetLog.diferenciadoName)
+    };
+
+    const history = Array.isArray(row.history) ? row.history : [];
+    history.push({
+      timestamp: new Date().toISOString(),
+      status: row.status,
+      operator: editorName || (isAdmin ? 'Administrador' : targetLog.diferenciadoName),
+      note: `Correção de diferenciado (${targetLog.diferenciadoName}): alterado de ${oldPieces} para ${pieces} pçs (Total: ${newTotalProduced}/${row.estimated_piece_count})`
+    });
+
+    const updated = await query(
+      `UPDATE sysmauad.orders SET total_diferenciado_pieces = $1, diferenciado_logs = $2, history = $3, updated_at = NOW() WHERE id = $4 RETURNING *`,
+      [newTotalProduced, JSON.stringify(logs), JSON.stringify(history), orderId]
+    );
+
+    // Atualiza estatística do colaborador diferenciado
+    if (targetLog.diferenciadoId && diff !== 0) {
+      await query(
+        'UPDATE sysmauad.diferenciados SET total_pieces_produced = GREATEST(0, total_pieces_produced + $1) WHERE id = $2',
+        [diff, targetLog.diferenciadoId]
+      );
+    }
+
+    const ip = getClientIp(req);
+    recordAuditLog({
+      level: 'info',
+      category: 'orders',
+      action: 'order_diferenciado_edited',
+      userName: editorName || (isAdmin ? 'Administrador' : targetLog.diferenciadoName),
+      ipAddress: ip,
+      userAgent: req.headers['user-agent'] as string,
+      details: {
+        orderId,
+        osNumber: row.os_number,
+        logId,
+        diferenciadoName: targetLog.diferenciadoName,
+        oldPieces,
+        newPieces: pieces,
+        diff,
+        editorRole: editorRole || 'diferenciado'
+      }
+    }).catch(() => {});
+
+    return res.json({
+      success: true,
+      message: `Lançamento de diferenciado atualizado de ${oldPieces} para ${pieces} peças!`,
       order: mapOrder(updated.rows[0])
     });
   } catch (err: any) {
@@ -3106,6 +3452,8 @@ app.put('/settings', async (req: Request, res: Response) => {
     const backupTime = body.backupTime !== undefined ? body.backupTime : (row.backup_time || '02:00');
     const defaultPassadorRate = body.defaultPassadorRate !== undefined ? Number(body.defaultPassadorRate) : Number(row.default_passador_rate ?? 0.15);
     const defaultPassadorRateAfter17 = body.defaultPassadorRateAfter17 !== undefined ? Number(body.defaultPassadorRateAfter17) : Number(row.default_passador_rate_after_17 ?? 0.20);
+    const defaultDiferenciadoRate = body.defaultDiferenciadoRate !== undefined ? Number(body.defaultDiferenciadoRate) : Number(row.default_diferenciado_rate ?? 0.50);
+    const defaultDiferenciadoRateAfter17 = body.defaultDiferenciadoRateAfter17 !== undefined ? Number(body.defaultDiferenciadoRateAfter17) : Number(row.default_diferenciado_rate_after_17 ?? 0.60);
     const stalledOrderAlertDays = body.stalledOrderAlertDays !== undefined ? Number(body.stalledOrderAlertDays) : Number(row.stalled_order_alert_days ?? 3);
 
     const result = await query(`
@@ -3116,7 +3464,9 @@ app.put('/settings', async (req: Request, res: Response) => {
         report_header_text, report_footer_text,
         include_financial_values, include_low_stock_alerts, include_operator_breakdown,
         auto_backup_enabled, backup_retention_days, backup_time,
-        default_passador_rate, default_passador_rate_after_17, stalled_order_alert_days,
+        default_passador_rate, default_passador_rate_after_17,
+        default_diferenciado_rate, default_diferenciado_rate_after_17,
+        stalled_order_alert_days,
         updated_at
       ) VALUES (
         'default', 'sysmauad', $1,
@@ -3125,7 +3475,9 @@ app.put('/settings', async (req: Request, res: Response) => {
         $8, $9,
         $10, $11, $12,
         $13, $14, $15,
-        $16, $17, $18,
+        $16, $17,
+        $18, $19,
+        $20,
         NOW()
       ) ON CONFLICT (id) DO UPDATE SET
         whatsapp_target_phone = EXCLUDED.whatsapp_target_phone,
@@ -3145,6 +3497,8 @@ app.put('/settings', async (req: Request, res: Response) => {
         backup_time = EXCLUDED.backup_time,
         default_passador_rate = EXCLUDED.default_passador_rate,
         default_passador_rate_after_17 = EXCLUDED.default_passador_rate_after_17,
+        default_diferenciado_rate = EXCLUDED.default_diferenciado_rate,
+        default_diferenciado_rate_after_17 = EXCLUDED.default_diferenciado_rate_after_17,
         stalled_order_alert_days = EXCLUDED.stalled_order_alert_days,
         updated_at = NOW()
       RETURNING *
@@ -3166,6 +3520,8 @@ app.put('/settings', async (req: Request, res: Response) => {
       backupTime,
       defaultPassadorRate,
       defaultPassadorRateAfter17,
+      defaultDiferenciadoRate,
+      defaultDiferenciadoRateAfter17,
       stalledOrderAlertDays
     ]);
 
