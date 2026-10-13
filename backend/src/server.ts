@@ -3309,6 +3309,149 @@ app.post('/insumo-entries', async (req: Request, res: Response) => {
   }
 });
 
+app.put('/insumo-entries/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+
+    const prevRes = await query('SELECT * FROM sysmauad.insumo_entries WHERE id = $1', [id]);
+    if (prevRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Entrada de insumo não encontrada.' });
+    }
+    const prev = prevRes.rows[0];
+    const prevStockItemId = prev.stock_item_id;
+    const prevQty = Number(prev.quantity || 0);
+
+    const newStockItemId = updateData.stockItemId || prevStockItemId;
+    const newQty = Number(updateData.quantity !== undefined ? updateData.quantity : prevQty);
+    const newUnitPrice = Number(updateData.unitPrice !== undefined ? updateData.unitPrice : prev.unit_price);
+    const newTotalValue = Number(updateData.totalValue !== undefined ? updateData.totalValue : (newQty * newUnitPrice));
+    const newEnteredAt = updateData.enteredAt || prev.entered_at;
+    const newSupplierId = updateData.supplierId !== undefined ? updateData.supplierId : prev.supplier_id;
+    const newSupplierName = updateData.supplierName !== undefined ? updateData.supplierName : prev.supplier_name;
+    const newProductName = updateData.productName !== undefined ? updateData.productName : prev.product_name;
+    const newUnit = updateData.unit || prev.unit;
+    const newOperatorName = updateData.operatorName || prev.operator_name;
+    const newInvoiceRef = updateData.invoiceRef !== undefined ? updateData.invoiceRef : prev.invoice_ref;
+
+    const result = await query(
+      `UPDATE sysmauad.insumo_entries SET
+        stock_item_id = $1,
+        product_name = $2,
+        supplier_id = $3,
+        supplier_name = $4,
+        quantity = $5,
+        unit = $6,
+        unit_price = $7,
+        total_value = $8,
+        entered_at = $9,
+        operator_name = $10,
+        invoice_ref = $11
+      WHERE id = $12
+      RETURNING *`,
+      [
+        newStockItemId,
+        newProductName,
+        newSupplierId,
+        newSupplierName,
+        newQty,
+        newUnit,
+        newUnitPrice,
+        newTotalValue,
+        newEnteredAt,
+        newOperatorName,
+        newInvoiceRef,
+        id
+      ]
+    );
+
+    // Ajuste proporcional no estoque
+    if (prevStockItemId === newStockItemId) {
+      const diff = newQty - prevQty;
+      if (diff !== 0 && newStockItemId) {
+        await query(
+          'UPDATE sysmauad.stock_items SET current_stock = GREATEST(0, current_stock + $1), updated_at = NOW() WHERE id = $2',
+          [diff, newStockItemId]
+        );
+      }
+    } else {
+      if (prevStockItemId && prevQty > 0) {
+        await query(
+          'UPDATE sysmauad.stock_items SET current_stock = GREATEST(0, current_stock - $1), updated_at = NOW() WHERE id = $2',
+          [prevQty, prevStockItemId]
+        );
+      }
+      if (newStockItemId && newQty > 0) {
+        await query(
+          'UPDATE sysmauad.stock_items SET current_stock = current_stock + $1, updated_at = NOW() WHERE id = $2',
+          [newQty, newStockItemId]
+        );
+      }
+    }
+
+    recordAuditLog({
+      level: 'info',
+      category: 'stock',
+      action: 'insumo_entry_updated',
+      userName: newOperatorName,
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string,
+      details: {
+        id,
+        productName: newProductName,
+        oldQuantity: prevQty,
+        newQuantity: newQty,
+        totalValue: newTotalValue
+      }
+    }).catch(() => {});
+
+    res.json(mapInsumoEntry(result.rows[0]));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/insumo-entries/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const prevRes = await query('SELECT * FROM sysmauad.insumo_entries WHERE id = $1', [id]);
+    if (prevRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Entrada de insumo não encontrada.' });
+    }
+    const prev = prevRes.rows[0];
+
+    await query('DELETE FROM sysmauad.insumo_entries WHERE id = $1', [id]);
+
+    // Reverte quantidade no estoque
+    if (prev.stock_item_id && Number(prev.quantity) > 0) {
+      await query(
+        'UPDATE sysmauad.stock_items SET current_stock = GREATEST(0, current_stock - $1), updated_at = NOW() WHERE id = $2',
+        [Number(prev.quantity), prev.stock_item_id]
+      );
+    }
+
+    recordAuditLog({
+      level: 'warn',
+      category: 'stock',
+      action: 'insumo_entry_deleted',
+      userName: (req.query.operatorName as string) || 'Operador',
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string,
+      details: {
+        id,
+        productName: prev.product_name,
+        quantity: prev.quantity,
+        supplierName: prev.supplier_name
+      }
+    }).catch(() => {});
+
+    res.json({ success: true, message: 'Entrada de insumo excluída com sucesso.' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ----------------------------------------------------
 // 9. RECEITAS DE LAVADO
 // ----------------------------------------------------

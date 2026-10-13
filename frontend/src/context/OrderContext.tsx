@@ -87,6 +87,8 @@ interface OrderContextType {
   calculateChemicals: (totalWeightKg: number, processes: string[]) => ChemicalDose[];
   // Insumos & Fornecedores
   addInsumoEntry: (entry: Omit<InsumoEntry, 'id'>) => InsumoEntry;
+  updateInsumoEntry: (id: string, updatedData: Partial<InsumoEntry>) => Promise<{ success: boolean; message: string }>;
+  deleteInsumoEntry: (id: string, operatorName?: string) => Promise<{ success: boolean; message: string }>;
   addSupplier: (supplier: Omit<Supplier, 'id'>) => Supplier;
   // Receitas de Lavado
   addReceitaLavado: (receita: Omit<ReceitaLavado, 'id' | 'createdAt' | 'updatedAt'>) => ReceitaLavado;
@@ -1640,6 +1642,91 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return newEntry;
   };
 
+  const updateInsumoEntry = async (id: string, updatedData: Partial<InsumoEntry>): Promise<{ success: boolean; message: string }> => {
+    try {
+      const target = insumoEntries.find(e => e.id === id);
+      if (!target) return { success: false, message: 'Entrada não encontrada.' };
+
+      const oldStockItemId = target.stockItemId;
+      const oldQty = target.quantity;
+      const newStockItemId = updatedData.stockItemId || oldStockItemId;
+      const newQty = updatedData.quantity !== undefined ? updatedData.quantity : oldQty;
+
+      // Atualiza localmente entradas
+      setInsumoEntries(prev => prev.map(e => e.id === id ? { ...e, ...updatedData } : e));
+
+      // Ajusta estoque localmente
+      if (oldStockItemId === newStockItemId) {
+        const diff = newQty - oldQty;
+        if (diff !== 0) {
+          setStockItems(prev => prev.map(item =>
+            item.id === newStockItemId
+              ? { ...item, currentStock: Math.max(0, Math.round((item.currentStock + diff) * 100) / 100) }
+              : item
+          ));
+        }
+      } else {
+        setStockItems(prev => prev.map(item => {
+          if (item.id === oldStockItemId) {
+            return { ...item, currentStock: Math.max(0, Math.round((item.currentStock - oldQty) * 100) / 100) };
+          }
+          if (item.id === newStockItemId) {
+            return { ...item, currentStock: Math.round((item.currentStock + newQty) * 100) / 100 };
+          }
+          return item;
+        }));
+      }
+
+      const res = await fetch(`/api/insumo-entries/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedData)
+      });
+      if (res.ok) {
+        const saved = await res.json();
+        setInsumoEntries(prev => prev.map(e => e.id === id ? saved : e));
+        return { success: true, message: 'Entrada atualizada com sucesso!' };
+      }
+      const err = await res.json().catch(() => ({}));
+      return { success: false, message: err.error || 'Erro ao atualizar entrada de insumo.' };
+    } catch (err: any) {
+      console.error('[OrderContext] Erro ao atualizar entrada de insumo:', err);
+      return { success: false, message: err.message || 'Erro de conexão ao atualizar entrada.' };
+    }
+  };
+
+  const deleteInsumoEntry = async (id: string, operatorName?: string): Promise<{ success: boolean; message: string }> => {
+    try {
+      const target = insumoEntries.find(e => e.id === id);
+      if (!target) return { success: false, message: 'Entrada não encontrada.' };
+
+      // Reverte estoque localmente
+      if (target.stockItemId && target.quantity > 0) {
+        setStockItems(prev => prev.map(item =>
+          item.id === target.stockItemId
+            ? { ...item, currentStock: Math.max(0, Math.round((item.currentStock - target.quantity) * 100) / 100) }
+            : item
+        ));
+      }
+
+      // Remove da lista local
+      setInsumoEntries(prev => prev.filter(e => e.id !== id));
+
+      const queryParams = operatorName ? `?operatorName=${encodeURIComponent(operatorName)}` : '';
+      const res = await fetch(`/api/insumo-entries/${id}${queryParams}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        return { success: true, message: 'Entrada excluída com sucesso!' };
+      }
+      const err = await res.json().catch(() => ({}));
+      return { success: false, message: err.error || 'Erro ao excluir entrada de insumo.' };
+    } catch (err: any) {
+      console.error('[OrderContext] Erro ao excluir entrada de insumo:', err);
+      return { success: false, message: err.message || 'Erro de conexão ao excluir entrada.' };
+    }
+  };
+
   const addSupplier = (supplier: Omit<Supplier, 'id'>): Supplier => {
     const tempId = `sup-${Date.now()}`;
     const newSupplier: Supplier = { ...supplier, id: tempId };
@@ -1750,6 +1837,8 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       getOrderByOS,
       calculateChemicals,
       addInsumoEntry,
+      updateInsumoEntry,
+      deleteInsumoEntry,
       addSupplier,
       addReceitaLavado,
       updateReceitaLavado,
