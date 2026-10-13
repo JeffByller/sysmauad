@@ -56,3 +56,12 @@ cat /caminho/do/backup.sql | docker exec -i sysmauad-postgres psql -U sysmauad_u
   docker exec sysmauad-nginx nginx -t
   docker exec sysmauad-nginx nginx -s reload
   ```
+
+## 5. Roteamento de Rede Dual-Stack (IPv6 Direto e IPv4 via VPN PPTP)
+
+- **IPv6**: Acesso público direto através da interface física `ens18` (`2804:9f8:478e:e091::/64`).
+- **IPv4**: Servidor atrás de CGNAT com túnel PPTP (`ppp0`) conectado a `138.121.32.68` (`192.168.100.2 <-> 192.168.100.1`).
+  - O tráfego externo IPv4 de portas 80/443 chega pelo `ppp0`.
+  - As respostas do Docker devem retornar pela VPN usando Policy Routing (`fwmark 100` -> tabela de rotas `100`).
+  - O serviço `sysmauad-routing.service` e o script `/etc/ppp/ip-up.d/99-sysmauad-routing` garantem a sincronização contínua das bridges do Docker (`172.18.0.0/16`) com a tabela de rotas `100`.
+
