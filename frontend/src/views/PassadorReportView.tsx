@@ -1230,27 +1230,35 @@ export const PassadorReportView: React.FC = () => {
       </div>
 
       {/* ───────────────────────────────────────────────────────────── */}
-      {/* FOLHA DO RELATÓRIO — FORMATO SIMPLES E IDÊNTICO AO ENTRADA.PDF */}
+      {/* FOLHA DO RELATÓRIO — FORMATO PADRONIZADO SYSMAUAD              */}
       {/* ───────────────────────────────────────────────────────────── */}
-      <div className="bg-white text-slate-900 p-8 rounded-xl border border-slate-300 shadow-md space-y-4 print-sheet text-xs">
-        {/* Cabeçalho do Documento */}
-        <div className="flex justify-between items-start text-xs font-bold leading-tight">
-          <span>LAVANDERIA MAUAD</span>
-          <span className="font-mono">{getReportTitle()}</span>
+      <div className="bg-white text-slate-900 p-8 rounded-xl border border-slate-300 shadow-md space-y-4 print-sheet text-xs font-mono">
+        {/* Cabeçalho de Ponta a Ponta */}
+        <div className="flex justify-between items-baseline font-bold text-xs uppercase pb-1.5 border-b-2 border-slate-900">
+          <span className="text-sm font-black tracking-wider">MAUAD LAVANDERIA</span>
+          <span className="text-sm font-bold tracking-wide">{getReportTitle()}</span>
+          <span className="text-[10px]">PÁGINA: 001</span>
         </div>
 
-        {/* Informações de Emissão */}
-        <div className="flex justify-end text-[11px] pt-1 text-slate-500 font-mono">
-          <span>{new Date().toLocaleDateString('pt-BR', { weekday: 'long' })}, {new Date().toLocaleDateString('pt-BR')} {new Date().toLocaleTimeString('pt-BR')}</span>
+        {/* Linha de Metadados e Emissão */}
+        <div className="flex justify-between items-center py-1 text-[10px]">
+          <div>
+            <span className="font-bold">PERÍODO:</span> {startDate.split('-').reverse().join('/')} a {endDate.split('-').reverse().join('/')}
+          </div>
+          <div className="text-right">
+            <span>{new Date().toLocaleDateString('pt-BR', { weekday: 'long' })}, {new Date().toLocaleDateString('pt-BR')} {new Date().toLocaleTimeString('pt-BR')}</span>
+          </div>
         </div>
 
-        {/* Separador tracejado idêntico ao Entrada.PDF */}
-        <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px]">
-          ------------------------------------------------------------------------------------------------------------------------
+        {/* Divisor com Título Central de 100% de Largura */}
+        <div className="flex items-center gap-2 w-full my-1">
+          <div className="flex-1 border-b border-dashed border-slate-400"></div>
+          <span className="font-bold text-[10px] uppercase text-slate-700 px-1 whitespace-nowrap">PARÂMETROS DO RELATÓRIO</span>
+          <div className="flex-1 border-b border-dashed border-slate-400"></div>
         </div>
 
         {/* Parâmetros do Relatório */}
-        <div className="text-[11px] space-y-0.5">
+        <div className="text-[11px] space-y-0.5 bg-slate-50 p-2.5 rounded border border-slate-200">
           <div><strong>PERÍODO DE APURAÇÃO:</strong> {startDate.split('-').reverse().join('/')} a {endDate.split('-').reverse().join('/')}</div>
           {reportType === 'lavados' && (
             <div><strong>FILTRO OPERACIONAL:</strong> {getStatusFilterLabel(lavadoStatusFilter)}</div>
@@ -1272,10 +1280,7 @@ export const PassadorReportView: React.FC = () => {
           )}
         </div>
 
-        {/* Separador tracejado */}
-        <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px]">
-          ------------------------------------------------------------------------------------------------------------------------
-        </div>
+        <div className="w-full border-b border-dashed border-slate-300 my-1"></div>
 
         {/* ───────────────────────────────────────────────────────────── */}
         {/* CORPO DO RELATÓRIO 1: TUDO QUE É LAVADO (COM PARÂMETROS E FILTROS) */}
@@ -1332,10 +1337,7 @@ export const PassadorReportView: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Separador */}
-                <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px] pt-1">
-                  ------------------------------------------------------------------------------------------------------------------------
-                </div>
+                <div className="w-full border-b border-dashed border-slate-300 my-2"></div>
 
                 {/* 2. SEÇÃO LISTAGEM DETALHADA DE PEDIDOS / LOTES */}
                 <div className="space-y-1.5">
@@ -1378,9 +1380,7 @@ export const PassadorReportView: React.FC = () => {
                   <span>QUANTIDADE</span>
                 </div>
 
-                <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px]">
-                  ------------------------------------------------------------------------------------------------------------------------
-                </div>
+                <div className="w-full border-b border-dashed border-slate-300 my-1"></div>
 
                 {selectedDiferenciado.logs.length === 0 ? (
                   <div className="py-6 text-center text-slate-500">
@@ -1392,9 +1392,7 @@ export const PassadorReportView: React.FC = () => {
                   </div>
                 )}
 
-                <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px] pt-2">
-                  ------------------------------------------------------------------------------------------------------------------------
-                </div>
+                <div className="w-full border-b border-dashed border-slate-300 my-2"></div>
 
                 <div className="space-y-1 pt-1 font-mono text-xs">
                   {selectedDiferenciado.normalPieces > 0 && selectedDiferenciado.after17Pieces > 0 ? (
@@ -1448,9 +1446,7 @@ export const PassadorReportView: React.FC = () => {
                   <span className="col-span-3 text-right">QUANTIDADE</span>
                 </div>
 
-                <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px]">
-                  ------------------------------------------------------------------------------------------------------------------------
-                </div>
+                <div className="w-full border-b border-dashed border-slate-300 my-1"></div>
 
                 {diferenciadoReports.length === 0 ? (
                   <div className="py-6 text-center text-slate-500">
@@ -1505,9 +1501,7 @@ export const PassadorReportView: React.FC = () => {
                   </div>
                 )}
 
-                <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px] pt-2">
-                  ------------------------------------------------------------------------------------------------------------------------
-                </div>
+                <div className="w-full border-b border-dashed border-slate-300 my-2"></div>
 
                 <div className="pt-1 font-mono">
                   {totalDiferenciadoNormalPieces > 0 && totalDiferenciadoAfter17Pieces > 0 ? (
@@ -1556,9 +1550,7 @@ export const PassadorReportView: React.FC = () => {
                   <span>QUANTIDADE</span>
                 </div>
 
-                <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px]">
-                  ------------------------------------------------------------------------------------------------------------------------
-                </div>
+                <div className="w-full border-b border-dashed border-slate-300 my-1"></div>
 
                 {selectedPassador.logs.length === 0 ? (
                   <div className="py-6 text-center text-slate-500">
@@ -1570,9 +1562,7 @@ export const PassadorReportView: React.FC = () => {
                   </div>
                 )}
 
-                <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px] pt-2">
-                  ------------------------------------------------------------------------------------------------------------------------
-                </div>
+                <div className="w-full border-b border-dashed border-slate-300 my-2"></div>
 
                 <div className="space-y-1 pt-1 font-mono text-xs">
                   {selectedPassador.normalPieces > 0 && selectedPassador.after17Pieces > 0 ? (
@@ -1626,9 +1616,7 @@ export const PassadorReportView: React.FC = () => {
                   <span className="col-span-3 text-right">QUANTIDADE</span>
                 </div>
 
-                <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px]">
-                  ------------------------------------------------------------------------------------------------------------------------
-                </div>
+                <div className="w-full border-b border-dashed border-slate-300 my-1"></div>
 
                 {passadorReports.length === 0 ? (
                   <div className="py-6 text-center text-slate-500">
@@ -1683,9 +1671,7 @@ export const PassadorReportView: React.FC = () => {
                   </div>
                 )}
 
-                <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px] pt-2">
-                  ------------------------------------------------------------------------------------------------------------------------
-                </div>
+                <div className="w-full border-b border-dashed border-slate-300 my-2"></div>
 
                 <div className="pt-1 font-mono">
                   {totalNormalPieces > 0 && totalAfter17Pieces > 0 ? (
@@ -1737,9 +1723,7 @@ export const PassadorReportView: React.FC = () => {
               <span className={selectedSupplier ? 'col-span-2 text-right' : 'col-span-1 text-right'}>TOTAL</span>
             </div>
 
-            <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px]">
-              ------------------------------------------------------------------------------------------------------------------------
-            </div>
+            <div className="w-full border-b border-dashed border-slate-300 my-1"></div>
 
             {displayedInsumos.length === 0 ? (
               <div className="py-6 text-center text-slate-500">
@@ -1751,9 +1735,7 @@ export const PassadorReportView: React.FC = () => {
               </div>
             )}
 
-            <div className="text-slate-400 select-none overflow-hidden whitespace-nowrap text-[11px] pt-2">
-              ------------------------------------------------------------------------------------------------------------------------
-            </div>
+            <div className="w-full border-b border-dashed border-slate-300 my-2"></div>
 
             <div className="flex justify-between font-bold text-sm pt-1">
               <span>{selectedSupplier ? 'Total de Entradas:' : 'Total a Pagar Fornecedores:'}</span>

@@ -244,7 +244,7 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
 
           {order.isRelavado && (
             <div className="bg-purple-100 text-purple-900 border border-purple-400 font-bold text-center py-1.5 text-xs uppercase tracking-wider">
-              *** ENTRADA EM RELAVADO - SEM COBRANÇA (R$ 0,00) ***
+              *** ENTRADA EM RELAVADO ***
             </div>
           )}
 
@@ -283,7 +283,7 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
               </div>
               <div className="flex justify-between">
                 <span className="font-bold">TIPO ENTRADA:</span>
-                <span className="uppercase font-semibold">{order.isRelavado ? 'RELAVADO (R$ 0,00)' : 'PRODUÇÃO NORMAL'}</span>
+                <span className="uppercase font-semibold">{order.isRelavado ? 'RELAVADO' : 'PRODUÇÃO NORMAL'}</span>
               </div>
             </div>
           </div>
@@ -397,15 +397,31 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
             <span className="text-[10px]">PÁGINA: 001</span>
           </div>
 
-          {/* Linha do Funcionário e Data/Hora de Impressão */}
-          <div className="flex justify-between text-[11px] py-0.5">
-            <span><strong>OPERADOR:</strong> {order.operatorName?.toUpperCase() || 'GILMÁRIO'}</span>
-            <span><strong>EMISSÃO:</strong> {weekdayFormatted}, {dateShort} {timeFormatted}</span>
+          {/* Destaque Central da O.S. e Metadados Laterais */}
+          <div className="flex justify-between items-center py-1">
+            <div className="text-[10px] text-left space-y-0.5">
+              <div><span className="font-bold">ENTRADA:</span> {dateShort}</div>
+              <div><span className="font-bold">OPERADOR:</span> {order.operatorName?.toUpperCase() || 'GILMÁRIO'}</div>
+            </div>
+
+            <div className="text-center">
+              <div className="text-2xl font-black tracking-widest font-mono text-slate-900">
+                {pureOsNumber}
+              </div>
+              <div className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">
+                ORDEM DE SERVIÇO
+              </div>
+            </div>
+
+            <div className="text-[10px] text-right space-y-0.5">
+              <div>{weekdayFormatted}</div>
+              <div>{dateShort} {timeFormatted}</div>
+            </div>
           </div>
 
           {order.isRelavado && (
             <div className="bg-purple-100 text-purple-900 border border-purple-400 font-bold text-center py-1.5 text-xs uppercase tracking-wider">
-              *** LOTE EM PROCESSO DE RELAVADO - SEM COBRANÇA (R$ 0,00) ***
+              *** LOTE EM PROCESSO DE RELAVADO ***
             </div>
           )}
 
@@ -421,13 +437,15 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
             {/* Coluna 1: Identificação do Pedido e Cliente */}
             <div className="col-span-4 space-y-1">
               <div>
-                <span className="font-bold text-slate-600 block text-[9px] uppercase">NÚMERO DA O.S.</span>
-                <span className="font-black text-sm font-mono text-slate-900">O.S. {pureOsNumber}</span>
-              </div>
-              <div>
                 <span className="font-bold text-slate-600 block text-[9px] uppercase">CLIENTE</span>
                 <span className="font-bold uppercase text-slate-900 truncate block" title={clientNameSafe}>
                   {clientNameSafe}
+                </span>
+              </div>
+              <div>
+                <span className="font-bold text-slate-600 block text-[9px] uppercase">ENDEREÇO</span>
+                <span className="uppercase text-slate-800 text-[10px] block truncate">
+                  {order.clientAddress || 'NÃO INFORMADO'}
                 </span>
               </div>
               <div>
@@ -607,14 +625,14 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
       )}
 
       {/* ───────────────────────────────────────────────────────────── */}
-      {/* 3. COMPROVANTE DE SAÍDA / FATURAMENTO                         */}
+      {/* 3. COMPROVANTE DE SAÍDA / RETIRADA / ENTREGA                   */}
       {/* ───────────────────────────────────────────────────────────── */}
       {printMode === 'saida' && (
         <div className="bg-white text-slate-900 p-6 sm:p-8 rounded-xl border border-slate-300 shadow-md space-y-3 font-mono text-[11px] leading-tight print-sheet print:border-0 print:shadow-none print:rounded-none w-full">
-          {/* Cabeçalho */}
+          {/* Cabeçalho de Ponta a Ponta */}
           <div className="flex justify-between items-baseline font-bold text-xs uppercase pb-1.5 border-b-2 border-slate-900">
             <span className="text-sm font-black tracking-wider">MAUAD LAVANDERIA</span>
-            <span className="text-sm font-bold tracking-wide">COMPROVANTE DE SAÍDA / FATURAMENTO</span>
+            <span className="text-sm font-bold tracking-wide">COMPROVANTE DE SAÍDA</span>
             <span className="text-[10px]">PÁGINA: 001</span>
           </div>
 
@@ -627,10 +645,10 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
 
             <div className="text-center">
               <div className="text-2xl font-black tracking-widest font-mono text-slate-900">
-                O.S. {pureOsNumber}
+                {pureOsNumber}
               </div>
               <div className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">
-                FECHAMENTO DE NOTA
+                ORDEM DE SERVIÇO
               </div>
             </div>
 
@@ -642,18 +660,18 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
 
           {order.isRelavado && (
             <div className="bg-purple-100 text-purple-900 border border-purple-400 font-bold text-center py-1.5 text-xs uppercase tracking-wider">
-              *** SAÍDA EM RELAVADO - SEM COBRANÇA (R$ 0,00) ***
+              *** SAÍDA EM RELAVADO ***
             </div>
           )}
 
           {/* Divisor com Título Central de 100% de Largura */}
           <div className="flex items-center gap-2 w-full my-1">
             <div className="flex-1 border-b border-dashed border-slate-400"></div>
-            <span className="font-bold text-[10px] uppercase text-slate-700 px-1 whitespace-nowrap">DADOS DO CLIENTE & FATURAMENTO</span>
+            <span className="font-bold text-[10px] uppercase text-slate-700 px-1 whitespace-nowrap">DADOS DO CLIENTE & EXPEDIÇÃO</span>
             <div className="flex-1 border-b border-dashed border-slate-400"></div>
           </div>
 
-          {/* Dados do Cliente em 2 Colunas */}
+          {/* Dados do Cliente Distribuídos em 2 Colunas */}
           <div className="grid grid-cols-12 gap-4 text-[11px] py-0.5">
             <div className="col-span-7 space-y-1">
               <div className="flex">
@@ -671,36 +689,18 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
             </div>
 
             <div className="col-span-5 space-y-1 pl-3 border-l border-slate-200">
-              {(order.corteOs || primaryCorteOs) && (
-                <div className="flex justify-between">
-                  <span className="font-bold">CORTE / REF:</span>
-                  <span className="font-mono font-bold uppercase">{order.corteOs || primaryCorteOs}</span>
-                </div>
-              )}
               <div className="flex justify-between">
-                <span className="font-bold">DATA DE EMISSÃO:</span>
-                <span className="font-mono">{dateShort}</span>
+                <span className="font-bold">CORTE / REF:</span>
+                <span className="font-mono font-bold uppercase">{order.corteOs || primaryCorteOs || '-'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="font-bold">SITUAÇÃO DO PAGAMENTO:</span>
-                <span className="font-bold uppercase">{order.paymentStatus === 'pago' ? 'PAGO / QUITADO' : 'EM ABERTO'}</span>
+                <span className="font-bold">STATUS ATUAL:</span>
+                <span className="uppercase font-semibold">{order.status.toUpperCase()}</span>
               </div>
-              {order.paymentStatus === 'pago' && (
-                <>
-                  <div className="flex justify-between">
-                    <span className="font-bold">QUEM RECEBEU:</span>
-                    <span className="font-mono font-bold uppercase text-slate-900">
-                      {order.receiverName || order.paidByOperator || 'MAUAD LAVANDERIA'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="font-bold">FORMA DE PAGAMENTO:</span>
-                    <span className="font-mono uppercase font-bold">
-                      {(order.paymentMethod || 'QUITADO').toUpperCase()}
-                    </span>
-                  </div>
-                </>
-              )}
+              <div className="flex justify-between">
+                <span className="font-bold">TIPO SAÍDA:</span>
+                <span className="uppercase font-semibold">{order.isRelavado ? 'RELAVADO' : 'PRODUÇÃO NORMAL'}</span>
+              </div>
             </div>
           </div>
 
@@ -713,159 +713,86 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
           {/* Divisor com Título Central de 100% de Largura */}
           <div className="flex items-center gap-2 w-full my-1">
             <div className="flex-1 border-b border-dashed border-slate-400"></div>
-            <span className="font-bold text-[10px] uppercase text-slate-700 px-1 whitespace-nowrap">DETALHAMENTO DE VALORES POR TIPO DE SERVIÇO</span>
+            <span className="font-bold text-[10px] uppercase text-slate-700 px-1 whitespace-nowrap">DISCRIMINAÇÃO DOS ITENS & PROCESSOS ENTREGUES</span>
             <div className="flex-1 border-b border-dashed border-slate-400"></div>
           </div>
 
-          {/* Seção Exata do Layout Esperado pelo Usuário com Largura Total */}
-          <div className="p-4 bg-slate-50 border border-slate-300 rounded space-y-2 text-xs w-full">
-            <div className="font-bold text-[11px] uppercase tracking-wider text-slate-800 pb-1.5 border-b border-slate-300 flex justify-between">
-              <span>DISCRIMINAÇÃO DOS SERVIÇOS:</span>
-              <span>VALOR UNITÁRIO (POR PEÇA)</span>
+          {/* Tabela de Itens Aproveitando 100% da Largura da Folha (Sem Valores Financeiros) */}
+          <div className="w-full">
+            <table className="w-full text-left border-collapse text-[11px]">
+              <thead>
+                <tr className="border-b-2 border-slate-900 text-[10px] uppercase font-bold text-slate-800">
+                  <th className="py-1 px-1 text-left w-[36%]">LAVADO / PROCESSO</th>
+                  <th className="py-1 px-1 text-left w-[24%]">ROUPA / PEÇA</th>
+                  <th className="py-1 px-1 text-center w-[16%]">CORTE / O.S.</th>
+                  <th className="py-1 px-1 text-center w-[12%]">TIPO</th>
+                  <th className="py-1 px-1 text-right w-[12%]">QUANTIDADE</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {(order.items || []).map((item, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50/50">
+                    <td className="py-1.5 px-1 font-bold uppercase text-slate-900">
+                      {item.process}
+                    </td>
+                    <td className="py-1.5 px-1 uppercase text-slate-800">
+                      {item.clothingType}
+                    </td>
+                    <td className="py-1.5 px-1 text-center font-mono uppercase text-slate-700">
+                      {item.corteOs || order.corteOs || '-'}
+                    </td>
+                    <td className="py-1.5 px-1 text-center uppercase text-[10px] text-slate-600">
+                      {item.serviceType === 'diferenciado' ? 'DIFERENCIADO' : 'LAVADO'}
+                    </td>
+                    <td className="py-1.5 px-1 text-right font-mono font-bold text-slate-900 text-xs">
+                      {item.quantity || totalPiecesSafe} pçs
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Divisor de 100% de Largura */}
+          <div className="w-full border-b-2 border-slate-900 my-1"></div>
+
+          {/* Totais Operacionais de Carga: Peças e Peso Balança */}
+          <div className="flex justify-between items-center py-2 px-3 bg-slate-50 border border-slate-300 rounded font-bold text-xs">
+            <div className="flex items-center gap-6">
+              <div>
+                <span className="text-slate-600 text-[11px] uppercase mr-2">QTD TOTAL PEÇAS:</span>
+                <span className="font-mono text-base text-slate-900">{totalPiecesSafe}</span>
+                <span className="text-[10px] text-slate-500 ml-1">peças</span>
+              </div>
+              <div className="text-[11px] text-slate-500 font-normal">
+                Ref. Unitária: <span className="font-mono font-bold text-slate-800">{order.refPieceWeightGrams || (totalPiecesSafe > 0 ? Math.round((totalWeightSafe * 1000) / totalPiecesSafe) : 0)}g / pç</span>
+              </div>
             </div>
 
-            <div className="space-y-1.5 pt-1 font-mono">
-              {order.items.map((item, idx) => (
-                <div key={idx} className="flex justify-between items-center py-1 border-b border-dashed border-slate-200">
-                  <div className="flex items-center gap-2">
-                    <span className="font-black text-slate-900 uppercase">
-                      {item.process || 'Serviço'}:
-                    </span>
-                    <span className="text-[10px] text-slate-500 uppercase">
-                      ({item.clothingType || 'Peça'})
-                    </span>
-                  </div>
-                  <span className="font-bold font-mono text-slate-900 text-sm">
-                    {order.isRelavado 
-                      ? 'R$ 0,00' 
-                      : (item.unitPrice || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            {/* Somatório Total da Nota (Unitário Combinado) */}
-            <div className="border-t-2 border-slate-900 pt-2 flex justify-between items-center text-sm font-black">
-              <span className="uppercase text-slate-900 text-sm tracking-wide">Total da Nota (Unitário Combinado):</span>
+            <div className="text-right">
+              <span className="text-slate-600 text-[11px] uppercase mr-2">PESO TOTAL BALANÇA:</span>
               <span className="font-mono text-base text-slate-900">
-                {order.isRelavado
-                  ? 'R$ 0,00'
-                  : (order.items.reduce((acc, it) => acc + (it.unitPrice || 0), 0)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                {totalWeightSafe.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
               </span>
+              <span className="text-xs text-slate-900 ml-1">Kg</span>
             </div>
           </div>
 
-          {/* Divisor com Título Central de 100% de Largura */}
-          <div className="flex items-center gap-2 w-full my-1">
-            <div className="flex-1 border-b border-dashed border-slate-400"></div>
-            <span className="font-bold text-[10px] uppercase text-slate-700 px-1 whitespace-nowrap">RESUMO CONSOLIDADO DO FATURAMENTO</span>
-            <div className="flex-1 border-b border-dashed border-slate-400"></div>
+          {/* Declaração de Retirada / Recebimento */}
+          <div className="p-2 bg-slate-50 border border-slate-200 rounded text-[10px] text-center font-semibold text-slate-800 uppercase tracking-tight">
+            DECLARO QUE O PEDIDO ACIMA FOI CONFERIDO E RETIRADO/ENTREGUE EM PERFEITAS CONDIÇÕES.
           </div>
 
-          {/* Resumo com Quantitativo e Total Faturado */}
-          <div className="grid grid-cols-12 gap-4 text-xs py-1 px-3 bg-slate-50 border border-slate-300 rounded font-bold">
-            <div className="col-span-6 space-y-1">
-              <div className="flex justify-between">
-                <span className="text-slate-600 font-normal">QUANTIDADE TOTAL:</span>
-                <span className="font-mono text-slate-900">{totalPiecesSafe} peças</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-600 font-normal">PESO TOTAL DO LOTE:</span>
-                <span className="font-mono text-slate-900">
-                  {totalWeightSafe.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} Kg
-                </span>
-              </div>
-            </div>
-
-            <div className="col-span-6 space-y-1 pl-3 border-l border-slate-300">
-              <div className="flex justify-between items-baseline">
-                <span className="text-slate-600 font-normal">VALOR TOTAL DO LOTE:</span>
-                <span className="font-mono text-base text-slate-900 font-black">
-                  {order.isRelavado ? 'R$ 0,00' : (order.totalServiceValue || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-600 font-normal">PAGAMENTO:</span>
-                <span className="uppercase text-slate-900">{order.paymentStatus === 'pago' ? 'PAGO / QUITADO' : 'EM ABERTO'}</span>
-              </div>
-              {order.paymentStatus === 'pago' && (
-                <>
-                  <div className="flex justify-between text-[11px]">
-                    <span className="text-slate-600 font-normal">RECEBIDO POR:</span>
-                    <span className="font-mono uppercase text-emerald-800 font-bold">
-                      {order.receiverName || order.paidByOperator || 'MAUAD LAVANDERIA'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-[11px]">
-                    <span className="text-slate-600 font-normal">FORMA DE PAGTO:</span>
-                    <span className="font-mono uppercase text-slate-800 font-bold">
-                      {(order.paymentMethod || 'QUITADO').toUpperCase()}
-                    </span>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Bloco de Comprovante de Quitação com Quem Recebeu */}
-          {order.paymentStatus === 'pago' && (
-            <div className="p-3 bg-emerald-50/70 border border-emerald-500 rounded text-xs space-y-1">
-              <div className="flex justify-between font-bold text-emerald-950 border-b border-emerald-300 pb-1">
-                <span className="uppercase tracking-wider">RECIBO DE QUITAÇÃO & PAGAMENTO</span>
-                <span>STATUS: QUITADO / PAGO</span>
-              </div>
-              <div className="grid grid-cols-2 gap-3 pt-1 text-[11px]">
-                <div>
-                  <span className="text-slate-600 block">QUEM RECEBEU O PAGAMENTO:</span>
-                  <strong className="text-slate-900 uppercase text-xs">
-                    {order.receiverName || order.paidByOperator || 'MAUAD LAVANDERIA'}
-                  </strong>
-                  <span className="block text-slate-500 text-[10px] mt-0.5">
-                    Operador / Registro: {order.paidByOperator || 'Sistema'}
-                  </span>
-                </div>
-                <div className="space-y-0.5">
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Forma Utilizada:</span>
-                    <strong className="uppercase font-mono">{(order.paymentMethod || 'QUITADO').toUpperCase()}</strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Data da Quitação:</span>
-                    <strong className="font-mono">
-                      {order.paidAt ? new Date(order.paidAt).toLocaleDateString('pt-BR') : dateShort}
-                      {order.paidAt ? ` às ${new Date(order.paidAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : ''}
-                    </strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Valor Efetivo Quitado:</span>
-                    <strong className="font-mono text-emerald-800">
-                      {(order.finalPaidAmount || order.totalServiceValue || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                    </strong>
-                  </div>
-                  {order.paymentNotes && (
-                    <div className="text-[10px] text-slate-600 italic pt-0.5">
-                      <strong>Obs:</strong> {order.paymentNotes}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Rodapé com Assinaturas */}
+          {/* Rodapé: Assinaturas e QR Code Integrados em 3 Colunas de Ponta a Ponta */}
           <div className="pt-8 grid grid-cols-12 items-end gap-4 text-center font-mono text-[10px] uppercase">
             <div className="col-span-5">
               <div className="border-b border-black w-4/5 mx-auto mb-1"></div>
-              <div className="font-bold">
-                {order.paymentStatus === 'pago' && order.receiverName
-                  ? `RECEBIDO POR: ${order.receiverName.toUpperCase()}`
-                  : 'MAUAD LAVANDERIA (RESPONSÁVEL)'}
-              </div>
+              <div className="font-bold">ENTREGUE POR (LAVANDERIA MAUAD)</div>
             </div>
 
             <div className="col-span-5">
               <div className="border-b border-black w-4/5 mx-auto mb-1"></div>
-              <div className="font-bold">CLIENTE / SACADO / RESPONSÁVEL</div>
+              <div className="font-bold">RETIRADO / RECEBIDO POR (CLIENTE / MOTORISTA)</div>
             </div>
 
             <div className="col-span-2 flex flex-col items-end justify-center text-[9px] text-slate-600">
@@ -882,159 +809,20 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
       {/* 4. RELATÓRIO DE PASSADORIA — CONTROLE MANUAL DE CHÃO DE FÁBRICA*/}
       {/* ───────────────────────────────────────────────────────────── */}
       {printMode === 'passadoria' && (
-        <div className="bg-white text-slate-900 p-6 sm:p-8 rounded-xl border border-slate-300 shadow-md space-y-4 font-mono text-[11px] leading-tight print-sheet print:border-0 print:shadow-none print:rounded-none w-full">
+        <div className="bg-white text-slate-900 p-6 sm:p-8 rounded-xl border border-slate-300 shadow-md space-y-3 font-mono text-[11px] leading-tight print-sheet print:border-0 print:shadow-none print:rounded-none w-full">
           
-          {/* Cabeçalho */}
+          {/* Cabeçalho de Ponta a Ponta */}
           <div className="flex justify-between items-baseline font-bold text-xs uppercase pb-1.5 border-b-2 border-slate-900">
             <span className="text-sm font-black tracking-wider">MAUAD LAVANDERIA</span>
             <span className="text-sm font-bold tracking-wide">CONTROLE DE PASSADORIA</span>
             <span className="text-[10px]">PÁGINA: 001</span>
           </div>
 
-          {/* Destaque Central da O.S. e Metadados */}
-          <div className="flex justify-between items-center py-1">
-            <div className="text-[10px] text-left space-y-0.5">
-              <div><span className="font-bold">DATA DE EMISSÃO:</span> {dateShort}</div>
-              <div><span className="font-bold">OPERADOR DA LAVAGEM:</span> {order.operatorName?.toUpperCase() || 'GILMÁRIO'}</div>
-            </div>
-
-            <div className="text-center bg-slate-100 border border-slate-400 px-4 py-1.5 rounded">
-              <span className="text-[9px] block font-bold text-slate-600 uppercase">ORDEM DE SERVIÇO</span>
-              <span className="text-xl font-black font-mono tracking-wider text-slate-900">Nº {pureOsNumber}</span>
-            </div>
-
-            <div className="text-[10px] text-right space-y-0.5">
-              <div><span className="font-bold">DIA DA SEMANA:</span> {weekdayFormatted}</div>
-              <div><span className="font-bold">HORÁRIO:</span> {timeFormatted}</div>
-            </div>
-          </div>
-
-          {/* Dados Simplificados do Cliente e Pedido */}
-          <div className="border border-slate-900 rounded p-2.5 bg-slate-50 space-y-1">
-            <div className="flex justify-between border-b border-dashed border-slate-300 pb-1">
-              <span><strong className="text-slate-900">CLIENTE / CONFECÇÃO:</strong> {clientNameSafe}</span>
-              {primaryCorteOs && (
-                <span><strong className="text-slate-900">CORTE / REF:</strong> {primaryCorteOs.toUpperCase()}</span>
-              )}
-            </div>
-            
-            <div className="grid grid-cols-12 gap-2 text-[10px] pt-0.5">
-              <div className="col-span-6">
-                <strong>TIPO DE ROUPA / PEÇA:</strong> {primaryRoupa}
-              </div>
-              <div className="col-span-6">
-                <strong>PROCESSO / LAVADO:</strong> {primaryLavado}
-              </div>
-              <div className="col-span-6">
-                <strong>QTD ESTIMADA DO LOTE:</strong> <span className="font-black text-xs">{totalPiecesSafe} PEÇAS</span>
-              </div>
-              <div className="col-span-6">
-                <strong>PESO TOTAL DO LOTE:</strong> {totalWeightSafe.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} KG
-              </div>
-            </div>
-
-            {order.notes && (
-              <div className="border-t border-dashed border-slate-300 pt-1 text-[10px]">
-                <strong>OBSERVAÇÕES:</strong> {order.notes}
-              </div>
-            )}
-          </div>
-
-          {/* Divisor com Título Central */}
-          <div className="flex items-center gap-2 w-full my-2">
-            <div className="flex-1 border-b border-dashed border-slate-400"></div>
-            <span className="font-bold text-xs uppercase text-slate-900 px-2 tracking-wide">
-              REGISTRO MANUAL DE PASSAGEM DE PEÇAS
-            </span>
-            <div className="flex-1 border-b border-dashed border-slate-400"></div>
-          </div>
-
-          {/* Tabela de Passadores Ativos */}
-          <div className="border-2 border-slate-900 rounded overflow-hidden">
-            <table className="w-full text-left border-collapse font-mono text-xs">
-              <thead>
-                <tr className="bg-slate-900 text-white uppercase text-[10px] tracking-wider">
-                  <th className="p-2 border-r border-slate-700 w-3/5">NOME DO PASSADOR(A)</th>
-                  <th className="p-2 w-2/5 text-center">QTD PASSADA (PÇS)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y border-slate-900">
-                {activePassadoresList.length > 0 ? (
-                  activePassadoresList.map((p) => (
-                    <tr key={p.id} className="h-12 border-b border-slate-300">
-                      <td className="p-2 font-bold uppercase text-slate-900 border-r border-slate-300 align-middle">
-                        {p.name}
-                      </td>
-                      <td className="p-2 align-middle text-center">
-                        <div className="w-32 h-8 border border-slate-400 mx-auto rounded flex items-center justify-end px-2 bg-slate-50 text-slate-400 text-[10px]">
-                          [ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ] pçs
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={2} className="p-4 text-center text-slate-500 italic">
-                      Nenhum passador ativo cadastrado no sistema.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Resumo Final de Conferência Manual */}
-          <div className="border border-slate-400 rounded p-3 bg-slate-50 grid grid-cols-12 gap-4 items-center">
-            <div className="col-span-7 space-y-1">
-              <div className="font-bold text-xs text-slate-900 uppercase">SOMA TOTAL PROCESSADA NO LOTE</div>
-              <p className="text-[10px] text-slate-600 leading-snug">
-                Cada passador deve anotar acima a quantidade exata de peças passadas por ele neste lote de O.S. Nº {pureOsNumber}.
-              </p>
-            </div>
-            <div className="col-span-5 text-right font-bold border-l border-slate-300 pl-3">
-              <span className="text-[10px] block text-slate-600">TOTAL GERAL DECLARADO:</span>
-              <div className="inline-block border-2 border-slate-900 rounded px-4 py-1.5 mt-0.5 bg-white text-base font-black">
-                [ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ] PEÇAS
-              </div>
-            </div>
-          </div>
-
-          {/* Rodapé com QR Code */}
-          <div className="pt-4 flex justify-between items-end font-mono text-[10px] uppercase">
-            <div className="text-slate-500 text-[9px]">
-              Documento interno de controle de produção • MAUAD LAVANDERIA
-            </div>
-
-            <div className="flex flex-col items-end justify-center text-[9px] text-slate-600">
-              <div className="p-0.5 border border-black bg-white inline-block mb-0.5">
-                <QRCodeSVG value={order.osNumber || pureOsNumber} size={42} />
-              </div>
-              <span className="font-mono font-bold tracking-tight">O.S. {pureOsNumber}</span>
-            </div>
-          </div>
-
-        </div>
-      )}
-
-      {/* ───────────────────────────────────────────────────────────── */}
-      {/* 5. RELATÓRIO DE DIFERENCIADO — CONTROLE MANUAL DE CHÃO DE FÁBRICA*/}
-      {/* ───────────────────────────────────────────────────────────── */}
-      {printMode === 'diferenciado' && (
-        <div className="bg-white text-slate-900 p-6 sm:p-8 rounded-xl border border-slate-300 shadow-md space-y-4 font-mono text-[11px] leading-tight print-sheet print:border-0 print:shadow-none print:rounded-none w-full">
-          
-          {/* Cabeçalho */}
-          <div className="flex justify-between items-baseline font-bold text-xs uppercase pb-1.5 border-b-2 border-slate-900">
-            <span className="text-sm font-black tracking-wider">MAUAD LAVANDERIA</span>
-            <span className="text-sm font-bold tracking-wide">CONTROLE DE PRODUÇÃO DIFERENCIADA</span>
-            <span className="text-[10px]">PÁGINA: 001</span>
-          </div>
-
-          {/* Destaque Central da O.S. e Metadados */}
+          {/* Destaque Central da O.S. e Metadados Laterais */}
           <div className="flex justify-between items-center py-1">
             <div className="text-[10px] text-left space-y-0.5">
               <div><span className="font-bold">ENTRADA:</span> {dateShort}</div>
-              <div><span className="font-bold">CLIENTE:</span> {clientNameSafe}</div>
-              <div><span className="font-bold">LOTE:</span> {pureOsNumber}</div>
+              <div><span className="font-bold">OPERADOR:</span> {order.operatorName?.toUpperCase() || 'GILMÁRIO'}</div>
             </div>
 
             <div className="text-center">
@@ -1049,81 +837,278 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
             <div className="text-[10px] text-right space-y-0.5">
               <div>{weekdayFormatted}</div>
               <div>{dateShort} {timeFormatted}</div>
-              <div><span className="font-bold">CORTE / REF:</span> {order.corteOs || primaryCorteOs || '-'}</div>
             </div>
           </div>
 
-          {/* Informações Operacionais da Peça e Quantidade Total */}
-          <div className="border-2 border-slate-900 rounded p-3 bg-slate-50 space-y-2">
-            <div className="grid grid-cols-12 gap-2 text-xs">
-              <div className="col-span-8 flex items-center gap-1.5">
-                <span className="font-bold text-slate-700">TIPO DE PEÇA:</span>
-                <span className="font-black text-slate-900 uppercase">
-                  {order.items && order.items.length > 0 ? order.items.map(it => it.clothingType).filter(Boolean).join(', ') : 'PEÇAS GERAIS'}
-                </span>
-              </div>
-              <div className="col-span-4 text-right">
-                <span className="font-bold text-slate-700">TOTAL ESTIMADO:</span>{' '}
-                <strong className="text-sm font-black text-slate-900">{totalPiecesSafe} PÇS</strong>
-              </div>
+          {order.isRelavado && (
+            <div className="bg-purple-100 text-purple-900 border border-purple-400 font-bold text-center py-1.5 text-xs uppercase tracking-wider">
+              *** LOTE EM PROCESSO DE RELAVADO ***
             </div>
+          )}
 
-            <div className="grid grid-cols-12 gap-2 text-xs pt-1 border-t border-slate-200">
-              <div className="col-span-8 flex items-center gap-1.5">
-                <span className="font-bold text-slate-700">SERVIÇOS DIFERENCIADOS:</span>
-                <span className="font-bold text-slate-900 uppercase">
-                  {order.items && order.items.filter(it => it.serviceType === 'diferenciado').length > 0
-                    ? order.items.filter(it => it.serviceType === 'diferenciado').map(it => it.process).join(', ')
-                    : 'DESTROYED / BIGODE / PISTOLADO / RESINAGEM'}
-                </span>
-              </div>
-              <div className="col-span-4 text-right text-[10px] text-slate-500">
-                PESO TOTAL: {order.totalWeightKg ? `${order.totalWeightKg.toFixed(2)} KG` : '-'}
-              </div>
-            </div>
-
-            {order.notes && (
-              <div className="border-t border-dashed border-slate-300 pt-1 text-[10px]">
-                <strong>OBSERVAÇÕES:</strong> {order.notes}
-              </div>
-            )}
-          </div>
-
-          {/* Divisor com Título Central */}
-          <div className="flex items-center gap-2 w-full my-2">
+          {/* Divisor com Título Central de 100% de Largura */}
+          <div className="flex items-center gap-2 w-full my-1">
             <div className="flex-1 border-b border-dashed border-slate-400"></div>
-            <span className="font-bold text-xs uppercase text-slate-900 px-2 tracking-wide">
-              REGISTRO MANUAL DE PRODUÇÃO DIFERENCIADA
-            </span>
+            <span className="font-bold text-[10px] uppercase text-slate-700 px-1 whitespace-nowrap">DADOS DO CLIENTE & PEDIDO</span>
             <div className="flex-1 border-b border-dashed border-slate-400"></div>
           </div>
 
-          {/* Tabela de Colaboradores Ativos de Diferenciado */}
-          <div className="border-2 border-slate-900 rounded overflow-hidden">
-            <table className="w-full text-left border-collapse font-mono text-xs">
+          {/* Dados do Cliente Distribuídos em 2 Colunas */}
+          <div className="grid grid-cols-12 gap-4 text-[11px] py-0.5">
+            <div className="col-span-7 space-y-1">
+              <div className="flex">
+                <span className="font-bold w-24 shrink-0">CLIENTE:</span>
+                <span className="font-bold uppercase text-slate-900">{clientNameSafe}</span>
+              </div>
+              <div className="flex">
+                <span className="font-bold w-24 shrink-0">ENDEREÇO:</span>
+                <span className="uppercase">{order.clientAddress || 'NÃO INFORMADO'}</span>
+              </div>
+              <div className="flex">
+                <span className="font-bold w-24 shrink-0">TELEFONE:</span>
+                <span>{order.clientPhone || 'NÃO INFORMADO'}</span>
+              </div>
+            </div>
+
+            <div className="col-span-5 space-y-1 pl-3 border-l border-slate-200">
+              <div className="flex justify-between">
+                <span className="font-bold">CORTE / REF:</span>
+                <span className="font-mono font-bold uppercase">{order.corteOs || primaryCorteOs || '-'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-bold">TIPO DE PEÇA:</span>
+                <span className="uppercase font-semibold">{primaryRoupa}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-bold">PROCESSO:</span>
+                <span className="uppercase font-semibold">{primaryLavado}</span>
+              </div>
+            </div>
+          </div>
+
+          {order.notes && (
+            <div className="p-1.5 bg-slate-50 border border-slate-200 rounded text-[10px]">
+              <span className="font-bold">OBSERVAÇÕES:</span> {order.notes}
+            </div>
+          )}
+
+          {/* Divisor com Título Central de 100% de Largura */}
+          <div className="flex items-center gap-2 w-full my-1">
+            <div className="flex-1 border-b border-dashed border-slate-400"></div>
+            <span className="font-bold text-[10px] uppercase text-slate-700 px-1 whitespace-nowrap">REGISTRO MANUAL DE PASSAGEM DE PEÇAS</span>
+            <div className="flex-1 border-b border-dashed border-slate-400"></div>
+          </div>
+
+          {/* Tabela de Passadores Ativos */}
+          <div className="w-full">
+            <table className="w-full text-left border-collapse text-[11px]">
               <thead>
-                <tr className="bg-slate-900 text-white uppercase text-[10px] tracking-wider">
-                  <th className="p-2 border-r border-slate-700 w-3/5">NOME DO COLABORADOR(A)</th>
-                  <th className="p-2 w-2/5 text-center">QTD PRODUZIDA (PÇS)</th>
+                <tr className="border-b-2 border-slate-900 text-[10px] uppercase font-bold text-slate-800">
+                  <th className="py-1 px-1 text-left w-3/5">NOME DO PASSADOR(A)</th>
+                  <th className="py-1 px-1 text-center w-2/5">QUANTIDADE PASSADA</th>
                 </tr>
               </thead>
-              <tbody className="divide-y border-slate-900">
-                {activeDiferenciadosList.length > 0 ? (
-                  activeDiferenciadosList.map((p) => (
-                    <tr key={p.id} className="h-12 border-b border-slate-300">
-                      <td className="p-2 font-bold uppercase text-slate-900 border-r border-slate-300 align-middle">
+              <tbody className="divide-y divide-slate-200">
+                {activePassadoresList.length > 0 ? (
+                  activePassadoresList.map((p) => (
+                    <tr key={p.id} className="h-10 hover:bg-slate-50/50">
+                      <td className="py-2 px-1 font-bold uppercase text-slate-900 align-middle">
                         {p.name}
                       </td>
-                      <td className="p-2 align-middle text-center">
-                        <div className="w-32 h-8 border border-slate-400 mx-auto rounded flex items-center justify-end px-2 bg-slate-50 text-slate-400 text-[10px]">
-                          [ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ] pçs
+                      <td className="py-2 px-1 align-middle text-center">
+                        <div className="w-32 h-7 border border-slate-300 mx-auto rounded flex items-center justify-end px-2 bg-slate-50 text-slate-400 text-[10px] font-mono">
+                          [ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ] pçs
                         </div>
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={2} className="p-4 text-center text-slate-500 italic">
+                    <td colSpan={2} className="py-4 text-center text-slate-500 italic">
+                      Nenhum passador ativo cadastrado no sistema.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Divisor de 100% de Largura */}
+          <div className="w-full border-b-2 border-slate-900 my-1"></div>
+
+          {/* Totais: Ocupando as Duas Laterais com Equilíbrio Perfeito */}
+          <div className="flex justify-between items-center py-2 px-3 bg-slate-50 border border-slate-300 rounded font-bold text-xs">
+            <div className="flex items-center gap-6">
+              <div>
+                <span className="text-slate-600 text-[11px] uppercase mr-2">QTD ESTIMADA DO LOTE:</span>
+                <span className="font-mono text-base text-slate-900">{totalPiecesSafe}</span>
+                <span className="text-[10px] text-slate-500 ml-1">peças</span>
+              </div>
+              <div>
+                <span className="text-slate-600 text-[11px] uppercase mr-2">PESO TOTAL:</span>
+                <span className="font-mono text-slate-900">
+                  {totalWeightSafe.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+                </span>
+                <span className="text-xs text-slate-900 ml-1">Kg</span>
+              </div>
+            </div>
+
+            <div className="text-right">
+              <span className="text-slate-600 text-[11px] uppercase mr-2">TOTAL DECLARADO:</span>
+              <span className="font-mono text-base text-slate-900">
+                [ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ]
+              </span>
+              <span className="text-xs text-slate-900 ml-1">PEÇAS</span>
+            </div>
+          </div>
+
+          {/* Rodapé: Assinaturas e QR Code Integrados em 3 Colunas de Ponta a Ponta */}
+          <div className="pt-8 grid grid-cols-12 items-end gap-4 text-center font-mono text-[10px] uppercase">
+            <div className="col-span-5">
+              <div className="border-b border-black w-4/5 mx-auto mb-1"></div>
+              <div className="font-bold">CONFERIDO POR (PASSADORIA)</div>
+            </div>
+
+            <div className="col-span-5">
+              <div className="border-b border-black w-4/5 mx-auto mb-1"></div>
+              <div className="font-bold">SUPERVISOR DE PRODUÇÃO</div>
+            </div>
+
+            <div className="col-span-2 flex flex-col items-end justify-center text-[9px] text-slate-600">
+              <div className="p-0.5 border border-black bg-white inline-block mb-0.5">
+                <QRCodeSVG value={order.osNumber || pureOsNumber} size={42} />
+              </div>
+              <span className="font-mono font-bold tracking-tight">O.S. {pureOsNumber}</span>
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* 5. RELATÓRIO DE DIFERENCIADO — CONTROLE MANUAL DE CHÃO DE FÁBRICA*/}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {printMode === 'diferenciado' && (
+        <div className="bg-white text-slate-900 p-6 sm:p-8 rounded-xl border border-slate-300 shadow-md space-y-3 font-mono text-[11px] leading-tight print-sheet print:border-0 print:shadow-none print:rounded-none w-full">
+          
+          {/* Cabeçalho de Ponta a Ponta */}
+          <div className="flex justify-between items-baseline font-bold text-xs uppercase pb-1.5 border-b-2 border-slate-900">
+            <span className="text-sm font-black tracking-wider">MAUAD LAVANDERIA</span>
+            <span className="text-sm font-bold tracking-wide">CONTROLE DE PRODUÇÃO DIFERENCIADA</span>
+            <span className="text-[10px]">PÁGINA: 001</span>
+          </div>
+
+          {/* Destaque Central da O.S. e Metadados Laterais */}
+          <div className="flex justify-between items-center py-1">
+            <div className="text-[10px] text-left space-y-0.5">
+              <div><span className="font-bold">ENTRADA:</span> {dateShort}</div>
+              <div><span className="font-bold">OPERADOR:</span> {order.operatorName?.toUpperCase() || 'OPERADOR'}</div>
+            </div>
+
+            <div className="text-center">
+              <div className="text-2xl font-black tracking-widest font-mono text-slate-900">
+                {pureOsNumber}
+              </div>
+              <div className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">
+                ORDEM DE SERVIÇO
+              </div>
+            </div>
+
+            <div className="text-[10px] text-right space-y-0.5">
+              <div>{weekdayFormatted}</div>
+              <div>{dateShort} {timeFormatted}</div>
+            </div>
+          </div>
+
+          {order.isRelavado && (
+            <div className="bg-purple-100 text-purple-900 border border-purple-400 font-bold text-center py-1.5 text-xs uppercase tracking-wider">
+              *** LOTE EM PROCESSO DE RELAVADO ***
+            </div>
+          )}
+
+          {/* Divisor com Título Central de 100% de Largura */}
+          <div className="flex items-center gap-2 w-full my-1">
+            <div className="flex-1 border-b border-dashed border-slate-400"></div>
+            <span className="font-bold text-[10px] uppercase text-slate-700 px-1 whitespace-nowrap">DADOS DO CLIENTE & PEDIDO</span>
+            <div className="flex-1 border-b border-dashed border-slate-400"></div>
+          </div>
+
+          {/* Dados do Cliente Distribuídos em 2 Colunas */}
+          <div className="grid grid-cols-12 gap-4 text-[11px] py-0.5">
+            <div className="col-span-7 space-y-1">
+              <div className="flex">
+                <span className="font-bold w-24 shrink-0">CLIENTE:</span>
+                <span className="font-bold uppercase text-slate-900">{clientNameSafe}</span>
+              </div>
+              <div className="flex">
+                <span className="font-bold w-24 shrink-0">ENDEREÇO:</span>
+                <span className="uppercase">{order.clientAddress || 'NÃO INFORMADO'}</span>
+              </div>
+              <div className="flex">
+                <span className="font-bold w-24 shrink-0">TELEFONE:</span>
+                <span>{order.clientPhone || 'NÃO INFORMADO'}</span>
+              </div>
+            </div>
+
+            <div className="col-span-5 space-y-1 pl-3 border-l border-slate-200">
+              <div className="flex justify-between">
+                <span className="font-bold">CORTE / REF:</span>
+                <span className="font-mono font-bold uppercase">{order.corteOs || primaryCorteOs || '-'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-bold">TIPO DE PEÇA:</span>
+                <span className="uppercase font-semibold truncate block max-w-[180px]" title={order.items && order.items.length > 0 ? order.items.map(it => it.clothingType).filter(Boolean).join(', ') : 'PEÇAS GERAIS'}>
+                  {order.items && order.items.length > 0 ? order.items.map(it => it.clothingType).filter(Boolean).join(', ') : 'PEÇAS GERAIS'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-bold">PROCESSO:</span>
+                <span className="uppercase font-semibold truncate block max-w-[180px]" title={order.items && order.items.filter(it => it.serviceType === 'diferenciado').length > 0 ? order.items.filter(it => it.serviceType === 'diferenciado').map(it => it.process).join(', ') : 'DIFERENCIADO'}>
+                  {order.items && order.items.filter(it => it.serviceType === 'diferenciado').length > 0 ? order.items.filter(it => it.serviceType === 'diferenciado').map(it => it.process).join(', ') : 'DIFERENCIADO'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {order.notes && (
+            <div className="p-1.5 bg-slate-50 border border-slate-200 rounded text-[10px]">
+              <span className="font-bold">OBSERVAÇÕES:</span> {order.notes}
+            </div>
+          )}
+
+          {/* Divisor com Título Central de 100% de Largura */}
+          <div className="flex items-center gap-2 w-full my-1">
+            <div className="flex-1 border-b border-dashed border-slate-400"></div>
+            <span className="font-bold text-[10px] uppercase text-slate-700 px-1 whitespace-nowrap">REGISTRO MANUAL DE PRODUÇÃO DIFERENCIADA</span>
+            <div className="flex-1 border-b border-dashed border-slate-400"></div>
+          </div>
+
+          {/* Tabela de Colaboradores Ativos de Diferenciado */}
+          <div className="w-full">
+            <table className="w-full text-left border-collapse text-[11px]">
+              <thead>
+                <tr className="border-b-2 border-slate-900 text-[10px] uppercase font-bold text-slate-800">
+                  <th className="py-1 px-1 text-left w-3/5">NOME DO COLABORADOR(A)</th>
+                  <th className="py-1 px-1 text-center w-2/5">QUANTIDADE PRODUZIDA</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {activeDiferenciadosList.length > 0 ? (
+                  activeDiferenciadosList.map((p) => (
+                    <tr key={p.id} className="h-10 hover:bg-slate-50/50">
+                      <td className="py-2 px-1 font-bold uppercase text-slate-900 align-middle">
+                        {p.name}
+                      </td>
+                      <td className="py-2 px-1 align-middle text-center">
+                        <div className="w-32 h-7 border border-slate-300 mx-auto rounded flex items-center justify-end px-2 bg-slate-50 text-slate-400 text-[10px] font-mono">
+                          [ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ] pçs
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={2} className="py-4 text-center text-slate-500 italic">
                       Nenhum colaborador ativo cadastrado para produção diferenciada.
                     </td>
                   </tr>
@@ -1132,29 +1117,48 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
             </table>
           </div>
 
-          {/* Resumo Final de Conferência Manual */}
-          <div className="border border-slate-400 rounded p-3 bg-slate-50 grid grid-cols-12 gap-4 items-center">
-            <div className="col-span-7 space-y-1">
-              <div className="font-bold text-xs text-slate-900 uppercase">SOMA TOTAL PROCESSADA NO LOTE</div>
-              <p className="text-[10px] text-slate-600 leading-snug">
-                Cada operador deve anotar acima a quantidade exata de peças produzidas por ele neste lote de O.S. Nº {pureOsNumber}.
-              </p>
-            </div>
-            <div className="col-span-5 text-right font-bold border-l border-slate-300 pl-3">
-              <span className="text-[10px] block text-slate-600">TOTAL GERAL DECLARADO:</span>
-              <div className="inline-block border-2 border-slate-900 rounded px-4 py-1.5 mt-0.5 bg-white text-base font-black">
-                [ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ] PEÇAS
+          {/* Divisor de 100% de Largura */}
+          <div className="w-full border-b-2 border-slate-900 my-1"></div>
+
+          {/* Totais: Ocupando as Duas Laterais com Equilíbrio Perfeito */}
+          <div className="flex justify-between items-center py-2 px-3 bg-slate-50 border border-slate-300 rounded font-bold text-xs">
+            <div className="flex items-center gap-6">
+              <div>
+                <span className="text-slate-600 text-[11px] uppercase mr-2">QTD ESTIMADA DO LOTE:</span>
+                <span className="font-mono text-base text-slate-900">{totalPiecesSafe}</span>
+                <span className="text-[10px] text-slate-500 ml-1">peças</span>
               </div>
+              <div>
+                <span className="text-slate-600 text-[11px] uppercase mr-2">PESO TOTAL:</span>
+                <span className="font-mono text-slate-900">
+                  {totalWeightSafe.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+                </span>
+                <span className="text-xs text-slate-900 ml-1">Kg</span>
+              </div>
+            </div>
+
+            <div className="text-right">
+              <span className="text-slate-600 text-[11px] uppercase mr-2">TOTAL DECLARADO:</span>
+              <span className="font-mono text-base text-slate-900">
+                [ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ]
+              </span>
+              <span className="text-xs text-slate-900 ml-1">PEÇAS</span>
             </div>
           </div>
 
-          {/* Rodapé com QR Code */}
-          <div className="pt-4 flex justify-between items-end font-mono text-[10px] uppercase">
-            <div className="text-slate-500 text-[9px]">
-              Documento interno de controle de produção • MAUAD LAVANDERIA
+          {/* Rodapé: Assinaturas e QR Code Integrados em 3 Colunas de Ponta a Ponta */}
+          <div className="pt-8 grid grid-cols-12 items-end gap-4 text-center font-mono text-[10px] uppercase">
+            <div className="col-span-5">
+              <div className="border-b border-black w-4/5 mx-auto mb-1"></div>
+              <div className="font-bold">CONFERIDO POR (DIFERENCIADO)</div>
             </div>
 
-            <div className="flex flex-col items-end justify-center text-[9px] text-slate-600">
+            <div className="col-span-5">
+              <div className="border-b border-black w-4/5 mx-auto mb-1"></div>
+              <div className="font-bold">SUPERVISOR DE PRODUÇÃO</div>
+            </div>
+
+            <div className="col-span-2 flex flex-col items-end justify-center text-[9px] text-slate-600">
               <div className="p-0.5 border border-black bg-white inline-block mb-0.5">
                 <QRCodeSVG value={order.osNumber || pureOsNumber} size={42} />
               </div>

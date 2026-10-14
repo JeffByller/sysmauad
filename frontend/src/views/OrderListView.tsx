@@ -834,7 +834,7 @@ export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
                   <PackageCheck className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-900 dark:text-slate-100 text-base">Conferência de Saída & Fechamento</h3>
+                  <h3 className="font-bold text-slate-900 dark:text-slate-100 text-base">Conferência de Saída</h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">O.S. {closingSaidaOrder.osNumber} • {closingSaidaOrder.clientName}</p>
                 </div>
               </div>
@@ -860,46 +860,39 @@ export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
                 </div>
               </div>
 
-              {/* Detalhamento de Valores por Tipo de Serviço */}
+              {/* Discriminação dos Itens & Processos da Carga */}
               <div className="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2.5 font-mono">
                 <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-1.5">
                   <span className="font-bold text-[11px] text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                    Discriminação dos Serviços:
+                    Itens & Processos a Liberar:
                   </span>
-                  <span className="text-[10px] text-slate-400 uppercase font-sans">Valor Unitário</span>
+                  <span className="text-[10px] text-slate-400 uppercase font-sans">Quantidade</span>
                 </div>
 
                 <div className="space-y-1.5 text-xs">
                   {closingSaidaOrder.items.map((item, idx) => (
                     <div key={idx} className="flex justify-between items-center py-0.5">
-                      <span className="font-semibold text-slate-800 dark:text-slate-200 uppercase">
-                        {item.process || 'Serviço'}:
-                      </span>
-                      <strong className="text-slate-900 dark:text-slate-100 text-sm">
-                        {closingSaidaOrder.isRelavado
-                          ? 'R$ 0,00'
-                          : (item.unitPrice || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-semibold text-slate-800 dark:text-slate-200 uppercase">
+                          {item.process || 'Serviço'}
+                        </span>
+                        <span className="text-[10px] text-slate-500 uppercase">
+                          ({item.clothingType || 'Peça'})
+                        </span>
+                      </div>
+                      <strong className="text-slate-900 dark:text-slate-100 text-sm font-mono">
+                        {item.quantity || closingSaidaOrder.estimatedPieceCount} pçs
                       </strong>
                     </div>
                   ))}
                 </div>
 
-                {/* Total da Nota (Unitário) */}
-                <div className="border-t-2 border-slate-900 dark:border-slate-200 pt-2 flex justify-between items-center text-sm font-black">
-                  <span className="uppercase text-slate-900 dark:text-slate-100">Total da Nota:</span>
-                  <strong className="text-sky-700 dark:text-sky-400 text-base">
-                    {closingSaidaOrder.isRelavado
-                      ? 'R$ 0,00'
-                      : (closingSaidaOrder.items.reduce((acc, it) => acc + (it.unitPrice || 0), 0)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                  </strong>
-                </div>
-
-                {/* Total Geral do Lote Faturado */}
-                <div className="border-t border-dashed border-slate-300 dark:border-slate-700 pt-2 flex justify-between items-center text-xs">
-                  <span className="text-slate-600 dark:text-slate-400">Total Faturado ({closingSaidaOrder.estimatedPieceCount} pçs):</span>
-                  <strong className="text-base font-black text-emerald-700 dark:text-emerald-400">
-                    {closingSaidaOrder.isRelavado ? 'R$ 0,00 (Isento)' : (closingSaidaOrder.totalServiceValue || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                  </strong>
+                {/* Resumo da Liberação Operacional */}
+                <div className="border-t-2 border-slate-900 dark:border-slate-200 pt-2 flex justify-between items-center text-xs font-semibold">
+                  <span className="uppercase text-slate-700 dark:text-slate-300">Status Operacional:</span>
+                  <span className="uppercase font-bold text-indigo-700 dark:text-indigo-400">
+                    Pronto para Expedição / Retirada
+                  </span>
                 </div>
               </div>
 
