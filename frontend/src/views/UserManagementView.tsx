@@ -29,6 +29,23 @@ export const UserManagementView: React.FC = () => {
     return usersList.slice(start, start + 20);
   }, [usersList, currentPage]);
 
+  // Helper: Menus padrão de cada perfil
+  const getDefaultMenusForRole = (r: 'admin' | 'financeiro' | 'operador' | 'passador' | 'diferenciado'): string[] => {
+    switch (r) {
+      case 'admin':
+        return ALL_MENU_KEYS.map(m => m.id);
+      case 'financeiro':
+        return ['dashboard', 'orders', 'clients', 'finance', 'passador-report'];
+      case 'passador':
+        return ['passador-mobile'];
+      case 'diferenciado':
+        return ['diferenciado-mobile'];
+      case 'operador':
+      default:
+        return ['dashboard', 'orders', 'stock', 'garment-catalog', 'clients'];
+    }
+  };
+
   // Editing User Details State
   const [editingUser, setEditingUser] = useState<SystemUser | null>(null);
   const [editName, setEditName] = useState('');
@@ -36,6 +53,7 @@ export const UserManagementView: React.FC = () => {
   const [editPhone, setEditPhone] = useState('');
   const [editPassword, setEditPassword] = useState('');
   const [editRole, setEditRole] = useState<'admin' | 'financeiro' | 'operador' | 'passador' | 'diferenciado'>('operador');
+  const [editAllowedMenus, setEditAllowedMenus] = useState<string[]>([]);
 
   // New User Form State
   const [name, setName] = useState('');
@@ -44,7 +62,7 @@ export const UserManagementView: React.FC = () => {
   const [phone, setPhone] = useState('');
   const [role, setRole] = useState<'admin' | 'financeiro' | 'operador' | 'passador' | 'diferenciado'>('operador');
   const [newAllowedMenus, setNewAllowedMenus] = useState<string[]>([
-    'dashboard', 'orders', 'stock', 'clients', 'garment-catalog'
+    'dashboard', 'orders', 'stock', 'garment-catalog', 'clients'
   ]);
   const [feedback, setFeedback] = useState<string | null>(null);
 
@@ -67,7 +85,29 @@ export const UserManagementView: React.FC = () => {
     setEditUsername(targetUser.username);
     setEditPhone(targetUser.phone || '');
     setEditRole(targetUser.role);
+    setEditAllowedMenus(
+      targetUser.role === 'admin'
+        ? ALL_MENU_KEYS.map(m => m.id)
+        : [...(targetUser.allowedMenus || getDefaultMenusForRole(targetUser.role))]
+    );
     setEditPassword('');
+  };
+
+  const handleEditRoleChange = (newRole: 'admin' | 'financeiro' | 'operador' | 'passador' | 'diferenciado') => {
+    setEditRole(newRole);
+    setEditAllowedMenus(getDefaultMenusForRole(newRole));
+  };
+
+  const toggleEditMenuPerm = (menuId: string) => {
+    setEditAllowedMenus(prev => {
+      const next = prev.includes(menuId) ? prev.filter(m => m !== menuId) : [...prev, menuId];
+      if (next.length === ALL_MENU_KEYS.length) {
+        setEditRole('admin');
+      } else if (editRole === 'admin') {
+        setEditRole('operador');
+      }
+      return next;
+    });
   };
 
   const handleSaveEditUser = async (e: React.FormEvent) => {
@@ -79,6 +119,11 @@ export const UserManagementView: React.FC = () => {
       return;
     }
 
+    if (editAllowedMenus.length === 0) {
+      alert('Selecione pelo menos 1 menu permitido para o usuário.');
+      return;
+    }
+
     const cleanUsername = editUsername
       .trim()
       .toLowerCase()
@@ -87,11 +132,14 @@ export const UserManagementView: React.FC = () => {
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/\s+/g, '.');
 
+    const finalRole = editAllowedMenus.length === ALL_MENU_KEYS.length ? 'admin' : editRole;
+
     await updateUser(editingUser.id, {
       name: editName.trim(),
       username: cleanUsername,
       phone: editPhone.trim() || undefined,
-      role: editRole,
+      role: finalRole,
+      allowedMenus: finalRole === 'admin' ? ALL_MENU_KEYS.map(m => m.id) : editAllowedMenus,
       password: editPassword.trim() || undefined
     });
 
@@ -119,22 +167,16 @@ export const UserManagementView: React.FC = () => {
 
   const handleRoleChange = (newRole: 'admin' | 'financeiro' | 'operador' | 'passador' | 'diferenciado') => {
     setRole(newRole);
-    if (newRole === 'passador') {
-      setNewAllowedMenus(['passador-mobile']);
-    } else if (newRole === 'diferenciado') {
-      setNewAllowedMenus(['diferenciado-mobile']);
-    } else if (newRole === 'admin') {
-      setNewAllowedMenus(ALL_MENU_KEYS.map(m => m.id));
-    } else if (newRole === 'financeiro') {
-      setNewAllowedMenus(['dashboard', 'orders', 'finance']);
-    } else {
-      setNewAllowedMenus(['dashboard', 'orders', 'stock', 'clients', 'garment-catalog']);
-    }
+    setNewAllowedMenus(getDefaultMenusForRole(newRole));
   };
 
   const handleOpenEditPermissions = (targetUser: SystemUser) => {
     setEditingPermissionsUser(targetUser);
-    setTempAllowedMenus([...targetUser.allowedMenus]);
+    setTempAllowedMenus(
+      targetUser.role === 'admin'
+        ? ALL_MENU_KEYS.map(m => m.id)
+        : [...targetUser.allowedMenus]
+    );
   };
 
   const handleToggleMenuInTemp = (menuId: string) => {
@@ -147,7 +189,22 @@ export const UserManagementView: React.FC = () => {
     e.preventDefault();
     if (!editingPermissionsUser) return;
 
-    await updateUserPermissions(editingPermissionsUser.id, tempAllowedMenus);
+    if (tempAllowedMenus.length === 0) {
+      alert('Selecione pelo menos 1 menu permitido.');
+      return;
+    }
+
+    const isAllSelected = tempAllowedMenus.length === ALL_MENU_KEYS.length;
+    const nextRole = isAllSelected
+      ? 'admin'
+      : editingPermissionsUser.role === 'admin'
+        ? 'operador'
+        : editingPermissionsUser.role;
+
+    await updateUser(editingPermissionsUser.id, {
+      role: nextRole,
+      allowedMenus: tempAllowedMenus
+    });
     setFeedback(`Permissões do usuário "${editingPermissionsUser.name}" atualizadas com sucesso!`);
     setEditingPermissionsUser(null);
     setTimeout(() => setFeedback(null), 4000);
@@ -161,6 +218,11 @@ export const UserManagementView: React.FC = () => {
       return;
     }
 
+    if (newAllowedMenus.length === 0) {
+      alert('Selecione pelo menos 1 menu permitido para o usuário.');
+      return;
+    }
+
     const cleanUsername = username
       .trim()
       .toLowerCase()
@@ -169,13 +231,15 @@ export const UserManagementView: React.FC = () => {
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/\s+/g, '.');
 
+    const finalRole = newAllowedMenus.length === ALL_MENU_KEYS.length ? 'admin' : role;
+
     const created = await addUser({
       name: name.trim(),
       username: cleanUsername,
       password: password.trim(),
       phone: phone.trim() || undefined,
-      role,
-      allowedMenus: newAllowedMenus,
+      role: finalRole,
+      allowedMenus: finalRole === 'admin' ? ALL_MENU_KEYS.map(m => m.id) : newAllowedMenus,
       active: true
     });
 
@@ -184,6 +248,8 @@ export const UserManagementView: React.FC = () => {
     setUsername('');
     setPassword('');
     setPhone('');
+    setRole('operador');
+    setNewAllowedMenus(getDefaultMenusForRole('operador'));
     setIsAddingUser(false);
     setTimeout(() => setFeedback(null), 4000);
   };
@@ -200,9 +266,15 @@ export const UserManagementView: React.FC = () => {
   };
 
   const toggleNewMenuPerm = (menuId: string) => {
-    setNewAllowedMenus(prev =>
-      prev.includes(menuId) ? prev.filter(m => m !== menuId) : [...prev, menuId]
-    );
+    setNewAllowedMenus(prev => {
+      const next = prev.includes(menuId) ? prev.filter(m => m !== menuId) : [...prev, menuId];
+      if (next.length === ALL_MENU_KEYS.length) {
+        setRole('admin');
+      } else if (role === 'admin') {
+        setRole('operador');
+      }
+      return next;
+    });
   };
 
   return (
@@ -325,16 +397,25 @@ export const UserManagementView: React.FC = () => {
                   <option value="financeiro">Financeiro</option>
                   <option value="passador">Passador</option>
                   <option value="diferenciado">Diferenciado</option>
-                  {isSuperAdmin && <option value="admin">Administrador</option>}
+                  <option value="admin">Administrador</option>
                 </select>
               </div>
             </div>
 
             {/* Menu Permission Checkboxes */}
             <div className="pt-2">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-2">
-                Menus Permitidos:
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  Menus Permitidos (padrão do perfil + extras):
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setNewAllowedMenus(getDefaultMenusForRole(role))}
+                  className="text-[11px] font-semibold text-sky-600 dark:text-sky-400 hover:underline"
+                >
+                  Restaurar padrão do perfil
+                </button>
+              </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 bg-slate-50 dark:bg-slate-800/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
                 {ALL_MENU_KEYS.map(menu => (
                   <label key={menu.id} className="flex items-center gap-2 text-xs text-slate-800 dark:text-slate-200 cursor-pointer">
@@ -611,9 +692,18 @@ export const UserManagementView: React.FC = () => {
 
             <form onSubmit={handleSavePermissions} className="p-6 space-y-5">
               <div className="space-y-3">
-                <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
-                  Selecione os menus permitidos:
-                </span>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                    Selecione os menus permitidos:
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setTempAllowedMenus(getDefaultMenusForRole(editingPermissionsUser.role))}
+                    className="text-[11px] font-semibold text-sky-600 dark:text-sky-400 hover:underline"
+                  >
+                    Restaurar padrão do perfil
+                  </button>
+                </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-80 overflow-y-auto p-1">
                   {ALL_MENU_KEYS.map(m => {
@@ -664,20 +754,20 @@ export const UserManagementView: React.FC = () => {
       {/* Modal: Edit User Details */}
       {editingUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-lg w-full overflow-hidden transition-colors">
-            <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-xl w-full overflow-hidden transition-colors flex flex-col max-h-[90vh]">
+            <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-sky-500/20 text-sky-400 rounded-xl">
                   <Edit3 className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="font-bold text-base text-white">Editar Usuário</h3>
-                  <p className="text-xs text-slate-400 font-mono">ID: {editingUser.id}</p>
+                  <p className="text-xs text-slate-400 font-mono">@{editingUser.username}</p>
                 </div>
               </div>
             </div>
 
-            <form onSubmit={handleSaveEditUser} className="p-6 space-y-4">
+            <form onSubmit={handleSaveEditUser} className="p-6 space-y-4 overflow-y-auto flex-1">
               <div>
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1">
                   Nome Completo *
@@ -725,25 +815,43 @@ export const UserManagementView: React.FC = () => {
                 </label>
                 <select
                   value={editRole}
-                  onChange={e => setEditRole(e.target.value as any)}
+                  onChange={e => handleEditRoleChange(e.target.value as any)}
                   className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
                 >
                   <option value="operador">Operador</option>
                   <option value="financeiro">Financeiro</option>
                   <option value="passador">Passador</option>
                   <option value="diferenciado">Diferenciado</option>
-                  {isSuperAdmin && <option value="admin">Administrador</option>}
+                  <option value="admin">Administrador</option>
                 </select>
-                {editRole === 'passador' && (
-                  <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1">
-                    Este usuário terá acesso ao modo Passador Mobile (Single Play).
-                  </p>
-                )}
-                {editRole === 'diferenciado' && (
-                  <p className="text-[11px] text-purple-600 dark:text-purple-400 mt-1">
-                    Este usuário terá acesso ao modo Diferenciado Mobile (Single Play).
-                  </p>
-                )}
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                    Menus Permitidos (padrão do perfil + extras):
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setEditAllowedMenus(getDefaultMenusForRole(editRole))}
+                    className="text-[11px] font-semibold text-sky-600 dark:text-sky-400 hover:underline"
+                  >
+                    Restaurar padrão do perfil
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                  {ALL_MENU_KEYS.map(menu => (
+                    <label key={menu.id} className="flex items-center gap-2 text-xs text-slate-800 dark:text-slate-200 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editAllowedMenus.includes(menu.id)}
+                        onChange={() => toggleEditMenuPerm(menu.id)}
+                        className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-slate-300 dark:border-slate-700"
+                      />
+                      <span>{menu.label}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
 
               <div>

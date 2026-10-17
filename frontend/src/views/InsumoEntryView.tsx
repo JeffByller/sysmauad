@@ -5,7 +5,7 @@ import {
   PackagePlus, Search, Calendar, X, CheckCircle2,
   FileText, Truck, Building2, Eye, EyeOff, Printer,
   DollarSign, ArrowUpDown, Layers, Phone, Hash,
-  Pencil, Trash2
+  Pencil, Trash2, Plus
 } from 'lucide-react';
 import { Pagination } from '../components/common/Pagination';
 import { getDatePresets, getLocalDateString } from '../utils/dateUtils';
@@ -13,8 +13,15 @@ import { InsumoEntry } from '../types';
 
 type SubTab = 'entradas' | 'relatorio';
 
+interface DraftEntryItem {
+  rowId: string;
+  stockItemId: string;
+  quantity: number;
+  unitPrice: number;
+}
+
 export const InsumoEntryView: React.FC = () => {
-  const { stockItems, insumoEntries, suppliers, addInsumoEntry, updateInsumoEntry, deleteInsumoEntry, addSupplier } = useOrders();
+  const { stockItems, insumoEntries, suppliers, addInsumoEntriesBatch, updateInsumoEntry, deleteInsumoEntry, addSupplier } = useOrders();
   const { user } = useAuth();
 
   const [subTab, setSubTab] = useState<SubTab>('entradas');
@@ -41,18 +48,52 @@ export const InsumoEntryView: React.FC = () => {
   const [selectedSupplierFilter, setSelectedSupplierFilter] = useState<string>('todos');
   const [reportSearchTerm, setReportSearchTerm] = useState<string>('');
 
-  const [entStockItemId, setEntStockItemId] = useState('');
+  // Cabeçalho da Nota e Itens da Entrada em Lote
   const [entSupplierId, setEntSupplierId] = useState('');
-  const [entQuantity, setEntQuantity] = useState<number>(20);
-  const [entUnitPrice, setEntUnitPrice] = useState<number>(0);
   const [entInvoiceRef, setEntInvoiceRef] = useState('');
+  const [entEnteredAt, setEntEnteredAt] = useState<string>(todayStr);
+  const [entryItems, setEntryItems] = useState<DraftEntryItem[]>([
+    { rowId: 'row-1', stockItemId: '', quantity: 20, unitPrice: 0 }
+  ]);
 
   const [supName, setSupName] = useState('');
   const [supPhone, setSupPhone] = useState('');
   const [supCnpj, setSupCnpj] = useState('');
 
-  const selectedStock = stockItems.find(s => s.id === entStockItemId);
-  const entTotalValue = entQuantity * entUnitPrice;
+  const entBatchTotalValue = useMemo(() => {
+    return entryItems.reduce((sum, item) => sum + (Number(item.quantity || 0) * Number(item.unitPrice || 0)), 0);
+  }, [entryItems]);
+
+  const handleAddDraftRow = () => {
+    setEntryItems(prev => [
+      ...prev,
+      { rowId: `row-${Date.now()}-${prev.length}`, stockItemId: '', quantity: 20, unitPrice: 0 }
+    ]);
+  };
+
+  const handleRemoveDraftRow = (rowId: string) => {
+    setEntryItems(prev => prev.length > 1 ? prev.filter(r => r.rowId !== rowId) : prev);
+  };
+
+  const handleDraftItemChange = (rowId: string, field: keyof DraftEntryItem, value: string | number) => {
+    setEntryItems(prev => prev.map(row => {
+      if (row.rowId !== rowId) return row;
+      const updated = { ...row, [field]: value };
+
+      // Se selecionou um produto e o preço unitário ainda é 0, sugere o último preço praticado
+      if (field === 'stockItemId' && typeof value === 'string' && value) {
+        const lastEntrySameSupplier = entSupplierId
+          ? insumoEntries.find(e => e.stockItemId === value && e.supplierId === entSupplierId && e.unitPrice > 0)
+          : undefined;
+        const lastEntryAny = insumoEntries.find(e => e.stockItemId === value && e.unitPrice > 0);
+        const suggestedPrice = lastEntrySameSupplier?.unitPrice ?? lastEntryAny?.unitPrice;
+        if (suggestedPrice !== undefined && row.unitPrice === 0) {
+          updated.unitPrice = suggestedPrice;
+        }
+      }
+      return updated;
+    }));
+  };
 
   // Estados para Edição e Exclusão de Entrada
   const [editingEntry, setEditingEntry] = useState<InsumoEntry | null>(null);
@@ -165,25 +206,49 @@ export const InsumoEntryView: React.FC = () => {
 
   const handleAddEntry = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!entStockItemId || !entSupplierId) return;
-    const supplier = suppliers.find(s => s.id === entSupplierId)!;
-    const stockItem = stockItems.find(s => s.id === entStockItemId)!;
-    addInsumoEntry({
-      stockItemId: entStockItemId,
-      productName: stockItem.name,
-      supplierId: entSupplierId,
-      supplierName: supplier.name,
-      quantity: entQuantity,
-      unit: stockItem.unit,
-      unitPrice: entUnitPrice,
-      totalValue: entTotalValue,
-      enteredAt: new Date().toISOString(),
-      operatorName: user?.name || 'Operador',
-      invoiceRef: entInvoiceRef || undefined,
+    if (!entSupplierId) return;
+    const validRows = entryItems.filter(r => r.stockItemId && Number(r.quantity) > 0);
+    if (validRows.length === 0) return;
+
+    const supplier = suppliers.find(s => s.id === entSupplierId);
+    if (!supplier) return;
+
+    const enteredAtIso = entEnteredAt === todayStr
+      ? new Date().toISOString()
+      : new Date(entEnteredAt + 'T12:00:00').toISOString();
+
+    const payload = validRows.map(row => {
+      const stockItem = stockItems.find(s => s.id === row.stockItemId)!;
+      const qty = Number(row.quantity);
+      const unitPrice = Number(row.unitPrice || 0);
+      return {
+        stockItemId: row.stockItemId,
+        productName: stockItem.name,
+        supplierId: entSupplierId,
+        supplierName: supplier.name,
+        quantity: qty,
+        unit: stockItem.unit,
+        unitPrice,
+        totalValue: qty * unitPrice,
+        enteredAt: enteredAtIso,
+        operatorName: user?.name || 'Operador',
+        invoiceRef: entInvoiceRef.trim() || undefined,
+      };
     });
-    setFeedbackMsg(`Entrada de ${entQuantity} ${stockItem.unit} de "${stockItem.name}" registrada! Estoque atualizado.`);
+
+    addInsumoEntriesBatch(payload);
+
+    if (payload.length === 1) {
+      setFeedbackMsg(`Entrada de ${payload[0].quantity} ${payload[0].unit} de "${payload[0].productName}" registrada! Estoque atualizado.`);
+    } else {
+      setFeedbackMsg(`Nota registrada com ${payload.length} produtos para "${supplier.name}"! Estoque atualizado.`);
+    }
+
     setIsEntryModalOpen(false);
-    setEntStockItemId(''); setEntSupplierId(''); setEntQuantity(20); setEntUnitPrice(0); setEntInvoiceRef('');
+    setEntSupplierId('');
+    setEntInvoiceRef('');
+    setEntEnteredAt(todayStr);
+    setEntryItems([{ rowId: 'row-1', stockItemId: '', quantity: 20, unitPrice: 0 }]);
     setTimeout(() => setFeedbackMsg(null), 4000);
   };
 
@@ -203,7 +268,11 @@ export const InsumoEntryView: React.FC = () => {
 
   const filteredEntries = insumoEntries.filter(e => {
     const term = searchTerm.toLowerCase();
-    return e.productName.toLowerCase().includes(term) || e.supplierName.toLowerCase().includes(term);
+    return (
+      e.productName.toLowerCase().includes(term) ||
+      e.supplierName.toLowerCase().includes(term) ||
+      (e.invoiceRef && e.invoiceRef.toLowerCase().includes(term))
+    );
   });
 
   const sortedEntries = useMemo(() => {
@@ -354,7 +423,7 @@ export const InsumoEntryView: React.FC = () => {
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
               <input
                 type="text"
-                placeholder="Buscar por produto ou fornecedor..."
+                placeholder="Buscar por produto, fornecedor ou NF..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 className="w-full pl-8 pr-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500 font-medium"
@@ -740,129 +809,210 @@ export const InsumoEntryView: React.FC = () => {
         </div>
       )}
 
-      {/* Modal Registrar Entrada */}
+      {/* Modal Registrar Entrada (Múltiplos Produtos por Nota) */}
       {isEntryModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-md w-full overflow-hidden">
-            <div className="bg-teal-800 text-white px-5 py-3.5 flex items-center justify-between">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-2xl w-full overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="bg-teal-800 text-white px-5 py-3.5 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="p-1.5 bg-teal-500/20 text-teal-300 rounded-xl">
                   <PackagePlus className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm">Registrar Entrada de Insumo</h3>
-                  <p className="text-[11px] text-teal-200">Estoque atualizado automaticamente</p>
+                  <h3 className="font-bold text-sm">Registrar Entrada de Insumos</h3>
+                  <p className="text-[11px] text-teal-200">Lance um ou vários produtos da mesma Nota Fiscal</p>
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setIsEntryModalOpen(false)}
                 className="text-teal-300 hover:text-white p-1 rounded-lg"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <form onSubmit={handleAddEntry} className="p-5 space-y-3.5">
-              <div>
-                <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">
-                  Produto (Insumo Químico) *
-                </label>
-                <select
-                  value={entStockItemId}
-                  onChange={e => setEntStockItemId(e.target.value)}
-                  required
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500 text-slate-900 dark:text-slate-100"
-                >
-                  <option value="">Selecione o produto...</option>
-                  {stockItems.map(s => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} ({s.currentStock} {s.unit} atual)
-                    </option>
-                  ))}
-                </select>
-              </div>
 
-              <div>
-                <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">
-                  Fornecedor *
-                </label>
-                <select
-                  value={entSupplierId}
-                  onChange={e => setEntSupplierId(e.target.value)}
-                  required
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500 text-slate-900 dark:text-slate-100"
-                >
-                  <option value="">Selecione o fornecedor...</option>
-                  {suppliers.map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2.5">
-                <div>
-                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">
-                    Qtd {selectedStock ? `(${selectedStock.unit})` : ''} *
+            <form onSubmit={handleAddEntry} className="p-5 space-y-4 overflow-y-auto flex-1">
+              {/* Cabeçalho Único da Nota */}
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 p-3.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-800">
+                <div className="sm:col-span-5">
+                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">
+                    Fornecedor *
                   </label>
-                  <input
-                    type="number"
-                    min="0.01"
-                    step="any"
-                    value={entQuantity}
-                    onChange={e => setEntQuantity(Number(e.target.value))}
+                  <select
+                    value={entSupplierId}
+                    onChange={e => setEntSupplierId(e.target.value)}
                     required
-                    className="w-full px-2.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-teal-500 text-slate-900 dark:text-slate-100"
-                  />
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500 text-slate-900 dark:text-slate-100"
+                  >
+                    <option value="">Selecione o fornecedor...</option>
+                    {suppliers.map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
                 </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">
-                    Preço/Un (R$)
+
+                <div className="sm:col-span-4">
+                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">
+                    Nota Fiscal / Ref.
                   </label>
                   <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={entUnitPrice}
-                    onChange={e => setEntUnitPrice(Number(e.target.value))}
-                    className="w-full px-2.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-teal-500 text-slate-900 dark:text-slate-100"
+                    type="text"
+                    placeholder="Ex: NF-0418, Pedido #123..."
+                    value={entInvoiceRef}
+                    onChange={e => setEntInvoiceRef(e.target.value)}
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-teal-500 text-slate-900 dark:text-slate-100 font-medium"
                   />
                 </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">
-                    Total
+
+                <div className="sm:col-span-3">
+                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">
+                    Data da Entrada *
                   </label>
-                  <div className="px-2.5 py-2 bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800 rounded-xl text-xs font-mono font-bold text-teal-700 dark:text-teal-400 truncate">
-                    {entTotalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  <input
+                    type="date"
+                    value={entEnteredAt}
+                    onChange={e => setEntEnteredAt(e.target.value)}
+                    required
+                    className="w-full px-2.5 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500 text-slate-900 dark:text-slate-100"
+                  />
+                </div>
+              </div>
+
+              {/* Lista Dinâmica de Produtos da Nota */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                    Produtos da Nota ({entryItems.length})
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleAddDraftRow}
+                    className="px-3 py-1.5 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/60 dark:hover:bg-teal-900/60 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 rounded-xl text-xs font-bold transition-colors flex items-center gap-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Adicionar Produto
+                  </button>
+                </div>
+
+                <div className="space-y-2 max-h-[42vh] overflow-y-auto pr-1">
+                  {entryItems.map((row, idx) => {
+                    const rowStock = stockItems.find(s => s.id === row.stockItemId);
+                    const rowSubtotal = Number(row.quantity || 0) * Number(row.unitPrice || 0);
+                    return (
+                      <div
+                        key={row.rowId}
+                        className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end p-3 bg-slate-50/70 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800"
+                      >
+                        <div className="sm:col-span-5">
+                          <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
+                            #{idx + 1} Produto (Insumo) *
+                          </label>
+                          <select
+                            value={row.stockItemId}
+                            onChange={e => handleDraftItemChange(row.rowId, 'stockItemId', e.target.value)}
+                            required
+                            className="w-full px-2.5 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500 text-slate-900 dark:text-slate-100"
+                          >
+                            <option value="">Selecione o produto...</option>
+                            {stockItems.map(s => (
+                              <option key={s.id} value={s.id}>
+                                {s.name} ({s.currentStock} {s.unit} atual)
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="grid grid-cols-3 sm:col-span-6 gap-2">
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
+                              Qtd {rowStock ? `(${rowStock.unit})` : ''} *
+                            </label>
+                            <input
+                              type="number"
+                              min="0.01"
+                              step="any"
+                              value={row.quantity}
+                              onChange={e => handleDraftItemChange(row.rowId, 'quantity', Number(e.target.value))}
+                              required
+                              className="w-full px-2.5 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-teal-500 text-slate-900 dark:text-slate-100"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
+                              Preço/Un (R$)
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              value={row.unitPrice}
+                              onChange={e => handleDraftItemChange(row.rowId, 'unitPrice', Number(e.target.value))}
+                              className="w-full px-2.5 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-teal-500 text-slate-900 dark:text-slate-100"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
+                              Subtotal
+                            </label>
+                            <div className="px-2.5 py-2 bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800 rounded-xl text-xs font-mono font-bold text-teal-700 dark:text-teal-400 truncate">
+                              {rowSubtotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="sm:col-span-1 flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveDraftRow(row.rowId)}
+                            disabled={entryItems.length === 1}
+                            title={entryItems.length === 1 ? 'A nota precisa ter pelo menos 1 item' : 'Remover este item'}
+                            className={`p-2 rounded-xl border transition-colors ${
+                              entryItems.length === 1
+                                ? 'border-slate-200 dark:border-slate-800 text-slate-300 dark:text-slate-700 cursor-not-allowed'
+                                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-500 hover:text-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
+                            }`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Rodapé com Totalizador da Nota e Ações */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+                <div className="flex items-center gap-3">
+                  <div className="px-3 py-1.5 bg-teal-50 dark:bg-teal-950/50 border border-teal-200 dark:border-teal-800 rounded-xl">
+                    <span className="text-[10px] uppercase font-bold text-teal-700 dark:text-teal-400 block">
+                      Total da Nota ({entryItems.length} {entryItems.length === 1 ? 'item' : 'itens'})
+                    </span>
+                    <span className="text-sm font-extrabold font-mono text-teal-800 dark:text-teal-300">
+                      {entBatchTotalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    </span>
                   </div>
                 </div>
-              </div>
 
-              <div>
-                <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">
-                  Nota Fiscal / Referência (opcional)
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ex: NF-0418, Pedido #123..."
-                  value={entInvoiceRef}
-                  onChange={e => setEntInvoiceRef(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-teal-500 text-slate-900 dark:text-slate-100 font-medium"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setIsEntryModalOpen(false)}
-                  className="px-3.5 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold hover:bg-slate-200"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-1.5 bg-teal-700 hover:bg-teal-800 text-white rounded-xl text-xs font-semibold shadow-sm flex items-center gap-1.5"
-                >
-                  <CheckCircle2 className="w-4 h-4" />Confirmar Entrada
-                </button>
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsEntryModalOpen(false)}
+                    className="px-3.5 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold hover:bg-slate-200"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-teal-700 hover:bg-teal-800 text-white rounded-xl text-xs font-semibold shadow-sm flex items-center gap-1.5"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    Confirmar Entrada{entryItems.length > 1 ? ` (${entryItems.length} itens)` : ''}
+                  </button>
+                </div>
               </div>
             </form>
           </div>

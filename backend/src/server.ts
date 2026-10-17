@@ -3309,6 +3309,86 @@ app.post('/insumo-entries', async (req: Request, res: Response) => {
   }
 });
 
+app.post('/insumo-entries/batch', async (req: Request, res: Response) => {
+  try {
+    const entriesList = Array.isArray(req.body) ? req.body : req.body?.entries;
+    if (!Array.isArray(entriesList) || entriesList.length === 0) {
+      return res.status(400).json({ error: 'Lista de itens da entrada inválida ou vazia.' });
+    }
+
+    const savedEntries: any[] = [];
+    let batchTotalValue = 0;
+
+    for (let i = 0; i < entriesList.length; i++) {
+      const entryData = entriesList[i];
+      const id = entryData.id || `ent-${Date.now()}-${i}`;
+      const enteredAt = entryData.enteredAt || new Date().toISOString();
+      const qty = Number(entryData.quantity || 0);
+      const unitPrice = Number(entryData.unitPrice || 0);
+      const totalValue = Number(entryData.totalValue !== undefined ? entryData.totalValue : (qty * unitPrice));
+      batchTotalValue += totalValue;
+
+      const result = await query(
+        `INSERT INTO sysmauad.insumo_entries (
+          id, stock_item_id, product_name, supplier_id, supplier_name,
+          quantity, unit, unit_price, total_value, entered_at, operator_name, invoice_ref
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        RETURNING *`,
+        [
+          id,
+          entryData.stockItemId,
+          entryData.productName,
+          entryData.supplierId,
+          entryData.supplierName,
+          qty,
+          entryData.unit || 'kg',
+          unitPrice,
+          totalValue,
+          enteredAt,
+          entryData.operatorName || 'Operador',
+          entryData.invoiceRef || null
+        ]
+      );
+
+      if (entryData.stockItemId && qty > 0) {
+        await query(
+          'UPDATE sysmauad.stock_items SET current_stock = current_stock + $1, updated_at = NOW() WHERE id = $2',
+          [qty, entryData.stockItemId]
+        );
+      }
+
+      savedEntries.push(mapInsumoEntry(result.rows[0]));
+    }
+
+    const first = entriesList[0];
+    recordAuditLog({
+      level: 'info',
+      category: 'stock',
+      action: 'insumo_entry_batch_created',
+      userName: first?.operatorName || 'Operador',
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string,
+      details: {
+        supplierName: first?.supplierName,
+        invoiceRef: first?.invoiceRef || null,
+        itemsCount: savedEntries.length,
+        totalValue: batchTotalValue,
+        items: savedEntries.map(e => ({
+          id: e.id,
+          productName: e.productName,
+          quantity: e.quantity,
+          unit: e.unit,
+          totalValue: e.totalValue
+        }))
+      }
+    }).catch(() => {});
+
+    res.status(201).json(savedEntries);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.put('/insumo-entries/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;

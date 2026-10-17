@@ -87,6 +87,7 @@ interface OrderContextType {
   calculateChemicals: (totalWeightKg: number, processes: string[]) => ChemicalDose[];
   // Insumos & Fornecedores
   addInsumoEntry: (entry: Omit<InsumoEntry, 'id'>) => InsumoEntry;
+  addInsumoEntriesBatch: (entries: Omit<InsumoEntry, 'id'>[]) => InsumoEntry[];
   updateInsumoEntry: (id: string, updatedData: Partial<InsumoEntry>) => Promise<{ success: boolean; message: string }>;
   deleteInsumoEntry: (id: string, operatorName?: string) => Promise<{ success: boolean; message: string }>;
   addSupplier: (supplier: Omit<Supplier, 'id'>) => Supplier;
@@ -1642,6 +1643,46 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return newEntry;
   };
 
+  const addInsumoEntriesBatch = (entries: Omit<InsumoEntry, 'id'>[]): InsumoEntry[] => {
+    const baseTime = Date.now();
+    const newEntries: InsumoEntry[] = entries.map((entry, idx) => ({
+      ...entry,
+      id: `ent-${baseTime}-${idx}`,
+    }));
+
+    setInsumoEntries(prev => [...newEntries, ...prev]);
+
+    // Atualiza o estoque localmente somando as quantidades por produto
+    const qtyByStockId: Record<string, number> = {};
+    for (const entry of newEntries) {
+      if (entry.stockItemId && entry.quantity > 0) {
+        qtyByStockId[entry.stockItemId] = (qtyByStockId[entry.stockItemId] || 0) + entry.quantity;
+      }
+    }
+
+    setStockItems(prev => prev.map(item => {
+      const addedQty = qtyByStockId[item.id];
+      return addedQty
+        ? { ...item, currentStock: Math.round((item.currentStock + addedQty) * 100) / 100 }
+        : item;
+    }));
+
+    fetch('/api/insumo-entries/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entries: newEntries })
+    }).then(res => res.ok ? res.json() : null)
+      .then((savedList: InsumoEntry[] | null) => {
+        if (Array.isArray(savedList) && savedList.length > 0) {
+          const savedMap = new Map(savedList.map(s => [s.id, s]));
+          setInsumoEntries(prev => prev.map(e => savedMap.get(e.id) || e));
+        }
+      })
+      .catch(err => console.error('[OrderContext] Erro ao registrar lote de entradas de insumo no PostgreSQL:', err));
+
+    return newEntries;
+  };
+
   const updateInsumoEntry = async (id: string, updatedData: Partial<InsumoEntry>): Promise<{ success: boolean; message: string }> => {
     try {
       const target = insumoEntries.find(e => e.id === id);
@@ -1837,6 +1878,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       getOrderByOS,
       calculateChemicals,
       addInsumoEntry,
+      addInsumoEntriesBatch,
       updateInsumoEntry,
       deleteInsumoEntry,
       addSupplier,

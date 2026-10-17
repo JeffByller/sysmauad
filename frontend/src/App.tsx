@@ -158,16 +158,16 @@ export const AppContent: React.FC = () => {
     }
   }, [currentTab, client]);
 
-  // Redireciona passador automaticamente para o seu terminal de trabalho
+  // Redireciona passador automaticamente para o seu terminal se não tiver o Painel permitido
   useEffect(() => {
-    if (user?.role === 'passador' && currentTab === 'dashboard') {
+    if (user?.role === 'passador' && currentTab === 'dashboard' && !user?.allowedMenus?.includes('dashboard')) {
       setCurrentTab('passador-mobile');
     }
   }, [user, currentTab]);
 
-  // Redireciona operador diferenciado automaticamente para o seu terminal de trabalho
+  // Redireciona operador diferenciado automaticamente para o seu terminal se não tiver o Painel permitido
   useEffect(() => {
-    if (user?.role === 'diferenciado' && currentTab === 'dashboard') {
+    if (user?.role === 'diferenciado' && currentTab === 'dashboard' && !user?.allowedMenus?.includes('dashboard')) {
       setCurrentTab('diferenciado-mobile');
     }
   }, [user, currentTab]);

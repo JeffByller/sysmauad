@@ -303,8 +303,8 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange }) => {
               <LogOut className="w-4 h-4" />
             </button>
 
-            {/* Mobile Hamburger Button (Oculto para perfil Passador) */}
-            {user?.role !== 'passador' && (
+            {/* Mobile Hamburger Button (Exibido se não for apenas Passador exclusivo) */}
+            {(user?.role !== 'passador' || (user?.allowedMenus && user.allowedMenus.length > 1)) && (
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                 className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors lg:hidden shrink-0"
