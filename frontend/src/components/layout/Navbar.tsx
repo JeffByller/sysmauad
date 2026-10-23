@@ -50,6 +50,27 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange }) => {
     onTabChange('login');
   };
 
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (isLogoutModalOpen) {
+          setIsLogoutModalOpen(false);
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+        if (isMobileMenuOpen) {
+          setIsMobileMenuOpen(false);
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isLogoutModalOpen, isMobileMenuOpen]);
+
   const isSuperAdmin = user?.id === 'super-admin-root';
 
 
@@ -559,7 +580,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange }) => {
             </div>
 
             <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-              Deseja realmente sair do sistema? Sua sessão ativa será encerrada e você precisará digitar suas credenciais para entrar novamente.
+              Deseja realmente sair do sistema?
             </p>
 
             <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">

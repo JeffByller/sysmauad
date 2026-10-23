@@ -57,13 +57,17 @@ export const OrderListView: React.FC<OrderListViewProps> = ({ onNavigate }) => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setClosingSaidaOrder(null);
-        setEditingOrder(null);
+        if (closingSaidaOrder || editingOrder) {
+          setClosingSaidaOrder(null);
+          setEditingOrder(null);
+          e.preventDefault();
+          e.stopPropagation();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [closingSaidaOrder, editingOrder]);
 
   const handleConfirmSaida = async () => {
     if (!closingSaidaOrder) return;

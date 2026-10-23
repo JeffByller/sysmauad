@@ -19,14 +19,15 @@ import {
   ShieldCheck,
   Eye,
   EyeOff,
-  AlertCircle
+  AlertCircle,
+  Send
 } from 'lucide-react';
 import { Order } from '../types';
 import { getDatePresets, getLocalDateString } from '../utils/dateUtils';
 import { Pagination } from '../components/common/Pagination';
 
 export const FinanceCaixaView: React.FC = () => {
-  const { orders, clients, payMultipleInvoiceOrders } = useOrders();
+  const { orders, clients, payMultipleInvoiceOrders, systemSettings } = useOrders();
   const { user } = useAuth();
 
   // Controle de visibilidade de dados sensíveis (oculto por padrão)
@@ -46,6 +47,7 @@ export const FinanceCaixaView: React.FC = () => {
 
   // Estados para Auditoria & Histórico Financeiro
   const [selectedOrderForHistory, setSelectedOrderForHistory] = useState<Order | null>(null);
+  const [isUnifiedPayModalOpen, setIsUnifiedPayModalOpen] = useState(false);
 
   // ─── PERÍODO & DATAS (Fuso Horário America/Sao_Paulo) ─────────────────────────
   const { todayStr, firstDayOfMonth, lastDayOfMonth, sevenDaysAgo } = useMemo(() => getDatePresets(), []);
@@ -82,13 +84,17 @@ export const FinanceCaixaView: React.FC = () => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setIsUnifiedPayModalOpen(false);
-        setSelectedOrderForHistory(null);
+        if (isUnifiedPayModalOpen || selectedOrderForHistory) {
+          setIsUnifiedPayModalOpen(false);
+          setSelectedOrderForHistory(null);
+          e.preventDefault();
+          e.stopPropagation();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [isUnifiedPayModalOpen, selectedOrderForHistory]);
 
   // Ajusta período rápido
   const setQuickPeriod = (preset: 'hoje' | 'semana' | 'mes') => {
@@ -257,7 +263,6 @@ export const FinanceCaixaView: React.FC = () => {
 
   // ─── SELEÇÃO PARA BAIXA EM TODOS / UNIFICADA ────────────────────────────────
   const [selectedOrderIdsForUnifiedPay, setSelectedOrderIdsForUnifiedPay] = useState<string[]>([]);
-  const [isUnifiedPayModalOpen, setIsUnifiedPayModalOpen] = useState(false);
   const [unifiedDiscountType, setUnifiedDiscountType] = useState<'fixed' | 'pct'>('fixed');
   const [unifiedDiscountValue, setUnifiedDiscountValue] = useState<number>(0);
   const [unifiedPaymentMethod, setUnifiedPaymentMethod] = useState<string>('pix');
@@ -401,6 +406,133 @@ export const FinanceCaixaView: React.FC = () => {
     }
     return reportOrders;
   }, [reportOrders, selectedOrderIdsForUnifiedPay]);
+
+  // Envio direto do que está filtrado/selecionado via WhatsApp
+  const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
+  const [whatsAppFeedback, setWhatsAppFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const handleSendViaWhatsApp = async () => {
+    let destPhone = '';
+    let targetName = '';
+
+    if (filteredClient) {
+      if (!filteredClient.phone || !filteredClient.phone.trim()) {
+        setWhatsAppFeedback({
+          type: 'error',
+          message: `O cliente "${filteredClient.name}" não possui número de WhatsApp cadastrado.`
+        });
+        setTimeout(() => setWhatsAppFeedback(null), 6000);
+        return;
+      }
+      destPhone = filteredClient.phone.trim();
+      targetName = filteredClient.name;
+    } else {
+      destPhone = systemSettings?.whatsappTargetPhone?.trim() || '';
+      targetName = 'Gestão Mauad';
+      if (!destPhone) {
+        setWhatsAppFeedback({
+          type: 'error',
+          message: 'Cadastre o WhatsApp de destino em Configurações > WhatsApp ou selecione um cliente.'
+        });
+        setTimeout(() => setWhatsAppFeedback(null), 6000);
+        return;
+      }
+    }
+
+    if (ordersForPrint.length === 0) {
+      setWhatsAppFeedback({
+        type: 'error',
+        message: 'Nenhuma ordem encontrada nos filtros atuais para envio.'
+      });
+      setTimeout(() => setWhatsAppFeedback(null), 5000);
+      return;
+    }
+
+    setSendingWhatsApp(true);
+    try {
+      const totalAmount = ordersForPrint.reduce((acc, o) => acc + (o.totalServiceValue || 0), 0);
+      const openOrders = ordersForPrint.filter(o => o.paymentStatus !== 'pago');
+      const paidOrders = ordersForPrint.filter(o => o.paymentStatus === 'pago');
+      const totalOpen = openOrders.reduce((acc, o) => acc + (o.totalServiceValue || 0), 0);
+      const totalPaid = paidOrders.reduce((acc, o) => acc + (o.totalServiceValue || 0), 0);
+
+      const statusDesc = reportStatusFilter === 'aberto' 
+        ? 'Ordens em Aberto (A Pagar)' 
+        : reportStatusFilter === 'pago' 
+          ? 'Ordens Quitadas (Pagas)' 
+          : 'Todas as Ordens';
+
+      const periodDesc = (startDate && endDate) 
+        ? `${startDate.split('-').reverse().join('/')} a ${endDate.split('-').reverse().join('/')}` 
+        : 'Período Geral';
+
+      // Lista as OSs (até 25 para não exceder limites de mensagem)
+      const listLimit = 25;
+      const osListLines = ordersForPrint.slice(0, listLimit).map(o => {
+        const osData = o.createdAt ? new Date(o.createdAt).toLocaleDateString('pt-BR') : '';
+        const osValor = (o.totalServiceValue || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        const osStatus = o.paymentStatus === 'pago' ? '✅ PAGO' : '⏳ ABERTO';
+        return `• *OS #${o.osNumber}* (${osData}) - ${o.clientName}: ${osValor} [${osStatus}]`;
+      });
+
+      if (ordersForPrint.length > listLimit) {
+        osListLines.push(`_... e mais ${ordersForPrint.length - listLimit} ordem(ns) no filtro._`);
+      }
+
+      const text = [
+        `🧺 *MAUAD LAVANDERIA INDUSTRIAL*`,
+        filteredClient ? `💰 *EXTRATO FINANCEIRO / FATURA*` : `📊 *FECHAMENTO FINANCEIRO CONSOLIDADO*`,
+        ``,
+        filteredClient ? `👤 *Cliente:* ${filteredClient.name}` : `🏢 *Relatório Consolidado de Faturamento*`,
+        `🗓️ *Período:* ${periodDesc}`,
+        `🔍 *Filtro:* ${statusDesc}`,
+        ``,
+        `📊 *Resumo Financeiro:*`,
+        `• *Total Faturado:* ${totalAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
+        `• *A Receber (Em Aberto):* ${totalOpen.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} (${openOrders.length} OS)`,
+        `• *Quitado (Pago):* ${totalPaid.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} (${paidOrders.length} OS)`,
+        `• *Total de Ordens:* ${ordersForPrint.length} OS(s)`,
+        ``,
+        `*Ordens Filtradas:*`,
+        ...osListLines,
+        ``,
+        `Emitido em ${new Date().toLocaleString('pt-BR')}`
+      ].join('\n');
+
+      const res = await fetch('/api/whatsapp/send-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          number: destPhone,
+          text,
+          clientId: filteredClient?.id,
+          clientName: filteredClient?.name || 'Gestão Mauad',
+          eventType: 'Extrato Financeiro'
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setWhatsAppFeedback({
+          type: 'success',
+          message: `Extrato financeiro enviado com sucesso para ${targetName} (${destPhone})!`
+        });
+      } else {
+        setWhatsAppFeedback({
+          type: 'error',
+          message: data.error || 'Falha ao enviar mensagem via WhatsApp.'
+        });
+      }
+    } catch (err: any) {
+      setWhatsAppFeedback({
+        type: 'error',
+        message: err.message || 'Erro ao conectar ao serviço de WhatsApp.'
+      });
+    } finally {
+      setSendingWhatsApp(false);
+      setTimeout(() => setWhatsAppFeedback(null), 6000);
+    }
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
@@ -685,6 +817,17 @@ export const FinanceCaixaView: React.FC = () => {
             <div className="flex items-center gap-2">
               <button
                 type="button"
+                onClick={handleSendViaWhatsApp}
+                disabled={sendingWhatsApp || ordersForPrint.length === 0}
+                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm font-mono cursor-pointer"
+                title={filteredClient ? `Enviar extrato das faturas para o WhatsApp de ${filteredClient.name}` : 'Enviar fechamento financeiro para o WhatsApp das Configurações'}
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>{sendingWhatsApp ? 'Enviando...' : 'Enviar WhatsApp'}</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={handlePrint}
                 className="px-3.5 py-2 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 border border-slate-300 dark:border-slate-700 shadow-sm"
                 title={selectedOrderIdsForUnifiedPay.length > 0 ? `Imprimir as ${selectedOrderIdsForUnifiedPay.length} faturas selecionadas` : 'Imprimir todas as faturas filtradas'}
@@ -718,6 +861,19 @@ export const FinanceCaixaView: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {whatsAppFeedback && (
+          <div className={`p-3 rounded-xl text-xs font-semibold flex items-center justify-between animate-in fade-in duration-200 ${
+            whatsAppFeedback.type === 'success'
+              ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+              : 'bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-800'
+          }`}>
+            <span>{whatsAppFeedback.message}</span>
+            <button onClick={() => setWhatsAppFeedback(null)} className="opacity-60 hover:opacity-100 p-1 cursor-pointer">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
 
         {/* Tabela Unificada de Serviços */}
         <div className="overflow-x-auto">

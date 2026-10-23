@@ -772,6 +772,9 @@ export async function initDb() {
     -- Campo para configuração de retenção do backlog de relatórios (dias)
     ALTER TABLE sysmauad.system_settings ADD COLUMN IF NOT EXISTS report_retention_days INT DEFAULT 30;
 
+    -- Campo para configuração de timeout de inatividade da sessão (minutos)
+    ALTER TABLE sysmauad.system_settings ADD COLUMN IF NOT EXISTS session_timeout_minutes INT DEFAULT 30;
+
     -- Campo corte_os no catálogo de peças
     ALTER TABLE sysmauad.garment_catalog ADD COLUMN IF NOT EXISTS corte_os VARCHAR(100);
 

@@ -63,6 +63,7 @@ import {
   getActiveSessions,
   cleanupExpiredSessions,
   purgeEndedSessions,
+  getSessionTimeoutMinutes,
   SESSION_TIMEOUT_MINUTES
 } from './session';
 
@@ -314,6 +315,7 @@ function mapSettings(row: any): SystemSettings {
     defaultDiferenciadoRateAfter17: Number(row.default_diferenciado_rate_after_17 !== null && row.default_diferenciado_rate_after_17 !== undefined ? row.default_diferenciado_rate_after_17 : 0.60),
     stalledOrderAlertDays: Number(row.stalled_order_alert_days !== null && row.stalled_order_alert_days !== undefined ? row.stalled_order_alert_days : 3),
     reportRetentionDays: Number(row.report_retention_days !== null && row.report_retention_days !== undefined ? row.report_retention_days : 30),
+    sessionTimeoutMinutes: Number(row.session_timeout_minutes !== null && row.session_timeout_minutes !== undefined ? row.session_timeout_minutes : 30),
     licenseKey: row.license_key || process.env.LICENSE_KEY || '',
     updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : undefined
   };
@@ -1178,9 +1180,10 @@ app.post('/auth/login', async (req: Request, res: Response) => {
             }
           }).catch(() => {});
 
+          const sessionTimeoutMin = await getSessionTimeoutMinutes();
           return res.status(409).json({
             success: false,
-            message: `O Super Admin já possui uma sessão ativa iniciada em outro navegador (última atividade há ${lastSeenMin} min). Apenas 1 conexão simultânea é permitida. Encerre a sessão anterior ou aguarde a expiração de inatividade (15 minutos).`,
+            message: `O Super Admin já possui uma sessão ativa iniciada em outro navegador (última atividade há ${lastSeenMin} min). Apenas 1 conexão simultânea é permitida. Encerre a sessão anterior ou aguarde a expiração de inatividade (${sessionTimeoutMin} minutos).`,
             concurrentSession: true
           });
         }
@@ -1213,7 +1216,8 @@ app.post('/auth/login', async (req: Request, res: Response) => {
             allowedMenus: SUPER_ADMIN.allowedMenus,
             active: SUPER_ADMIN.active
           },
-          sessionId
+          sessionId,
+          sessionTimeoutMinutes: await getSessionTimeoutMinutes()
         });
       }
     }
@@ -1345,9 +1349,10 @@ app.post('/auth/login', async (req: Request, res: Response) => {
         }
       }).catch(() => {});
 
+      const sessionTimeoutMin = await getSessionTimeoutMinutes();
       return res.status(409).json({
         success: false,
-        message: `Este usuário já possui uma sessão ativa iniciada em outro navegador ou dispositivo (última atividade há ${lastSeenMin} min). Apenas 1 conexão simultânea é permitida por usuário. Encerre a sessão anterior ou aguarde a expiração de inatividade (15 minutos).`,
+        message: `Este usuário já possui uma sessão ativa iniciada em outro navegador ou dispositivo (última atividade há ${lastSeenMin} min). Apenas 1 conexão simultânea é permitida por usuário. Encerre a sessão anterior ou aguarde a expiração de inatividade (${sessionTimeoutMin} minutos).`,
         concurrentSession: true
       });
     }
@@ -1372,7 +1377,8 @@ app.post('/auth/login', async (req: Request, res: Response) => {
       details: { role: found.role, username: found.username, sessionId }
     }).catch(() => {});
 
-    res.json({ success: true, user: found, sessionId });
+    const sessionTimeoutMinutes = await getSessionTimeoutMinutes();
+    res.json({ success: true, user: found, sessionId, sessionTimeoutMinutes });
   } catch (err: any) {
     recordAuditLog({
       level: 'error',
@@ -1403,7 +1409,8 @@ app.post('/auth/heartbeat', async (req: Request, res: Response) => {
       });
     }
 
-    res.json({ success: true, valid: true });
+    const sessionTimeoutMinutes = await getSessionTimeoutMinutes();
+    res.json({ success: true, valid: true, sessionTimeoutMinutes });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -3775,6 +3782,7 @@ app.put('/settings', async (req: Request, res: Response) => {
     const defaultDiferenciadoRate = body.defaultDiferenciadoRate !== undefined ? Number(body.defaultDiferenciadoRate) : Number(row.default_diferenciado_rate ?? 0.50);
     const defaultDiferenciadoRateAfter17 = body.defaultDiferenciadoRateAfter17 !== undefined ? Number(body.defaultDiferenciadoRateAfter17) : Number(row.default_diferenciado_rate_after_17 ?? 0.60);
     const stalledOrderAlertDays = body.stalledOrderAlertDays !== undefined ? Number(body.stalledOrderAlertDays) : Number(row.stalled_order_alert_days ?? 3);
+    const sessionTimeoutMinutes = body.sessionTimeoutMinutes !== undefined ? Number(body.sessionTimeoutMinutes) : Number(row.session_timeout_minutes ?? 30);
 
     const result = await query(`
       INSERT INTO sysmauad.system_settings (
@@ -3786,7 +3794,7 @@ app.put('/settings', async (req: Request, res: Response) => {
         auto_backup_enabled, backup_retention_days, backup_time,
         default_passador_rate, default_passador_rate_after_17,
         default_diferenciado_rate, default_diferenciado_rate_after_17,
-        stalled_order_alert_days,
+        stalled_order_alert_days, session_timeout_minutes,
         updated_at
       ) VALUES (
         'default', 'sysmauad', $1,
@@ -3797,7 +3805,7 @@ app.put('/settings', async (req: Request, res: Response) => {
         $13, $14, $15,
         $16, $17,
         $18, $19,
-        $20,
+        $20, $21,
         NOW()
       ) ON CONFLICT (id) DO UPDATE SET
         whatsapp_target_phone = EXCLUDED.whatsapp_target_phone,
@@ -3820,6 +3828,7 @@ app.put('/settings', async (req: Request, res: Response) => {
         default_diferenciado_rate = EXCLUDED.default_diferenciado_rate,
         default_diferenciado_rate_after_17 = EXCLUDED.default_diferenciado_rate_after_17,
         stalled_order_alert_days = EXCLUDED.stalled_order_alert_days,
+        session_timeout_minutes = EXCLUDED.session_timeout_minutes,
         updated_at = NOW()
       RETURNING *
     `, [
@@ -3842,7 +3851,8 @@ app.put('/settings', async (req: Request, res: Response) => {
       defaultPassadorRateAfter17,
       defaultDiferenciadoRate,
       defaultDiferenciadoRateAfter17,
-      stalledOrderAlertDays
+      stalledOrderAlertDays,
+      sessionTimeoutMinutes
     ]);
 
     res.json(mapSettings(result.rows[0]));
@@ -4563,6 +4573,7 @@ app.post('/reports/generate', async (req: Request, res: Response) => {
     const validTypes = [
       'lavados',
       'passadores',
+      'diferenciados',
       'fornecedores',
       'gerencial_completo',
       'principal_completo',

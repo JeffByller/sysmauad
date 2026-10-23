@@ -22,7 +22,8 @@ import {
   Plus,
   Trash2,
   X,
-  HelpCircle
+  HelpCircle,
+  Send
 } from 'lucide-react';
 import { OrderStatus, OrderItem, PassadorLog, DiferenciadoLog } from '../types';
 
@@ -90,6 +91,77 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
   const [relavadoReason, setRelavadoReason] = useState<string>('');
   const [isCreatingRelavado, setIsCreatingRelavado] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Envio direto do documento/comprovante da OS via WhatsApp
+  const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
+
+  const handleSendWhatsApp = async () => {
+    if (!order) return;
+    const targetPhone = order.clientPhone?.trim();
+    if (!targetPhone) {
+      setToastMessage(`A O.S. #${order.osNumber} não possui telefone/WhatsApp do cliente cadastrado.`);
+      setTimeout(() => setToastMessage(null), 5000);
+      return;
+    }
+
+    setSendingWhatsApp(true);
+    try {
+      const pureOsNumber = (order.osNumber || '').replace(/^[A-Za-z]+-/, '') || '0001';
+      const itemsList = (order.items && order.items.length > 0)
+        ? order.items.map(it => `• ${it.clothingType || 'Peça'} - ${it.process || 'Lavado'}: ${it.quantity || 0} pçs`).join('\n')
+        : `• Lavado: ${order.estimatedPieceCount || 0} pçs`;
+
+      const paymentDesc = order.paymentStatus === 'pago'
+        ? `Quitado (${order.paymentMethod || 'Pago'})`
+        : 'Pendente (Em Aberto)';
+
+      const dateStr = order.createdAt ? new Date(order.createdAt).toLocaleDateString('pt-BR') : '';
+
+      const text = [
+        `🧺 *MAUAD LAVANDERIA INDUSTRIAL*`,
+        `📄 *ORDEM DE SERVIÇO #${pureOsNumber}*`,
+        ``,
+        `👤 *Cliente:* ${order.clientName || 'Cliente'}`,
+        `🗓️ *Data de Entrada:* ${dateStr}`,
+        `📦 *Status:* ${order.status?.toUpperCase() || 'EM PROCESSAMENTO'}`,
+        order.corteOs ? `✂️ *Corte / O.S. Origem:* ${order.corteOs}` : '',
+        ``,
+        `📋 *Itens / Serviços:*`,
+        itemsList,
+        ``,
+        `⚖️ *Total:* ${order.estimatedPieceCount || 0} peças | ${Number(order.totalWeightKg || 0).toFixed(2)} kg`,
+        order.totalServiceValue ? `💰 *Valor Total:* ${order.totalServiceValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}` : '',
+        `💳 *Situação Financeira:* ${paymentDesc}`,
+        order.notes ? `\n📝 *Observações:* ${order.notes}` : '',
+        ``,
+        `Emitido em ${new Date().toLocaleString('pt-BR')}`
+      ].filter(Boolean).join('\n');
+
+      const res = await fetch('/api/whatsapp/send-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          number: targetPhone,
+          text,
+          clientId: order.clientId,
+          clientName: order.clientName,
+          eventType: 'Comprovante de OS'
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setToastMessage(`Documento da O.S. #${pureOsNumber} enviado com sucesso para ${order.clientName} (${targetPhone})!`);
+      } else {
+        setToastMessage(data.error || 'Falha ao enviar documento via WhatsApp.');
+      }
+    } catch (err: any) {
+      setToastMessage(err.message || 'Erro ao conectar ao serviço de WhatsApp.');
+    } finally {
+      setSendingWhatsApp(false);
+      setTimeout(() => setToastMessage(null), 5000);
+    }
+  };
 
   // Estados para Edição de Passada (Administrador)
   const [editingIroningLog, setEditingIroningLog] = useState<PassadorLog | null>(null);
@@ -397,6 +469,17 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
           >
             <RotateCcw className="w-4 h-4" />
             <span>Gerar Relavado</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSendWhatsApp}
+            disabled={sendingWhatsApp}
+            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-sm font-mono cursor-pointer"
+            title={order.clientPhone ? `Enviar documento da OS para o WhatsApp de ${order.clientName} (${order.clientPhone})` : 'Cliente sem WhatsApp cadastrado'}
+          >
+            <Send className="w-4 h-4" />
+            <span>{sendingWhatsApp ? 'Enviando...' : 'Enviar WhatsApp'}</span>
           </button>
 
           <button

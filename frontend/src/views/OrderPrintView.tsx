@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useOrders } from '../context/OrderContext';
 import { QRCodeSVG } from 'qrcode.react';
-import { Printer, ArrowLeft, FileText, FlaskConical, Layers, Receipt, QrCode, Sparkles } from 'lucide-react';
+import { Printer, ArrowLeft, FileText, FlaskConical, Layers, Receipt, QrCode, Sparkles, Send, X } from 'lucide-react';
 
 interface OrderPrintViewProps {
   orderId: string;
@@ -81,6 +81,87 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
 
   const handlePrint = () => {
     window.print();
+  };
+
+  // Envio direto do documento/comprovante da OS via WhatsApp
+  const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
+  const [whatsAppFeedback, setWhatsAppFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const handleSendWhatsApp = async () => {
+    if (!order) return;
+    const targetPhone = order.clientPhone?.trim();
+    if (!targetPhone) {
+      setWhatsAppFeedback({
+        type: 'error',
+        message: `A O.S. #${order.osNumber} não possui telefone/WhatsApp do cliente cadastrado.`
+      });
+      setTimeout(() => setWhatsAppFeedback(null), 6000);
+      return;
+    }
+
+    setSendingWhatsApp(true);
+    try {
+      const itemsList = (order.items && order.items.length > 0)
+        ? order.items.map(it => `• ${it.clothingType || 'Peça'} - ${it.process || 'Lavado'}: ${it.quantity || 0} pçs`).join('\n')
+        : `• ${primaryRoupa} - ${primaryLavado}: ${totalPiecesSafe} pçs (${totalWeightSafe.toFixed(2)} kg)`;
+
+      const paymentDesc = order.paymentStatus === 'pago'
+        ? `Quitado (${order.paymentMethod || 'Pago'})`
+        : 'Pendente (Em Aberto)';
+
+      const text = [
+        `🧺 *MAUAD LAVANDERIA INDUSTRIAL*`,
+        `📄 *ORDEM DE SERVIÇO #${pureOsNumber}*`,
+        ``,
+        `👤 *Cliente:* ${clientNameSafe}`,
+        `🗓️ *Entrada:* ${dateShort} às ${timeFormatted}`,
+        `📦 *Status:* ${order.status?.toUpperCase() || 'EM ANDAMENTO'}`,
+        primaryCorteOs ? `✂️ *Corte / O.S. Origem:* ${primaryCorteOs}` : '',
+        ``,
+        `📋 *Itens / Serviços:*`,
+        itemsList,
+        ``,
+        `⚖️ *Total:* ${totalPiecesSafe} peças | ${totalWeightSafe.toFixed(2)} kg`,
+        totalServiceValueSafe ? `💰 *Valor Total:* ${totalServiceValueSafe.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}` : '',
+        `💳 *Situação Financeira:* ${paymentDesc}`,
+        order.notes ? `\n📝 *Observações:* ${order.notes}` : '',
+        ``,
+        `Emitido em ${new Date().toLocaleString('pt-BR')}`
+      ].filter(Boolean).join('\n');
+
+      const res = await fetch('/api/whatsapp/send-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          number: targetPhone,
+          text,
+          clientId: order.clientId,
+          clientName: order.clientName,
+          eventType: 'Comprovante de OS'
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setWhatsAppFeedback({
+          type: 'success',
+          message: `Documento da O.S. #${pureOsNumber} enviado com sucesso para ${order.clientName} (${targetPhone})!`
+        });
+      } else {
+        setWhatsAppFeedback({
+          type: 'error',
+          message: data.error || 'Falha ao enviar documento via WhatsApp.'
+        });
+      }
+    } catch (err: any) {
+      setWhatsAppFeedback({
+        type: 'error',
+        message: err.message || 'Erro ao conectar ao serviço de WhatsApp.'
+      });
+    } finally {
+      setSendingWhatsApp(false);
+      setTimeout(() => setWhatsAppFeedback(null), 6000);
+    }
   };
 
   // Formatação segura de datas
@@ -207,14 +288,39 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
           </button>
         </div>
 
-        <button
-          onClick={handlePrint}
-          className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 dark:bg-sky-700 dark:hover:bg-sky-800 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm flex items-center gap-2"
-        >
-          <Printer className="w-4 h-4" />
-          Imprimir Documento
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSendWhatsApp}
+            disabled={sendingWhatsApp}
+            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm flex items-center gap-2 cursor-pointer font-mono"
+            title={order.clientPhone ? `Enviar documento da OS para ${order.clientName} (${order.clientPhone})` : 'Cliente sem WhatsApp cadastrado'}
+          >
+            <Send className="w-4 h-4" />
+            <span>{sendingWhatsApp ? 'Enviando...' : 'Enviar WhatsApp'}</span>
+          </button>
+
+          <button
+            onClick={handlePrint}
+            className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 dark:bg-sky-700 dark:hover:bg-sky-800 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm flex items-center gap-2"
+          >
+            <Printer className="w-4 h-4" />
+            Imprimir Documento
+          </button>
+        </div>
       </div>
+
+      {whatsAppFeedback && (
+        <div className={`no-print p-3 rounded-xl text-xs font-semibold flex items-center justify-between animate-in fade-in duration-200 ${
+          whatsAppFeedback.type === 'success'
+            ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+            : 'bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-800'
+        }`}>
+          <span>{whatsAppFeedback.message}</span>
+          <button onClick={() => setWhatsAppFeedback(null)} className="opacity-60 hover:opacity-100 p-1 cursor-pointer">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* ───────────────────────────────────────────────────────────── */}
       {/* 1. NOTA DE ENTRADA — FORMATO INDUSTRIAL DE LARGURA TOTAL      */}

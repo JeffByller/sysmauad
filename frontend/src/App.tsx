@@ -213,16 +213,45 @@ export const AppContent: React.FC = () => {
     }
   };
 
-  // Ao pressionar ESC: fecha modais globais ativos (scanner, marcar pronto) sem desviar a rota
+  // Ao pressionar ESC: fecha modais abertos ou fecha a aba aberta retornando ao Painel/listagem
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (e.defaultPrevented) return;
+
+        // 1. Modais globais
         if (isScannerOpen) {
           setIsScannerOpen(false);
+          e.preventDefault();
           return;
         }
         if (markReadyOrder) {
           closeMarkReadyModal();
+          e.preventDefault();
+          return;
+        }
+
+        // 2. Se houver algum modal ativo em tela com backdrop, deixa o modal fechar
+        const openModal = document.querySelector('[role="dialog"], .fixed.inset-0:not(.print-sheet), .modal-backdrop');
+        if (openModal) {
+          return;
+        }
+
+        // 3. Fecha sub-telas de pedidos retornando para 'orders'
+        if (['order-detail', 'order-print', 'new-order', 'define-order'].includes(currentTab)) {
+          handleNavigate('orders');
+          e.preventDefault();
+          return;
+        }
+
+        // 4. Fecha qualquer aba aberta no sistema retornando para o Painel principal (dashboard)
+        if (
+          currentTab !== 'dashboard' && 
+          currentTab !== 'login' && 
+          !['client-login', 'client-signup', 'client-portal'].includes(currentTab)
+        ) {
+          handleNavigate('dashboard');
+          e.preventDefault();
           return;
         }
       }
@@ -230,7 +259,7 @@ export const AppContent: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isScannerOpen, markReadyOrder]);
+  }, [isScannerOpen, markReadyOrder, currentTab]);
 
   // Bloqueio de acesso: se não estiver autenticado no sistema nem for tela pública de cliente, exibe login
   if (!user && currentTab !== 'client-login' && currentTab !== 'client-signup' && currentTab !== 'client-portal') {

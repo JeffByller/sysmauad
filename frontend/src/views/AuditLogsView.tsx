@@ -232,7 +232,11 @@ export const AuditLogsView: React.FC = () => {
   }, []);
 
   const buildFilterParams = useCallback(() => {
-    const params = new URLSearchParams({ tab: activeTab });
+    // Se estiver filtrando especificamente por erros ou segurança, busca em todos os registros
+    const effectiveTab = (selectedLevel === 'error' || selectedLevel === 'security') && activeTab === 'access'
+      ? 'all'
+      : activeTab;
+    const params = new URLSearchParams({ tab: effectiveTab });
     if (selectedLevel !== 'all') params.append('level', selectedLevel);
     if (selectedCategory !== 'all') params.append('category', selectedCategory);
     if (debouncedSearch) params.append('search', debouncedSearch);
@@ -280,6 +284,28 @@ export const AuditLogsView: React.FC = () => {
       fetchActiveSessions();
     }
   }, [activeTab, fetchActiveSessions]);
+
+  // Fecha modais de detalhes e de limpeza ao pressionar ESC
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (selectedLog) {
+          setSelectedLog(null);
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+        if (isPurgeModalOpen) {
+          setIsPurgeModalOpen(false);
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedLog, isPurgeModalOpen]);
 
   // Auto-refresh a cada 15 segundos se ativado (pausa com a aba do navegador oculta)
   useEffect(() => {
@@ -666,7 +692,15 @@ export const AuditLogsView: React.FC = () => {
         </div>
 
         {/* Erros hoje */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between transition-colors">
+        <div
+          onClick={() => {
+            setSelectedLevel('error');
+            setActiveTab('all');
+            setCurrentPage(1);
+          }}
+          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between transition-colors cursor-pointer hover:border-red-400 dark:hover:border-red-600/50 hover:shadow-sm"
+          title="Clique para filtrar e ver todos os erros registrados"
+        >
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
             <span className="text-xs font-semibold">Erros hoje</span>
             <AlertCircle className={`w-4 h-4 ${(stats?.errorsToday ?? 0) > 0 ? 'text-red-500 dark:text-red-400' : 'text-slate-400 dark:text-slate-500'}`} />
@@ -737,7 +771,7 @@ export const AuditLogsView: React.FC = () => {
                 Usuários Conectados Agora ({activeSessions.length})
               </h2>
               <span className="text-[11px] text-slate-400">
-                • Timeout de inatividade: 15 minutos • Sessão única por usuário
+                • Timeout de inatividade: 30 minutos (configurável em Parâmetros) • Sessão única por usuário
               </span>
             </div>
             <button
@@ -848,7 +882,11 @@ export const AuditLogsView: React.FC = () => {
               Todos
             </button>
             <button
-              onClick={() => { setSelectedLevel('security'); setCurrentPage(1); }}
+              onClick={() => {
+                setSelectedLevel('security');
+                if (activeTab === 'access') setActiveTab('all');
+                setCurrentPage(1);
+              }}
               className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
                 selectedLevel === 'security'
                   ? 'bg-rose-700 text-white shadow-sm'
@@ -859,7 +897,11 @@ export const AuditLogsView: React.FC = () => {
               <span>Segurança ({stats?.security ?? 0})</span>
             </button>
             <button
-              onClick={() => { setSelectedLevel('error'); setCurrentPage(1); }}
+              onClick={() => {
+                setSelectedLevel('error');
+                if (activeTab === 'access') setActiveTab('all');
+                setCurrentPage(1);
+              }}
               className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
                 selectedLevel === 'error'
                   ? 'bg-red-700 text-white shadow-sm'

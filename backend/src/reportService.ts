@@ -860,6 +860,83 @@ export async function extractPassadoresData(startDate: string, endDate: string, 
   };
 }
 
+// 5.1 Extração de Diferenciados
+export async function extractDiferenciadosData(startDate: string, endDate: string, diferenciadoId: string = 'all') {
+  const [ordersRes, diferenciadosRes, settingsRes] = await Promise.all([
+    query('SELECT * FROM sysmauad.orders ORDER BY created_at DESC'),
+    query('SELECT * FROM sysmauad.diferenciados WHERE active = TRUE ORDER BY name ASC'),
+    query('SELECT default_diferenciado_rate, default_diferenciado_rate_after_17 FROM sysmauad.system_settings WHERE id = $1', ['default'])
+  ]);
+
+  const defRate = Number(settingsRes.rows[0]?.default_diferenciado_rate ?? 0.50);
+  const defRateAfter17 = Number(settingsRes.rows[0]?.default_diferenciado_rate_after_17 ?? 0.60);
+
+  const allLogs: any[] = [];
+  ordersRes.rows.forEach((o: any) => {
+    const logs = Array.isArray(o.diferenciado_logs) ? o.diferenciado_logs : [];
+    logs.forEach((l: any) => {
+      const logDate = getLocalDateString(l.timestamp);
+      if ((!startDate || logDate >= startDate) && (!endDate || logDate <= endDate)) {
+        allLogs.push({ ...l, clientName: o.client_name });
+      }
+    });
+  });
+
+  const activeDiferenciados = diferenciadosRes.rows;
+  const diferenciadosSummary = activeDiferenciados.map((dif: any) => {
+    const difLogs = allLogs.filter((l: any) => l.diferenciadoId === dif.id || l.diferenciadoName?.toLowerCase() === dif.name?.toLowerCase());
+    const normalLogs = difLogs.filter((l: any) => !l.isAfter17);
+    const after17Logs = difLogs.filter((l: any) => Boolean(l.isAfter17));
+
+    const normalPieces = normalLogs.reduce((s: number, l: any) => s + Number(l.piecesProduced || 0), 0);
+    const after17Pieces = after17Logs.reduce((s: number, l: any) => s + Number(l.piecesProduced || 0), 0);
+    const pieces = normalPieces + after17Pieces;
+
+    const rateNormal = dif.rate_per_piece !== null && dif.rate_per_piece !== undefined ? Number(dif.rate_per_piece) : defRate;
+    const rateAfter17 = dif.rate_per_piece_after_17 !== null && dif.rate_per_piece_after_17 !== undefined ? Number(dif.rate_per_piece_after_17) : defRateAfter17;
+
+    const normalValue = normalPieces * rateNormal;
+    const after17Value = after17Pieces * rateAfter17;
+    const totalValue = normalValue + after17Value;
+
+    return {
+      id: dif.id,
+      name: dif.name,
+      phone: dif.phone,
+      pieces,
+      normalPieces,
+      after17Pieces,
+      rateNormal,
+      rateAfter17,
+      value: totalValue,
+      logCount: difLogs.length,
+      logs: difLogs
+    };
+  });
+
+  const displayedDiferenciados = diferenciadoId !== 'all'
+    ? diferenciadosSummary.filter(d => d.id === diferenciadoId || d.name === diferenciadoId)
+    : diferenciadosSummary;
+
+  const totalPieces = displayedDiferenciados.reduce((s, d) => s + d.pieces, 0);
+  const totalNormalPieces = displayedDiferenciados.reduce((s, d) => s + d.normalPieces, 0);
+  const totalAfter17Pieces = displayedDiferenciados.reduce((s, d) => s + d.after17Pieces, 0);
+  const totalValue = displayedDiferenciados.reduce((s, d) => s + d.value, 0);
+
+  const displayedLogs = diferenciadoId !== 'all'
+    ? allLogs.filter((l: any) => l.diferenciadoId === diferenciadoId || l.diferenciadoName === diferenciadoId)
+    : allLogs;
+
+  return {
+    diferenciadosSummary: displayedDiferenciados,
+    totalPieces,
+    totalNormalPieces,
+    totalAfter17Pieces,
+    totalValue,
+    logs: displayedLogs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+  };
+}
+
 // 6. Extração de Fornecedores / Insumos
 export async function extractFornecedoresData(startDate: string, endDate: string, supplierId: string = 'all') {
   const res = await query('SELECT * FROM sysmauad.insumo_entries ORDER BY entered_at DESC');
@@ -1569,6 +1646,88 @@ export function buildPassadoresHtml(ctx: any): string {
 </html>`;
 }
 
+// HTML 6.1: PRODUÇÃO DIFERENCIADA
+export function buildDiferenciadosHtml(ctx: any): string {
+  const { title, periodLabel, startDate, endDate, diferenciadoFilter, data, token, retentionDays, generatedAt, baseUrl } = ctx;
+
+  const diferenciadosRows = data.diferenciadosSummary.map((d: any) => `
+    <tr>
+      <td class="font-bold">${d.name}</td>
+      <td>${d.phone || '—'}</td>
+      <td class="text-right font-bold">${d.pieces.toLocaleString('pt-BR')} Pcs</td>
+      <td class="text-right">${formatMoney(d.rateNormal)}</td>
+      <td class="text-right font-bold" style="color: #047857;">${formatMoney(d.value)}</td>
+      <td class="text-center">${d.logCount}</td>
+    </tr>
+  `).join('');
+
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>${title}</title>
+  ${getSysMauadSheetCss(title)}
+</head>
+<body class="print-sheet">
+  <div class="no-print actions-bar">
+    <div class="actions-left">
+      <span class="badge">PRODUÇÃO DIFERENCIADA</span>
+      <span class="exp-info">⏱️ Acesso online válido por ${retentionDays} dias</span>
+    </div>
+    <div class="actions-right">
+      <button onclick="window.print()" class="btn btn-print">🖨️ Imprimir / Salvar PDF</button>
+      <a href="${baseUrl}/api/reports/download/${token}" class="btn btn-dl">⬇️ Baixar HTML</a>
+    </div>
+  </div>
+
+  <div class="sheet-header">
+    <span class="brand">MAUAD LAVANDERIA</span>
+    <span class="doc-title">${title.toUpperCase()}</span>
+    <span class="page">PÁGINA: 001</span>
+  </div>
+
+  <div class="meta-row">
+    <div><strong>PERÍODO:</strong> ${formatDatePt(startDate)} a ${formatDatePt(endDate)}</div>
+    <div>${generatedAt}</div>
+  </div>
+
+  <div class="section-title-row">
+    <span>RESUMO POR COLABORADOR DO DIFERENCIADO</span>
+    <span class="sub">${data.diferenciadosSummary.length} colaboradores</span>
+  </div>
+
+  <table class="report-table">
+    <thead>
+      <tr>
+        <th style="width: 30%;">COLABORADOR</th>
+        <th style="width: 18%;">TELEFONE</th>
+        <th style="width: 18%;" class="text-right">PEÇAS PRODUZIDAS</th>
+        <th style="width: 14%;" class="text-right">TAXA / PÇ</th>
+        <th style="width: 12%;" class="text-right">VALOR TOTAL</th>
+        <th style="width: 8%;" class="text-center">APONT.</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${diferenciadosRows}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="2">TOTAL:</td>
+        <td class="text-right font-bold">${data.totalPieces.toLocaleString('pt-BR')} Pcs</td>
+        <td></td>
+        <td class="text-right font-bold" style="color: #047857;">${formatMoney(data.totalValue)}</td>
+        <td class="text-center">${data.logs.length}</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <div class="doc-footer">
+    Mauad Lavanderia • Sistema de Gestão Industrial SysMauad • Acesso seguro disponível por ${retentionDays} dias.
+  </div>
+</body>
+</html>`;
+}
+
 // HTML 7: ENTRADAS / FORNECEDORES
 export function buildFornecedoresHtml(ctx: any): string {
   const { title, periodLabel, startDate, endDate, supplierFilter, data, token, retentionDays, generatedAt, baseUrl } = ctx;
@@ -1834,6 +1993,30 @@ export async function generateAndSaveReport(params: GenerateReportParams) {
       startDate: period.startDate,
       endDate: period.endDate,
       passadorFilter: params.passadorId || 'all',
+      data,
+      token,
+      retentionDays,
+      generatedAt: `${new Date().toLocaleDateString('pt-BR', { weekday: 'long', timeZone: 'America/Sao_Paulo' })}, ${formatLocalDateTimeStr(now)}`,
+      baseUrl: params.baseUrl
+    });
+
+  // 6.1 DIFERENCIADOS
+  } else if (params.reportType === 'diferenciados') {
+    title = `Relatório de Produção Diferenciada (${period.startDate} a ${period.endDate})`;
+    const data = await extractDiferenciadosData(period.startDate, period.endDate, params.passadorId || 'all');
+    totalPieces = data.totalPieces;
+    totalValue = data.totalValue;
+
+    summaryText = `• Total de Peças no Diferenciado: *${totalPieces.toLocaleString('pt-BR')} peças*\n` +
+                  `• Valor Produzido: *${formatMoney(totalValue)}*\n` +
+                  `• Colaboradores Ativos: *${data.diferenciadosSummary.length}*`;
+
+    htmlContent = buildDiferenciadosHtml({
+      title,
+      periodLabel: period.label,
+      startDate: period.startDate,
+      endDate: period.endDate,
+      diferenciadoFilter: params.passadorId || 'all',
       data,
       token,
       retentionDays,

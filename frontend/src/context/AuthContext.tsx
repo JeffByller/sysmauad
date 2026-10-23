@@ -85,6 +85,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   });
 
+  const [sessionTimeoutMinutes, setSessionTimeoutMinutes] = useState<number>(30);
+
   const isSuperAdmin = user?.id === 'super-admin-root';
 
   const logout = () => {
@@ -122,6 +124,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (!res.ok || data.sessionExpired) {
           alert('Sua sessão expirou por inatividade ou foi encerrada. Faça login novamente.');
           logout();
+        } else if (data.sessionTimeoutMinutes && data.sessionTimeoutMinutes !== sessionTimeoutMinutes) {
+          setSessionTimeoutMinutes(data.sessionTimeoutMinutes);
         }
       } catch (err) {
         // Falha temporária de rede, não desconecta
@@ -129,19 +133,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, 60 * 1000);
 
     return () => clearInterval(interval);
-  }, [user, sessionId]);
+  }, [user, sessionId, sessionTimeoutMinutes]);
 
-  // Detector de inatividade no navegador (15 minutos)
+  // Detector de inatividade no navegador (padrão: 30 minutos ou configurado no sistema)
   useEffect(() => {
     if (!user) return;
 
+    const timeoutMs = (sessionTimeoutMinutes || 30) * 60 * 1000;
     let timer: ReturnType<typeof setTimeout>;
     const resetTimer = () => {
       clearTimeout(timer);
       timer = setTimeout(() => {
-        alert('Sua sessão foi encerrada por inatividade (15 minutos) por medidas de segurança.');
+        alert(`Sua sessão foi encerrada por inatividade (${sessionTimeoutMinutes || 30} minutos) por medidas de segurança.`);
         logout();
-      }, 15 * 60 * 1000);
+      }, timeoutMs);
     };
 
     const events = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart'];
@@ -152,7 +157,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       clearTimeout(timer);
       events.forEach(evt => window.removeEventListener(evt, resetTimer));
     };
-  }, [user, sessionId]);
+  }, [user, sessionId, sessionTimeoutMinutes]);
 
   const login = async (username: string, password: string): Promise<{ success: boolean; message?: string }> => {
     const rawUser = String(username || '').trim();
@@ -179,6 +184,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSessionId(newSessionId);
         sessionStorage.setItem('sysmauad-auth-user', JSON.stringify(loggedUser));
         sessionStorage.setItem('sysmauad-session-id', newSessionId);
+        if (data.sessionTimeoutMinutes) {
+          setSessionTimeoutMinutes(data.sessionTimeoutMinutes);
+        }
         
         // Atualiza a lista local de usuários se for operador regular
         if (loggedUser.id !== 'super-admin-root') {

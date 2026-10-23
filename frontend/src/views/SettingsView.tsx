@@ -69,7 +69,8 @@ export const SettingsView: React.FC = () => {
     defaultPassadorRateAfter17: 0.20,
     defaultDiferenciadoRate: 0.50,
     defaultDiferenciadoRateAfter17: 0.60,
-    stalledOrderAlertDays: 3
+    stalledOrderAlertDays: 3,
+    sessionTimeoutMinutes: 30
   });
 
   const [loadingSettings, setLoadingSettings] = useState(true);
@@ -585,6 +586,28 @@ export const SettingsView: React.FC = () => {
     return () => clearInterval(interval);
   }, [activeTab, whatsAppStatus.connected]);
 
+  // Fecha modais de backup ao pressionar ESC
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (isDownloadModalOpen) {
+          setIsDownloadModalOpen(false);
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+        if (isRestoreModalOpen) {
+          setIsRestoreModalOpen(false);
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isDownloadModalOpen, isRestoreModalOpen]);
+
   // Alterna itens de relatório selecionados
   const toggleReportItem = (itemKey: string) => {
     setSettings(prev => {
@@ -675,19 +698,6 @@ export const SettingsView: React.FC = () => {
               Parâmetros gerais, WhatsApp, relatórios automáticos e backups
             </p>
           </div>
-        </div>
-
-        {/* Global Save Button */}
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => handleSaveSettings()}
-            disabled={savingSettings}
-            className="px-4 py-2.5 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white text-xs font-semibold rounded-xl shadow-sm transition-colors flex items-center gap-2"
-          >
-            <Check className="w-4 h-4" />
-            <span>{savingSettings ? 'Salvando...' : 'Salvar Alterações'}</span>
-          </button>
         </div>
       </div>
 
@@ -1059,6 +1069,26 @@ export const SettingsView: React.FC = () => {
             </div>
             <span className="text-[11px] text-slate-400 block">
               Pedidos não entregues sem movimentação por esse número de dias ganham destaque no Painel e na lista de Pedidos.
+            </span>
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-4">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white pb-3 border-b border-slate-100 dark:border-slate-800">
+              Tempo Limite de Inatividade (Sessão)
+            </h3>
+            <div className="relative max-w-xs">
+              <input
+                type="number"
+                min="5"
+                max="480"
+                value={settings.sessionTimeoutMinutes ?? 30}
+                onChange={e => setSettings({ ...settings, sessionTimeoutMinutes: parseInt(e.target.value) || 30 })}
+                className="w-full pl-3 pr-20 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-sky-500"
+              />
+              <span className="absolute right-3 top-2 text-xs text-slate-400 font-bold">MINUTOS</span>
+            </div>
+            <span className="text-[11px] text-slate-400 block">
+              Tempo sem atividade para encerramento automático da sessão por segurança (padrão: 30 minutos).
             </span>
           </div>
 

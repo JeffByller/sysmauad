@@ -6,17 +6,32 @@ import { AuditLog, AuditLevel, AuditCategory, AuditStats } from './types';
 // 1. IP DETECTION
 // ============================================================================
 export function getClientIp(req: Request): string {
+  // 1. Cloudflare / CDN
+  const cf = req.headers['cf-connecting-ip'];
+  if (typeof cf === 'string' && cf.trim()) return cf.trim();
+
+  // 2. X-Forwarded-For (procura o primeiro IP que não seja privado do Docker)
   const forwarded = req.headers['x-forwarded-for'];
-  if (typeof forwarded === 'string') {
-    return forwarded.split(',')[0].trim();
+  if (typeof forwarded === 'string' && forwarded.trim()) {
+    const ips = forwarded.split(',').map(s => s.trim()).filter(Boolean);
+    const nonDockerIp = ips.find(ip => !ip.startsWith('172.18.') && !ip.startsWith('172.17.') && !ip.startsWith('127.') && ip !== '::1');
+    if (nonDockerIp) return nonDockerIp;
+    if (ips.length > 0) return ips[0];
   }
   if (Array.isArray(forwarded) && forwarded.length > 0) {
     return forwarded[0].trim();
   }
+
+  // 3. X-Real-IP
   const realIp = req.headers['x-real-ip'];
-  if (typeof realIp === 'string') {
+  if (typeof realIp === 'string' && realIp.trim() && !realIp.trim().startsWith('172.18.')) {
     return realIp.trim();
   }
+
+  if (typeof realIp === 'string' && realIp.trim()) {
+    return realIp.trim();
+  }
+
   return req.ip || req.socket.remoteAddress || '127.0.0.1';
 }
 
@@ -465,10 +480,15 @@ export async function getAuditLogs(params: {
   const queryParams: any[] = [];
   let paramIdx = 1;
 
-  if (params.tab === 'access') {
-    whereClauses.push(ACCESS_CONDITION_SQL);
-  } else if (params.tab === 'changes') {
-    whereClauses.push(`NOT ${ACCESS_CONDITION_SQL}`);
+  // Se o usuário filtrou especificamente por erros ou alertas de segurança, não restringe pela aba
+  const isSpecificCriticalFilter = params.level === 'error' || params.level === 'security';
+
+  if (!isSpecificCriticalFilter) {
+    if (params.tab === 'access') {
+      whereClauses.push(ACCESS_CONDITION_SQL);
+    } else if (params.tab === 'changes') {
+      whereClauses.push(`NOT ${ACCESS_CONDITION_SQL}`);
+    }
   }
 
   if (params.level && params.level !== 'all') {

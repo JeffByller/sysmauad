@@ -278,6 +278,7 @@ export interface SystemSettings {
   defaultDiferenciadoRateAfter17?: number;
   stalledOrderAlertDays?: number;
   reportRetentionDays?: number;
+  sessionTimeoutMinutes?: number;
   licenseKey?: string;
   updatedAt?: string;
 }

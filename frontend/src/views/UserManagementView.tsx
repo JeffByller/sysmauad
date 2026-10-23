@@ -69,15 +69,19 @@ export const UserManagementView: React.FC = () => {
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setIsAddingUser(false);
-        setEditingPermissionsUser(null);
-        setChangingPasswordUser(null);
-        setEditingUser(null);
+        if (isAddingUser || editingPermissionsUser || changingPasswordUser || editingUser) {
+          setIsAddingUser(false);
+          setEditingPermissionsUser(null);
+          setChangingPasswordUser(null);
+          setEditingUser(null);
+          e.preventDefault();
+          e.stopPropagation();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [isAddingUser, editingPermissionsUser, changingPasswordUser, editingUser]);
 
   const handleOpenEditUser = (targetUser: SystemUser) => {
     setEditingUser(targetUser);

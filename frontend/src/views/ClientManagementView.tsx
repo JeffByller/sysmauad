@@ -180,14 +180,18 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({ onNa
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setIsAddModalOpen(false);
-        setEditingClient(null);
-        setInvitedClient(null);
+        if (isAddModalOpen || editingClient || invitedClient) {
+          setIsAddModalOpen(false);
+          setEditingClient(null);
+          setInvitedClient(null);
+          e.preventDefault();
+          e.stopPropagation();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [isAddModalOpen, editingClient, invitedClient]);
 
   // Ao abrir o modal de detalhes/edição do cliente
   const handleOpenEditModal = (client: Client, defaultTab: ClientModalTab = 'dados') => {
@@ -581,6 +585,218 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({ onNa
 
     return { gross, discounts, net: gross - discounts, paid, pending, pieces, weight };
   }, [filteredFinanceOrders]);
+
+  // Envio via WhatsApp do que está filtrado no modal do cliente
+  const [modalWhatsAppFeedback, setModalWhatsAppFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [sendingOrdersWhatsApp, setSendingOrdersWhatsApp] = useState(false);
+  const [sendingFinanceWhatsApp, setSendingFinanceWhatsApp] = useState(false);
+
+  const handleSendOrdersWhatsApp = async () => {
+    if (!editingClient) return;
+    const targetPhone = editingClient.phone?.trim();
+    if (!targetPhone) {
+      setModalWhatsAppFeedback({
+        type: 'error',
+        message: `O cliente "${editingClient.name}" não possui número de WhatsApp cadastrado.`
+      });
+      setTimeout(() => setModalWhatsAppFeedback(null), 6000);
+      return;
+    }
+
+    if (filteredClientOrders.length === 0) {
+      setModalWhatsAppFeedback({
+        type: 'error',
+        message: 'Nenhum pedido encontrado nos filtros atuais para envio.'
+      });
+      setTimeout(() => setModalWhatsAppFeedback(null), 5000);
+      return;
+    }
+
+    setSendingOrdersWhatsApp(true);
+    try {
+      const totalPieces = filteredClientOrders.reduce((acc, o) => acc + (o.estimatedPieceCount || 0), 0);
+      const totalWeight = filteredClientOrders.reduce((acc, o) => acc + (o.totalWeightKg || 0), 0);
+      const totalVal = filteredClientOrders.reduce((acc, o) => acc + (o.totalServiceValue || 0), 0);
+
+      const statusDesc = orderStatusFilter === 'todos' 
+        ? 'Todos os Status' 
+        : orderStatusFilter === 'recebido' 
+          ? 'Recebidos' 
+          : orderStatusFilter === 'em_andamento' 
+            ? 'Em Andamento' 
+            : orderStatusFilter === 'pronto' 
+              ? 'Prontos' 
+              : 'Entregues';
+
+      const periodDesc = (orderDateStart && orderDateEnd) 
+        ? `${orderDateStart.split('-').reverse().join('/')} a ${orderDateEnd.split('-').reverse().join('/')}` 
+        : orderDateStart 
+          ? `A partir de ${orderDateStart.split('-').reverse().join('/')}` 
+          : 'Todos os registros';
+
+      const limit = 25;
+      const osLines = filteredClientOrders.slice(0, limit).map(o => {
+        const dataStr = o.createdAt ? new Date(o.createdAt).toLocaleDateString('pt-BR') : '';
+        const pecas = o.estimatedPieceCount || 0;
+        const statusPt = o.status === 'entregue' ? 'Entregue' : o.status === 'pronto' ? 'Pronto' : 'Em Lavanderia';
+        const itemResumo = o.items?.[0] ? `${o.items[0].clothingType || 'Peça'} - ${o.items[0].process || 'Lavado'}` : 'Lavado';
+        return `• *OS #${o.osNumber}* (${dataStr}): ${itemResumo} | ${pecas} pçs | [${statusPt}]`;
+      });
+
+      if (filteredClientOrders.length > limit) {
+        osLines.push(`_... e mais ${filteredClientOrders.length - limit} pedido(s) no filtro._`);
+      }
+
+      const text = [
+        `🧺 *MAUAD LAVANDERIA INDUSTRIAL*`,
+        `📦 *EXTRATO DE PEDIDOS*`,
+        ``,
+        `👤 *Cliente:* ${editingClient.name}`,
+        `🗓️ *Período:* ${periodDesc}`,
+        `🔍 *Filtro de Status:* ${statusDesc}`,
+        ``,
+        `📊 *Totais Filtrados:*`,
+        `• *Pedidos:* ${filteredClientOrders.length} OS(s)`,
+        `• *Peças:* ${totalPieces} pçs`,
+        `• *Peso Total:* ${totalWeight.toFixed(2)} kg`,
+        `• *Valor Total:* ${totalVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
+        ``,
+        `*Lista de Pedidos:*`,
+        ...osLines,
+        ``,
+        `Emitido em ${new Date().toLocaleString('pt-BR')}`
+      ].join('\n');
+
+      const res = await fetch('/api/whatsapp/send-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          number: targetPhone,
+          text,
+          clientId: editingClient.id,
+          clientName: editingClient.name,
+          eventType: 'Extrato de Pedidos'
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setModalWhatsAppFeedback({
+          type: 'success',
+          message: `Extrato de pedidos enviado com sucesso para ${editingClient.name} (${targetPhone})!`
+        });
+      } else {
+        setModalWhatsAppFeedback({
+          type: 'error',
+          message: data.error || 'Falha ao enviar mensagem via WhatsApp.'
+        });
+      }
+    } catch (err: any) {
+      setModalWhatsAppFeedback({
+        type: 'error',
+        message: err.message || 'Erro ao conectar ao serviço de WhatsApp.'
+      });
+    } finally {
+      setSendingOrdersWhatsApp(false);
+      setTimeout(() => setModalWhatsAppFeedback(null), 6000);
+    }
+  };
+
+  const handleSendFinanceWhatsApp = async () => {
+    if (!editingClient) return;
+    const targetPhone = editingClient.phone?.trim();
+    if (!targetPhone) {
+      setModalWhatsAppFeedback({
+        type: 'error',
+        message: `O cliente "${editingClient.name}" não possui número de WhatsApp cadastrado.`
+      });
+      setTimeout(() => setModalWhatsAppFeedback(null), 6000);
+      return;
+    }
+
+    if (filteredFinanceOrders.length === 0) {
+      setModalWhatsAppFeedback({
+        type: 'error',
+        message: 'Nenhum registro financeiro encontrado nos filtros atuais para envio.'
+      });
+      setTimeout(() => setModalWhatsAppFeedback(null), 5000);
+      return;
+    }
+
+    setSendingFinanceWhatsApp(true);
+    try {
+      const statusDesc = financeStatusFilter === 'aberto' 
+        ? 'Faturas em Aberto (A Pagar)' 
+        : financeStatusFilter === 'pago' 
+          ? 'Faturas Quitadas (Pagas)' 
+          : 'Todas as Faturas';
+
+      const limit = 25;
+      const osLines = filteredFinanceOrders.slice(0, limit).map(o => {
+        const dataStr = o.createdAt ? new Date(o.createdAt).toLocaleDateString('pt-BR') : '';
+        const val = (o.totalServiceValue || 0) - (o.discountAmount || 0);
+        const valFmt = val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        const st = o.paymentStatus === 'pago' ? '✅ PAGO' : '⏳ EM ABERTO';
+        return `• *OS #${o.osNumber}* (${dataStr}): ${valFmt} [${st}]`;
+      });
+
+      if (filteredFinanceOrders.length > limit) {
+        osLines.push(`_... e mais ${filteredFinanceOrders.length - limit} fatura(s) no filtro._`);
+      }
+
+      const text = [
+        `🧺 *MAUAD LAVANDERIA INDUSTRIAL*`,
+        `💰 *DEMONSTRATIVO FINANCEIRO / FATURA*`,
+        ``,
+        `👤 *Cliente:* ${editingClient.name}`,
+        `🔍 *Filtro:* ${statusDesc}`,
+        ``,
+        `📊 *Resumo Consolidado:*`,
+        `• *Total Faturado:* ${financeFilteredTotals.net.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
+        `• *A Pagar (Em Aberto):* ${financeFilteredTotals.pending.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
+        `• *Quitado (Pago):* ${financeFilteredTotals.paid.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
+        `• *Total de Ordens:* ${filteredFinanceOrders.length} OS(s)`,
+        ``,
+        `*Faturas Filtradas:*`,
+        ...osLines,
+        ``,
+        `Emitido em ${new Date().toLocaleString('pt-BR')}`
+      ].join('\n');
+
+      const res = await fetch('/api/whatsapp/send-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          number: targetPhone,
+          text,
+          clientId: editingClient.id,
+          clientName: editingClient.name,
+          eventType: 'Demonstrativo Financeiro'
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setModalWhatsAppFeedback({
+          type: 'success',
+          message: `Demonstrativo financeiro enviado com sucesso para ${editingClient.name} (${targetPhone})!`
+        });
+      } else {
+        setModalWhatsAppFeedback({
+          type: 'error',
+          message: data.error || 'Falha ao enviar mensagem via WhatsApp.'
+        });
+      }
+    } catch (err: any) {
+      setModalWhatsAppFeedback({
+        type: 'error',
+        message: err.message || 'Erro ao conectar ao serviço de WhatsApp.'
+      });
+    } finally {
+      setSendingFinanceWhatsApp(false);
+      setTimeout(() => setModalWhatsAppFeedback(null), 6000);
+    }
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 print:p-0 print:m-0 print:max-w-none print:space-y-0">
@@ -1077,18 +1293,44 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({ onNa
                       )}
                     </div>
 
-                    {/* Botão Imprimir Geral da Lista Filtrada */}
-                    <button
-                      type="button"
-                      onClick={handlePrintOrders}
-                      disabled={filteredClientOrders.length === 0}
-                      className="px-3 py-1.5 bg-slate-900 dark:bg-sky-700 hover:bg-slate-800 dark:hover:bg-sky-600 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs disabled:opacity-40 shrink-0"
-                      title="Imprimir Relatório de Pedidos Filtrados deste Cliente"
-                    >
-                      <Printer className="w-3.5 h-3.5" />
-                      <span>Imprimir</span>
-                    </button>
+                    {/* Botões de Ação da Lista Filtrada */}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={handleSendOrdersWhatsApp}
+                        disabled={sendingOrdersWhatsApp || filteredClientOrders.length === 0}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs shrink-0 cursor-pointer"
+                        title={editingClient.phone ? `Enviar lista de pedidos filtrados para o WhatsApp de ${editingClient.name} (${editingClient.phone})` : 'Cliente sem WhatsApp cadastrado'}
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        <span>{sendingOrdersWhatsApp ? 'Enviando...' : 'Enviar WhatsApp'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handlePrintOrders}
+                        disabled={filteredClientOrders.length === 0}
+                        className="px-3 py-1.5 bg-slate-900 dark:bg-sky-700 hover:bg-slate-800 dark:hover:bg-sky-600 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs disabled:opacity-40 shrink-0"
+                        title="Imprimir Relatório de Pedidos Filtrados deste Cliente"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                        <span>Imprimir</span>
+                      </button>
+                    </div>
                   </div>
+
+                  {modalWhatsAppFeedback && (
+                    <div className={`p-3 rounded-xl text-xs font-semibold flex items-center justify-between animate-in fade-in duration-200 ${
+                      modalWhatsAppFeedback.type === 'success'
+                        ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+                        : 'bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-800'
+                    }`}>
+                      <span>{modalWhatsAppFeedback.message}</span>
+                      <button onClick={() => setModalWhatsAppFeedback(null)} className="opacity-60 hover:opacity-100 p-1 cursor-pointer">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
 
                   {/* Tabela de Pedidos do Cliente */}
                   {filteredClientOrders.length === 0 ? (
@@ -1277,19 +1519,45 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({ onNa
                         </button>
                       </div>
 
-                      {/* Botão Imprimir Geral da Lista Filtrada */}
-                      <button
-                        type="button"
-                        onClick={handlePrintFinance}
-                        disabled={filteredFinanceOrders.length === 0}
-                        className="px-3 py-1.5 bg-slate-900 dark:bg-sky-700 hover:bg-slate-800 dark:hover:bg-sky-600 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs disabled:opacity-40 shrink-0"
-                        title="Imprimir Demonstrativo / Fatura Filtrada deste Cliente"
-                      >
-                        <Printer className="w-3.5 h-3.5" />
-                        <span>Imprimir</span>
-                      </button>
+                      {/* Botões de Ação da Lista Filtrada */}
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={handleSendFinanceWhatsApp}
+                          disabled={sendingFinanceWhatsApp || filteredFinanceOrders.length === 0}
+                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs shrink-0 cursor-pointer"
+                          title={editingClient.phone ? `Enviar demonstrativo financeiro filtrado para o WhatsApp de ${editingClient.name} (${editingClient.phone})` : 'Cliente sem WhatsApp cadastrado'}
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          <span>{sendingFinanceWhatsApp ? 'Enviando...' : 'Enviar WhatsApp'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handlePrintFinance}
+                          disabled={filteredFinanceOrders.length === 0}
+                          className="px-3 py-1.5 bg-slate-900 dark:bg-sky-700 hover:bg-slate-800 dark:hover:bg-sky-600 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs disabled:opacity-40 shrink-0"
+                          title="Imprimir Demonstrativo / Fatura Filtrada deste Cliente"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                          <span>Imprimir</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
+
+                  {modalWhatsAppFeedback && (
+                    <div className={`p-3 rounded-xl text-xs font-semibold flex items-center justify-between animate-in fade-in duration-200 ${
+                      modalWhatsAppFeedback.type === 'success'
+                        ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+                        : 'bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-800'
+                    }`}>
+                      <span>{modalWhatsAppFeedback.message}</span>
+                      <button onClick={() => setModalWhatsAppFeedback(null)} className="opacity-60 hover:opacity-100 p-1 cursor-pointer">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
 
                   {/* Tabela do Financeiro idêntica à do FinanceCaixaView */}
                   {filteredFinanceOrders.length === 0 ? (

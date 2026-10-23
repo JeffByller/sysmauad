@@ -31,14 +31,18 @@ export const GarmentCatalogView: React.FC = () => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setIsFormOpen(false);
-        setEditingItem(null);
-        setErrorMsg(null);
+        if (isFormOpen) {
+          setIsFormOpen(false);
+          setEditingItem(null);
+          setErrorMsg(null);
+          e.preventDefault();
+          e.stopPropagation();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [isFormOpen]);
 
   // Converte string de moeda brasileira ("3,50" ou "3.50") para número float
   const parseCurrency = (val: string): number => {

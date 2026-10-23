@@ -2,8 +2,34 @@ import crypto from 'crypto';
 import { query } from './db';
 import { recordAuditLog } from './security';
 
-// Tempo máximo de inatividade da sessão (15 minutos)
-export const SESSION_TIMEOUT_MINUTES = 15;
+// Tempo padrão de inatividade da sessão (padrão: 30 minutos, configurável nos parâmetros)
+export const SESSION_TIMEOUT_MINUTES = 30;
+
+let cachedTimeoutMinutes = 30;
+let lastTimeoutFetch = 0;
+
+export async function getSessionTimeoutMinutes(): Promise<number> {
+  const now = Date.now();
+  if (now - lastTimeoutFetch < 10000) {
+    return cachedTimeoutMinutes;
+  }
+  try {
+    const res = await query('SELECT session_timeout_minutes FROM sysmauad.system_settings WHERE id = $1', ['default']);
+    if (res.rows.length > 0 && res.rows[0].session_timeout_minutes) {
+      const minutes = parseInt(res.rows[0].session_timeout_minutes, 10);
+      if (!isNaN(minutes) && minutes > 0) {
+        cachedTimeoutMinutes = minutes;
+        lastTimeoutFetch = now;
+        return minutes;
+      }
+    }
+  } catch (err: any) {
+    // fallback seguro em caso de indisponibilidade momentânea
+  }
+  cachedTimeoutMinutes = 30;
+  lastTimeoutFetch = now;
+  return 30;
+}
 
 export interface UserSession {
   id: string;
@@ -23,13 +49,14 @@ export interface UserSession {
  */
 export async function cleanupExpiredSessions(): Promise<number> {
   try {
+    const timeoutMinutes = await getSessionTimeoutMinutes();
     const expiredRes = await query(`
       UPDATE sysmauad.user_sessions
       SET is_active = FALSE, ended_at = last_seen_at
       WHERE is_active = TRUE 
         AND last_seen_at <= NOW() - (INTERVAL '1 minute' * $1)
       RETURNING id, user_id, user_name, ip_address, user_agent, last_seen_at
-    `, [SESSION_TIMEOUT_MINUTES]);
+    `, [timeoutMinutes]);
 
     if (expiredRes.rows.length > 0) {
       for (const row of expiredRes.rows) {
@@ -43,7 +70,7 @@ export async function cleanupExpiredSessions(): Promise<number> {
           userAgent: row.user_agent,
           details: {
             sessionId: row.id,
-            reason: `Sessão encerrada automaticamente após ${SESSION_TIMEOUT_MINUTES} minutos de inatividade`,
+            reason: `Sessão encerrada automaticamente após ${timeoutMinutes} minutos de inatividade`,
             lastActivity: row.last_seen_at
           }
         }).catch(() => {});
@@ -64,6 +91,7 @@ export async function cleanupExpiredSessions(): Promise<number> {
 export async function checkActiveSession(userId: string): Promise<UserSession | null> {
   try {
     await cleanupExpiredSessions();
+    const timeoutMinutes = await getSessionTimeoutMinutes();
 
     const result = await query(`
       SELECT * FROM sysmauad.user_sessions
@@ -72,7 +100,7 @@ export async function checkActiveSession(userId: string): Promise<UserSession | 
         AND last_seen_at > NOW() - (INTERVAL '1 minute' * $2)
       ORDER BY last_seen_at DESC 
       LIMIT 1
-    `, [userId, SESSION_TIMEOUT_MINUTES]);
+    `, [userId, timeoutMinutes]);
 
     if (result.rows.length === 0) return null;
 
@@ -134,6 +162,7 @@ export async function createSession(params: {
  */
 export async function touchSession(sessionId: string): Promise<boolean> {
   try {
+    const timeoutMinutes = await getSessionTimeoutMinutes();
     const result = await query(`
       UPDATE sysmauad.user_sessions
       SET last_seen_at = NOW()
@@ -141,7 +170,7 @@ export async function touchSession(sessionId: string): Promise<boolean> {
         AND is_active = TRUE 
         AND last_seen_at > NOW() - (INTERVAL '1 minute' * $2)
       RETURNING id
-    `, [sessionId, SESSION_TIMEOUT_MINUTES]);
+    `, [sessionId, timeoutMinutes]);
 
     return (result.rowCount ?? 0) > 0;
   } catch (err: any) {
@@ -179,6 +208,7 @@ export async function endSession(sessionId?: string, userId?: string): Promise<v
 export async function getActiveSessions(): Promise<(UserSession & { userRole: string })[]> {
   try {
     await cleanupExpiredSessions();
+    const timeoutMinutes = await getSessionTimeoutMinutes();
 
     const result = await query(`
       SELECT s.*, u.role AS user_role
@@ -187,7 +217,7 @@ export async function getActiveSessions(): Promise<(UserSession & { userRole: st
       WHERE s.is_active = TRUE 
         AND s.last_seen_at > NOW() - (INTERVAL '1 minute' * $1)
       ORDER BY s.last_seen_at DESC
-    `, [SESSION_TIMEOUT_MINUTES]);
+    `, [timeoutMinutes]);
 
     return result.rows.map(row => ({
       id: row.id,

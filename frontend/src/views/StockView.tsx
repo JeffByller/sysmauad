@@ -41,13 +41,17 @@ export const StockView: React.FC = () => {
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setIsModalOpen(false);
-        setEditingItem(null);
+        if (isModalOpen) {
+          setIsModalOpen(false);
+          setEditingItem(null);
+          e.preventDefault();
+          e.stopPropagation();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [isModalOpen]);
 
   const handleOpenEditModal = (item: any) => {
     setEditingItem(item);

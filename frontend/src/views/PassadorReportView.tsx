@@ -135,13 +135,17 @@ export const PassadorReportView: React.FC = () => {
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setIsPassadorDropdownOpen(false);
-        setIsDiferenciadoDropdownOpen(false);
+        if (isPassadorDropdownOpen || isDiferenciadoDropdownOpen) {
+          setIsPassadorDropdownOpen(false);
+          setIsDiferenciadoDropdownOpen(false);
+          e.stopPropagation();
+          e.preventDefault();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [isPassadorDropdownOpen, isDiferenciadoDropdownOpen]);
 
   // Lista única de fornecedores para filtro individual
   const uniqueSuppliers = (() => {
@@ -440,8 +444,55 @@ export const PassadorReportView: React.FC = () => {
   const [whatsAppFeedback, setWhatsAppFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const handleSendViaWhatsApp = async () => {
-    const targetPhone = systemSettings?.whatsappTargetPhone;
-    if (!targetPhone) {
+    let destPhone = systemSettings?.whatsappTargetPhone || '';
+    let targetColaboradorName = '';
+
+    // Caso 1: Passadoria (envia ao WhatsApp do colaborador selecionado)
+    if (reportType === 'passadores') {
+      if (selectedPassadorId === 'all' || !selectedPassador) {
+        setWhatsAppFeedback({
+          type: 'error',
+          message: 'Selecione um colaborador de passadoria para enviar o relatório diretamente ao WhatsApp dele.'
+        });
+        setTimeout(() => setWhatsAppFeedback(null), 6000);
+        return;
+      }
+      if (!selectedPassador.phone || !selectedPassador.phone.trim()) {
+        setWhatsAppFeedback({
+          type: 'error',
+          message: `O colaborador "${selectedPassador.name}" não possui número de WhatsApp cadastrado. Preencha o telefone no cadastro dele.`
+        });
+        setTimeout(() => setWhatsAppFeedback(null), 6000);
+        return;
+      }
+      destPhone = selectedPassador.phone.trim();
+      targetColaboradorName = selectedPassador.name;
+    }
+
+    // Caso 2: Diferenciado (envia ao WhatsApp do colaborador selecionado)
+    if (reportType === 'diferenciados') {
+      if (selectedDiferenciadoId === 'all' || !selectedDiferenciado) {
+        setWhatsAppFeedback({
+          type: 'error',
+          message: 'Selecione um colaborador do diferenciado para enviar o relatório diretamente ao WhatsApp dele.'
+        });
+        setTimeout(() => setWhatsAppFeedback(null), 6000);
+        return;
+      }
+      if (!selectedDiferenciado.phone || !selectedDiferenciado.phone.trim()) {
+        setWhatsAppFeedback({
+          type: 'error',
+          message: `O colaborador "${selectedDiferenciado.name}" não possui número de WhatsApp cadastrado. Preencha o telefone no cadastro dele.`
+        });
+        setTimeout(() => setWhatsAppFeedback(null), 6000);
+        return;
+      }
+      destPhone = selectedDiferenciado.phone.trim();
+      targetColaboradorName = selectedDiferenciado.name;
+    }
+
+    // Demais relatórios: exige número padrão cadastrado nas configurações
+    if (!destPhone) {
       setWhatsAppFeedback({
         type: 'error',
         message: 'Cadastre o número do WhatsApp de destino em Configurações > WhatsApp antes de enviar.'
@@ -467,9 +518,9 @@ export const PassadorReportView: React.FC = () => {
           startDate,
           endDate,
           statusFilter: lavadoStatusFilter,
-          passadorId: selectedPassadorId,
+          passadorId: reportType === 'passadores' ? selectedPassadorId : (reportType === 'diferenciados' ? selectedDiferenciadoId : undefined),
           supplierId: selectedSupplierId,
-          targetPhone,
+          targetPhone: destPhone,
           createdBy: user?.name || 'Operador',
           sendWhatsApp: true
         })
@@ -479,7 +530,9 @@ export const PassadorReportView: React.FC = () => {
       if (res.ok && data.success) {
         setWhatsAppFeedback({
           type: 'success',
-          message: `Relatório em PDF enviado com sucesso para ${targetPhone}!`
+          message: targetColaboradorName
+            ? `Relatório em PDF enviado com sucesso para ${targetColaboradorName} (${destPhone})!`
+            : `Relatório em PDF enviado com sucesso para ${destPhone}!`
         });
       } else {
         setWhatsAppFeedback({
@@ -668,11 +721,24 @@ export const PassadorReportView: React.FC = () => {
             <button
               onClick={handleSendViaWhatsApp}
               disabled={sendingWhatsApp}
-              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold rounded-xl text-xs transition-colors flex items-center gap-2 shadow-sm font-mono"
-              title="Enviar PDF do relatório atual via WhatsApp"
+              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold rounded-xl text-xs transition-colors flex items-center gap-2 shadow-sm font-mono cursor-pointer"
+              title={
+                reportType === 'passadores' && selectedPassador
+                  ? `Enviar PDF da produção para o WhatsApp de ${selectedPassador.name} (${selectedPassador.phone || 'Sem WhatsApp'})`
+                  : reportType === 'diferenciados' && selectedDiferenciado
+                    ? `Enviar PDF da produção para o WhatsApp de ${selectedDiferenciado.name} (${selectedDiferenciado.phone || 'Sem WhatsApp'})`
+                    : 'Enviar PDF do relatório atual via WhatsApp'
+              }
             >
               <Send className="w-4 h-4" />
-              <span>{sendingWhatsApp ? 'Enviando...' : 'Enviar WhatsApp'}</span>
+              <span>
+                {sendingWhatsApp 
+                  ? 'Enviando...' 
+                  : (reportType === 'passadores' && selectedPassador) || (reportType === 'diferenciados' && selectedDiferenciado)
+                    ? 'Enviar ao Colaborador'
+                    : 'Enviar WhatsApp'
+                }
+              </span>
             </button>
             <button
               onClick={handlePrint}
