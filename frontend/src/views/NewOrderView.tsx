@@ -18,8 +18,28 @@ export interface ExtraServiceItem {
 }
 
 export const NewOrderView: React.FC<NewOrderViewProps> = ({ editOrderId, onOrderCreated, onNavigateToClients, onNavigateToOrders }) => {
-  const { orders, createOrder, defineOrder, calculateChemicals, clients, garmentCatalog, receitasLavado } = useOrders();
+  const { orders, createOrder, defineOrder, calculateChemicals, clients, garmentCatalog, addGarmentCatalogItem, receitasLavado } = useOrders();
   const { user } = useAuth();
+
+  const standardGarments = useMemo(
+    () => garmentCatalog.filter(g => g.category?.toUpperCase() !== 'DIFERENCIADO' && g.clothingType?.toUpperCase() !== 'DIFERENCIADO'),
+    [garmentCatalog]
+  );
+
+  const diferenciadoCatalog = useMemo(() => {
+    const list = garmentCatalog.filter(
+      g => g.category?.toUpperCase() === 'DIFERENCIADO' || g.clothingType?.toUpperCase() === 'DIFERENCIADO'
+    );
+    return list.length > 0
+      ? list.map(g => ({ id: g.id, name: g.processName, price: Number(g.unitPrice || 0) }))
+      : [
+          { id: 'd-pistolado', name: 'Pistolado', price: 2.0 },
+          { id: 'd-bigode', name: 'Bigode Laser', price: 1.0 },
+          { id: 'd-puido', name: 'Puído Laser', price: 1.5 },
+          { id: 'd-destroyed', name: 'Destroyed', price: 2.5 },
+          { id: 'd-resinagem', name: 'Resinagem', price: 3.0 }
+        ];
+  }, [garmentCatalog]);
 
   const [createdOrderSuccess, setCreatedOrderSuccess] = useState<Order | null>(null);
 
@@ -144,13 +164,25 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ editOrderId, onOrder
     }
   };
 
-  const handleAddExtraService = (name: string, price: number) => {
-    if (!name.trim()) return;
+  const handleAddExtraService = (name: string, price: number, saveToCatalog = false) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const priceNum = Number(price) || 0;
     setHasDiferenciado(true);
     setExtraServices(prev => [
       ...prev,
-      { id: `diff-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`, name: name.trim(), unitPrice: Number(price) || 0 }
+      { id: `diff-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`, name: trimmed, unitPrice: priceNum }
     ]);
+    if (saveToCatalog && !diferenciadoCatalog.some(d => d.name.toLowerCase() === trimmed.toLowerCase())) {
+      addGarmentCatalogItem({
+        clothingType: 'DIFERENCIADO',
+        processName: trimmed,
+        unitPrice: priceNum,
+        defaultRefWeightGrams: 0,
+        category: 'DIFERENCIADO',
+        notes: 'Cadastrado na entrada de pedido'
+      });
+    }
     setNewServiceName('');
     setNewServicePrice('');
   };
@@ -787,7 +819,7 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ editOrderId, onOrder
                 required
               >
                 <option value="">-- Selecione a Peça Cadastrada na Tabela --</option>
-                {garmentCatalog.map(item => (
+                {standardGarments.map(item => (
                   <option key={item.id} value={item.id}>
                     {item.clothingType}{item.corteOs ? ` [Corte: ${item.corteOs}]` : ''} — Processo: {item.processName} (Ref: {item.defaultRefWeightGrams}g)
                   </option>
@@ -822,8 +854,8 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ editOrderId, onOrder
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">
-                Processo de Lavado (Receita) <span className="text-red-500">*</span>
+              <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1 whitespace-nowrap">
+                Processo de Lavado <span className="text-red-500">*</span>
               </label>
               <select
                 value={processType}
@@ -844,8 +876,8 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ editOrderId, onOrder
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">
-                Valor do Lavado (R$ / pç) <span className="text-red-500">*</span>
+              <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1 whitespace-nowrap">
+                Valor do Lavado <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">R$</span>
@@ -862,109 +894,113 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ editOrderId, onOrder
             </div>
           </div>
 
-          {/* Sub-painel: Serviços Diferenciados (Opcionais combinados na mesma O.S. / Nota) */}
+          {/* Sub-painel: Produção Diferenciada */}
           <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div>
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={hasDiferenciado || extraServices.length > 0}
-                    onChange={e => setHasDiferenciado(e.target.checked)}
-                    className="w-4 h-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
-                  />
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                    Requer Produção Diferenciada (Opcional — Etapa Pré-Passadoria)
-                  </h3>
-                </label>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                  Adicione acabamentos como <strong>Destroyed, Pistolado, Bigode Laser, Resinagem</strong>.
-                </p>
-              </div>
-
-              {/* Botões Rápidos de Adição */}
-              <div className="flex flex-wrap items-center gap-1.5">
-                {[
-                  { name: 'Pistolado', price: 2.0 },
-                  { name: 'Bigode Laser', price: 1.0 },
-                  { name: 'Puído Laser', price: 1.5 },
-                  { name: 'Destroyed', price: 2.5 },
-                  { name: 'Resinagem', price: 3.0 }
-                ].map(item => (
-                  <button
-                    key={item.name}
-                    type="button"
-                    onClick={() => handleAddExtraService(item.name, item.price)}
-                    className="px-2 py-1 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 rounded-lg text-[10px] font-bold transition-colors flex items-center gap-1"
-                  >
-                    <Plus className="w-2.5 h-2.5" />
-                    {item.name} (+R$ {item.price.toFixed(2)})
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Input para digitação livre de novo serviço diferenciado */}
-            <div className="flex flex-col sm:flex-row items-center gap-2 bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+            <label className="inline-flex items-center gap-2 cursor-pointer select-none">
               <input
-                type="text"
-                value={newServiceName}
-                onChange={e => setNewServiceName(e.target.value)}
-                placeholder="Outro serviço (ex: Bigode 3D, Puído Manual...)"
-                className="flex-1 w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
-              />
-              <div className="relative w-full sm:w-36">
-                <span className="absolute left-2.5 top-2 text-xs font-bold text-slate-400">R$</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={newServicePrice === '' ? '' : newServicePrice}
-                  onChange={e => setNewServicePrice(e.target.value === '' ? '' : Number(e.target.value))}
-                  placeholder="0.00"
-                  className="w-full pl-8 pr-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  if (newServiceName.trim()) {
-                    handleAddExtraService(newServiceName, Number(newServicePrice) || 0);
+                type="checkbox"
+                checked={hasDiferenciado || extraServices.length > 0}
+                onChange={e => {
+                  const checked = e.target.checked;
+                  setHasDiferenciado(checked);
+                  if (!checked) {
+                    setExtraServices([]);
                   }
                 }}
-                className="w-full sm:w-auto px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Adicionar
-              </button>
-            </div>
+                className="w-4 h-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
+              />
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                Requer Produção Diferenciada
+              </span>
+            </label>
 
-            {/* Lista dos Serviços Diferenciados adicionados */}
-            {extraServices.length > 0 && (
-              <div className="space-y-1.5">
-                {extraServices.map(s => (
-                  <div key={s.id} className="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                      <strong className="text-slate-800 dark:text-slate-200 font-semibold">{s.name}</strong>
-                      <span className="text-[10px] text-slate-400 uppercase font-mono">(Serviço Diferenciado)</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono font-bold text-slate-900 dark:text-slate-100 text-sm">
-                        R$ {s.unitPrice.toFixed(2)} / pç
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveExtraService(s.id)}
-                        className="text-slate-400 hover:text-rose-500 p-1 rounded transition-colors"
-                        title="Remover serviço"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+            {(hasDiferenciado || extraServices.length > 0) && (
+              <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3 animate-in fade-in duration-150">
+                {/* Seleção rápida por lista (dropdown) */}
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">
+                    Selecionar Serviço Diferenciado
+                  </label>
+                  <select
+                    value=""
+                    onChange={e => {
+                      const found = diferenciadoCatalog.find(d => d.id === e.target.value);
+                      if (found) {
+                        handleAddExtraService(found.name, found.price);
+                      }
+                    }}
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  >
+                    <option value="">-- Selecione um serviço para adicionar --</option>
+                    {diferenciadoCatalog.map(item => (
+                      <option key={item.id} value={item.id}>
+                        {item.name} (+R$ {item.price.toFixed(2)})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Digitação livre de outro serviço diferenciado */}
+                <div className="flex flex-col sm:flex-row items-center gap-2">
+                  <input
+                    type="text"
+                    value={newServiceName}
+                    onChange={e => setNewServiceName(e.target.value)}
+                    placeholder="Outro serviço (ex: Bigode 3D, Puído Manual...)"
+                    className="flex-1 w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  />
+                  <div className="relative w-full sm:w-36">
+                    <span className="absolute left-2.5 top-2 text-xs font-bold text-slate-400">R$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={newServicePrice === '' ? '' : newServicePrice}
+                      onChange={e => setNewServicePrice(e.target.value === '' ? '' : Number(e.target.value))}
+                      placeholder="0.00"
+                      className="w-full pl-8 pr-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    />
                   </div>
-                ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (newServiceName.trim()) {
+                        handleAddExtraService(newServiceName, Number(newServicePrice) || 0, true);
+                      }
+                    }}
+                    className="w-full sm:w-auto px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Adicionar
+                  </button>
+                </div>
+
+                {/* Lista dos Serviços Diferenciados adicionados */}
+                {extraServices.length > 0 && (
+                  <div className="space-y-1.5 pt-1">
+                    {extraServices.map(s => (
+                      <div key={s.id} className="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                          <strong className="text-slate-800 dark:text-slate-200 font-semibold">{s.name}</strong>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="font-mono font-bold text-slate-900 dark:text-slate-100 text-sm">
+                            R$ {s.unitPrice.toFixed(2)} / pç
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveExtraService(s.id)}
+                            className="text-slate-400 hover:text-rose-500 p-1 rounded transition-colors"
+                            title="Remover serviço"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -973,18 +1009,22 @@ export const NewOrderView: React.FC<NewOrderViewProps> = ({ editOrderId, onOrder
               <span className="font-bold text-[10px] uppercase tracking-wider text-sky-800 dark:text-sky-300 block font-sans">
                 Detalhamento dos Valores ao Cliente (Composição da Nota):
               </span>
-              <div className="flex justify-between text-slate-700 dark:text-slate-300">
-                <span>{processType || 'Lavado Principal'}:</span>
-                <strong>R$ {unitPrice.toFixed(2)}</strong>
-              </div>
-              {extraServices.map(s => (
-                <div key={s.id} className="flex justify-between text-slate-700 dark:text-slate-300">
-                  <span>{s.name}:</span>
-                  <strong>R$ {s.unitPrice.toFixed(2)}</strong>
-                </div>
-              ))}
-              <div className="pt-1.5 border-t border-sky-200 dark:border-sky-800 flex justify-between font-bold text-sky-950 dark:text-sky-200 text-sm">
-                <span>Total da Nota (por peça):</span>
+              {extraServices.length > 0 && (
+                <>
+                  <div className="flex justify-between text-slate-700 dark:text-slate-300">
+                    <span>{processType || 'Lavado Principal'}:</span>
+                    <strong>R$ {unitPrice.toFixed(2)}</strong>
+                  </div>
+                  {extraServices.map(s => (
+                    <div key={s.id} className="flex justify-between text-slate-700 dark:text-slate-300">
+                      <span>{s.name}:</span>
+                      <strong>R$ {s.unitPrice.toFixed(2)}</strong>
+                    </div>
+                  ))}
+                </>
+              )}
+              <div className={`${extraServices.length > 0 ? 'pt-1.5 border-t border-sky-200 dark:border-sky-800' : ''} flex justify-between font-bold text-sky-950 dark:text-sky-200 text-sm`}>
+                <span>Total da Nota (por peça){extraServices.length === 0 && processType ? ` — ${processType}` : ''}:</span>
                 <span>R$ {combinedUnitPrice.toFixed(2)}</span>
               </div>
               {pieceCount > 0 && (

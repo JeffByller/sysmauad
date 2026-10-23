@@ -108,6 +108,15 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
   const clientNameSafe = (order.clientName || 'CLIENTE NÃO INFORMADO').toUpperCase();
   const totalWeightSafe = Number(order.totalWeightKg || 0);
   const totalPiecesSafe = Number(order.estimatedPieceCount || 0);
+  const totalServiceValueSafe = order.isRelavado || order.isADefinir
+    ? 0
+    : Number(
+        order.totalServiceValue ??
+        (order.items || []).reduce(
+          (acc, it) => acc + (it.totalPrice ?? (Number(it.unitPrice || 0) * (Number(it.quantity) || totalPiecesSafe))),
+          0
+        )
+      );
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 print:max-w-none print:w-full print:p-0 print:m-0 space-y-6 font-sans">
@@ -362,19 +371,14 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
             </div>
           </div>
 
-          {/* Rodapé: Assinaturas e QR Code Integrados em 3 Colunas de Ponta a Ponta */}
-          <div className="pt-8 grid grid-cols-12 items-end gap-4 text-center font-mono text-[10px] uppercase">
-            <div className="col-span-5">
-              <div className="border-b border-black w-4/5 mx-auto mb-1"></div>
-              <div className="font-bold">ENTREGUE POR (CLIENTE / MOTORISTA)</div>
+          {/* Rodapé: Assinatura Centralizada e QR Code */}
+          <div className="pt-8 relative flex items-end justify-center font-mono text-[10px] uppercase">
+            <div className="w-80 text-center">
+              <div className="border-b border-black w-full mb-1"></div>
+              <div className="font-bold">ASSINATURA</div>
             </div>
 
-            <div className="col-span-5">
-              <div className="border-b border-black w-4/5 mx-auto mb-1"></div>
-              <div className="font-bold">RECEBIDO POR (LAVANDERIA MAUAD)</div>
-            </div>
-
-            <div className="col-span-2 flex flex-col items-end justify-center text-[9px] text-slate-600">
+            <div className="absolute right-0 bottom-0 flex flex-col items-end justify-center text-[9px] text-slate-600">
               <div className="p-0.5 border border-black bg-white inline-block mb-0.5">
                 <QRCodeSVG value={order.osNumber || pureOsNumber} size={42} />
               </div>
@@ -602,19 +606,14 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
             </span>
           </div>
 
-          {/* Rodapé de Assinaturas da Produção */}
-          <div className="pt-6 grid grid-cols-12 items-end gap-4 text-center font-mono text-[10px] uppercase">
-            <div className="col-span-5">
-              <div className="border-b border-black w-4/5 mx-auto mb-1"></div>
-              <div className="font-bold">OPERADOR DO LAVADOR</div>
+          {/* Rodapé: Assinatura Centralizada e QR Code */}
+          <div className="pt-6 relative flex items-end justify-center font-mono text-[10px] uppercase">
+            <div className="w-80 text-center">
+              <div className="border-b border-black w-full mb-1"></div>
+              <div className="font-bold">ASSINATURA</div>
             </div>
 
-            <div className="col-span-5">
-              <div className="border-b border-black w-4/5 mx-auto mb-1"></div>
-              <div className="font-bold">SUPERVISOR / QUÍMICO RESPONSÁVEL</div>
-            </div>
-
-            <div className="col-span-2 flex flex-col items-end justify-center text-[9px] text-slate-600">
+            <div className="absolute right-0 bottom-0 flex flex-col items-end justify-center text-[9px] text-slate-600">
               <div className="p-0.5 border border-black bg-white inline-block mb-0.5">
                 <QRCodeSVG value={order.osNumber || pureOsNumber} size={42} />
               </div>
@@ -717,38 +716,54 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
             <div className="flex-1 border-b border-dashed border-slate-400"></div>
           </div>
 
-          {/* Tabela de Itens Aproveitando 100% da Largura da Folha (Sem Valores Financeiros) */}
+          {/* Tabela de Itens Aproveitando 100% da Largura da Folha */}
           <div className="w-full">
             <table className="w-full text-left border-collapse text-[11px]">
               <thead>
                 <tr className="border-b-2 border-slate-900 text-[10px] uppercase font-bold text-slate-800">
-                  <th className="py-1 px-1 text-left w-[36%]">LAVADO / PROCESSO</th>
-                  <th className="py-1 px-1 text-left w-[24%]">ROUPA / PEÇA</th>
-                  <th className="py-1 px-1 text-center w-[16%]">CORTE / O.S.</th>
-                  <th className="py-1 px-1 text-center w-[12%]">TIPO</th>
-                  <th className="py-1 px-1 text-right w-[12%]">QUANTIDADE</th>
+                  <th className="py-1 px-1 text-left w-[26%]">LAVADO / PROCESSO</th>
+                  <th className="py-1 px-1 text-left w-[20%]">ROUPA / PEÇA</th>
+                  <th className="py-1 px-1 text-center w-[12%]">CORTE / O.S.</th>
+                  <th className="py-1 px-1 text-center w-[10%]">TIPO</th>
+                  <th className="py-1 px-1 text-right w-[10%]">QTD</th>
+                  <th className="py-1 px-1 text-right w-[10%]">VL. UNIT.</th>
+                  <th className="py-1 px-1 text-right w-[12%]">VL. TOTAL</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {(order.items || []).map((item, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50/50">
-                    <td className="py-1.5 px-1 font-bold uppercase text-slate-900">
-                      {item.process}
-                    </td>
-                    <td className="py-1.5 px-1 uppercase text-slate-800">
-                      {item.clothingType}
-                    </td>
-                    <td className="py-1.5 px-1 text-center font-mono uppercase text-slate-700">
-                      {item.corteOs || order.corteOs || '-'}
-                    </td>
-                    <td className="py-1.5 px-1 text-center uppercase text-[10px] text-slate-600">
-                      {item.serviceType === 'diferenciado' ? 'DIFERENCIADO' : 'LAVADO'}
-                    </td>
-                    <td className="py-1.5 px-1 text-right font-mono font-bold text-slate-900 text-xs">
-                      {item.quantity || totalPiecesSafe} pçs
-                    </td>
-                  </tr>
-                ))}
+                {(order.items || []).map((item, idx) => {
+                  const itemQty = Number(item.quantity) || totalPiecesSafe;
+                  const itemUnit = (order.isRelavado || order.isADefinir) ? 0 : Number(item.unitPrice || 0);
+                  const itemTotal = (order.isRelavado || order.isADefinir)
+                    ? 0
+                    : Number(item.totalPrice ?? (itemUnit * itemQty));
+
+                  return (
+                    <tr key={idx} className="hover:bg-slate-50/50">
+                      <td className="py-1.5 px-1 font-bold uppercase text-slate-900">
+                        {item.process}
+                      </td>
+                      <td className="py-1.5 px-1 uppercase text-slate-800">
+                        {item.clothingType}
+                      </td>
+                      <td className="py-1.5 px-1 text-center font-mono uppercase text-slate-700">
+                        {item.corteOs || order.corteOs || '-'}
+                      </td>
+                      <td className="py-1.5 px-1 text-center uppercase text-[10px] text-slate-600">
+                        {item.serviceType === 'diferenciado' ? 'DIFERENCIADO' : 'LAVADO'}
+                      </td>
+                      <td className="py-1.5 px-1 text-right font-mono font-bold text-slate-900 text-xs">
+                        {itemQty} pçs
+                      </td>
+                      <td className="py-1.5 px-1 text-right font-mono text-slate-800">
+                        {itemUnit.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </td>
+                      <td className="py-1.5 px-1 text-right font-mono font-bold text-slate-900">
+                        {itemTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -756,25 +771,31 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
           {/* Divisor de 100% de Largura */}
           <div className="w-full border-b-2 border-slate-900 my-1"></div>
 
-          {/* Totais Operacionais de Carga: Peças e Peso Balança */}
-          <div className="flex justify-between items-center py-2 px-3 bg-slate-50 border border-slate-300 rounded font-bold text-xs">
+          {/* Totais Operacionais de Carga e Valor Total do Serviço */}
+          <div className="flex flex-wrap justify-between items-center gap-4 py-2.5 px-3 bg-slate-50 border border-slate-300 rounded font-bold text-xs">
             <div className="flex items-center gap-6">
               <div>
                 <span className="text-slate-600 text-[11px] uppercase mr-2">QTD TOTAL PEÇAS:</span>
                 <span className="font-mono text-base text-slate-900">{totalPiecesSafe}</span>
                 <span className="text-[10px] text-slate-500 ml-1">peças</span>
               </div>
-              <div className="text-[11px] text-slate-500 font-normal">
-                Ref. Unitária: <span className="font-mono font-bold text-slate-800">{order.refPieceWeightGrams || (totalPiecesSafe > 0 ? Math.round((totalWeightSafe * 1000) / totalPiecesSafe) : 0)}g / pç</span>
+              <div>
+                <span className="text-slate-600 text-[11px] uppercase mr-2">PESO TOTAL BALANÇA:</span>
+                <span className="font-mono text-base text-slate-900">
+                  {totalWeightSafe.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+                </span>
+                <span className="text-xs text-slate-900 ml-1">Kg</span>
               </div>
             </div>
 
-            <div className="text-right">
-              <span className="text-slate-600 text-[11px] uppercase mr-2">PESO TOTAL BALANÇA:</span>
-              <span className="font-mono text-base text-slate-900">
-                {totalWeightSafe.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+            <div className="text-right border-l border-slate-300 pl-4">
+              <span className="text-slate-700 text-[11px] uppercase mr-2">VALOR TOTAL DO SERVIÇO:</span>
+              <span className="font-mono text-base font-black text-slate-900">
+                {totalServiceValueSafe.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
               </span>
-              <span className="text-xs text-slate-900 ml-1">Kg</span>
+              {order.isRelavado && (
+                <span className="text-[10px] text-slate-600 ml-1.5 uppercase">(RELAVADO)</span>
+              )}
             </div>
           </div>
 
@@ -783,19 +804,14 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
             DECLARO QUE O PEDIDO ACIMA FOI CONFERIDO E RETIRADO/ENTREGUE EM PERFEITAS CONDIÇÕES.
           </div>
 
-          {/* Rodapé: Assinaturas e QR Code Integrados em 3 Colunas de Ponta a Ponta */}
-          <div className="pt-8 grid grid-cols-12 items-end gap-4 text-center font-mono text-[10px] uppercase">
-            <div className="col-span-5">
-              <div className="border-b border-black w-4/5 mx-auto mb-1"></div>
-              <div className="font-bold">ENTREGUE POR (LAVANDERIA MAUAD)</div>
+          {/* Rodapé: Assinatura Centralizada e QR Code */}
+          <div className="pt-8 relative flex items-end justify-center font-mono text-[10px] uppercase">
+            <div className="w-80 text-center">
+              <div className="border-b border-black w-full mb-1"></div>
+              <div className="font-bold">ASSINATURA</div>
             </div>
 
-            <div className="col-span-5">
-              <div className="border-b border-black w-4/5 mx-auto mb-1"></div>
-              <div className="font-bold">RETIRADO / RECEBIDO POR (CLIENTE / MOTORISTA)</div>
-            </div>
-
-            <div className="col-span-2 flex flex-col items-end justify-center text-[9px] text-slate-600">
+            <div className="absolute right-0 bottom-0 flex flex-col items-end justify-center text-[9px] text-slate-600">
               <div className="p-0.5 border border-black bg-white inline-block mb-0.5">
                 <QRCodeSVG value={order.osNumber || pureOsNumber} size={42} />
               </div>
@@ -962,19 +978,14 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
             </div>
           </div>
 
-          {/* Rodapé: Assinaturas e QR Code Integrados em 3 Colunas de Ponta a Ponta */}
-          <div className="pt-8 grid grid-cols-12 items-end gap-4 text-center font-mono text-[10px] uppercase">
-            <div className="col-span-5">
-              <div className="border-b border-black w-4/5 mx-auto mb-1"></div>
-              <div className="font-bold">CONFERIDO POR (PASSADORIA)</div>
+          {/* Rodapé: Assinatura Centralizada e QR Code */}
+          <div className="pt-8 relative flex items-end justify-center font-mono text-[10px] uppercase">
+            <div className="w-80 text-center">
+              <div className="border-b border-black w-full mb-1"></div>
+              <div className="font-bold">ASSINATURA</div>
             </div>
 
-            <div className="col-span-5">
-              <div className="border-b border-black w-4/5 mx-auto mb-1"></div>
-              <div className="font-bold">SUPERVISOR DE PRODUÇÃO</div>
-            </div>
-
-            <div className="col-span-2 flex flex-col items-end justify-center text-[9px] text-slate-600">
+            <div className="absolute right-0 bottom-0 flex flex-col items-end justify-center text-[9px] text-slate-600">
               <div className="p-0.5 border border-black bg-white inline-block mb-0.5">
                 <QRCodeSVG value={order.osNumber || pureOsNumber} size={42} />
               </div>
@@ -1146,19 +1157,14 @@ export const OrderPrintView: React.FC<OrderPrintViewProps> = ({ orderId, onBack,
             </div>
           </div>
 
-          {/* Rodapé: Assinaturas e QR Code Integrados em 3 Colunas de Ponta a Ponta */}
-          <div className="pt-8 grid grid-cols-12 items-end gap-4 text-center font-mono text-[10px] uppercase">
-            <div className="col-span-5">
-              <div className="border-b border-black w-4/5 mx-auto mb-1"></div>
-              <div className="font-bold">CONFERIDO POR (DIFERENCIADO)</div>
+          {/* Rodapé: Assinatura Centralizada e QR Code */}
+          <div className="pt-8 relative flex items-end justify-center font-mono text-[10px] uppercase">
+            <div className="w-80 text-center">
+              <div className="border-b border-black w-full mb-1"></div>
+              <div className="font-bold">ASSINATURA</div>
             </div>
 
-            <div className="col-span-5">
-              <div className="border-b border-black w-4/5 mx-auto mb-1"></div>
-              <div className="font-bold">SUPERVISOR DE PRODUÇÃO</div>
-            </div>
-
-            <div className="col-span-2 flex flex-col items-end justify-center text-[9px] text-slate-600">
+            <div className="absolute right-0 bottom-0 flex flex-col items-end justify-center text-[9px] text-slate-600">
               <div className="p-0.5 border border-black bg-white inline-block mb-0.5">
                 <QRCodeSVG value={order.osNumber || pureOsNumber} size={42} />
               </div>

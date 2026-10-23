@@ -16,7 +16,8 @@ import {
   CheckCircle,
   Search,
   X,
-  Sparkles
+  Sparkles,
+  Send
 } from 'lucide-react';
 import { getDatePresets, getLocalDateString } from '../utils/dateUtils';
 import { OrderStatus, Order } from '../types';
@@ -434,6 +435,69 @@ export const PassadorReportView: React.FC = () => {
     window.print();
   };
 
+  // Envio direto do relatório visualizado via WhatsApp
+  const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
+  const [whatsAppFeedback, setWhatsAppFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const handleSendViaWhatsApp = async () => {
+    const targetPhone = systemSettings?.whatsappTargetPhone;
+    if (!targetPhone) {
+      setWhatsAppFeedback({
+        type: 'error',
+        message: 'Cadastre o número do WhatsApp de destino em Configurações > WhatsApp antes de enviar.'
+      });
+      setTimeout(() => setWhatsAppFeedback(null), 6000);
+      return;
+    }
+
+    setSendingWhatsApp(true);
+    try {
+      let reqReportType = reportType as string;
+      if (reportType === 'lavados') {
+        if (lavadoStatusFilter === 'na_lavanderia') reqReportType = 'na_lavanderia';
+        else if (lavadoStatusFilter === 'entregue' && periodPreset === 'hoje') reqReportType = 'entregues_hoje';
+      }
+
+      const res = await fetch('/api/reports/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reportType: reqReportType,
+          periodPreset,
+          startDate,
+          endDate,
+          statusFilter: lavadoStatusFilter,
+          passadorId: selectedPassadorId,
+          supplierId: selectedSupplierId,
+          targetPhone,
+          createdBy: user?.name || 'Operador',
+          sendWhatsApp: true
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setWhatsAppFeedback({
+          type: 'success',
+          message: `Relatório em PDF enviado com sucesso para ${targetPhone}!`
+        });
+      } else {
+        setWhatsAppFeedback({
+          type: 'error',
+          message: data.message || 'Falha ao enviar relatório pelo WhatsApp.'
+        });
+      }
+    } catch (err: any) {
+      setWhatsAppFeedback({
+        type: 'error',
+        message: err.message || 'Erro ao conectar ao servidor.'
+      });
+    } finally {
+      setSendingWhatsApp(false);
+      setTimeout(() => setWhatsAppFeedback(null), 7000);
+    }
+  };
+
   // Helper para legenda amigável do filtro de status do Painel
   const getStatusFilterLabel = (status: typeof lavadoStatusFilter) => {
     switch (status) {
@@ -566,13 +630,13 @@ export const PassadorReportView: React.FC = () => {
     }
     if (reportType === 'diferenciados') {
       if (selectedDiferenciado) {
-        return 'RELATÓRIO';
+        return `RELATÓRIO DE PROCESSOS DIFERENCIADOS — ${selectedDiferenciado.name.toUpperCase()}`;
       }
       return 'RELATÓRIO DE PRODUÇÃO DIFERENCIADA';
     }
     if (reportType === 'passadores') {
       if (selectedPassador) {
-        return 'RELATÓRIO';
+        return `RELATÓRIO DE PASSADORIA — ${selectedPassador.name.toUpperCase()}`;
       }
       return 'RELATÓRIO DE PASSADORIA';
     }
@@ -602,6 +666,15 @@ export const PassadorReportView: React.FC = () => {
 
           <div className="flex items-center gap-2">
             <button
+              onClick={handleSendViaWhatsApp}
+              disabled={sendingWhatsApp}
+              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold rounded-xl text-xs transition-colors flex items-center gap-2 shadow-sm font-mono"
+              title="Enviar PDF do relatório atual via WhatsApp"
+            >
+              <Send className="w-4 h-4" />
+              <span>{sendingWhatsApp ? 'Enviando...' : 'Enviar WhatsApp'}</span>
+            </button>
+            <button
               onClick={handlePrint}
               className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 dark:bg-sky-700 dark:hover:bg-sky-800 text-white font-semibold rounded-xl text-xs transition-colors flex items-center gap-2 shadow-sm font-mono"
             >
@@ -610,6 +683,19 @@ export const PassadorReportView: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {whatsAppFeedback && (
+          <div className={`p-3 rounded-xl text-xs font-semibold flex items-center justify-between animate-in fade-in duration-200 ${
+            whatsAppFeedback.type === 'success'
+              ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+              : 'bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-800'
+          }`}>
+            <span>{whatsAppFeedback.message}</span>
+            <button onClick={() => setWhatsAppFeedback(null)} className="opacity-60 hover:opacity-100 p-1">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
 
         {/* Seleção do Tipo de Relatório */}
         <div className="flex flex-wrap items-center gap-2">
@@ -1241,7 +1327,7 @@ export const PassadorReportView: React.FC = () => {
         </div>
 
         {/* Linha de Metadados e Emissão */}
-        <div className="flex justify-between items-center py-1 text-[10px]">
+        <div className="flex justify-between items-center py-1 text-[10px] border-b border-dashed border-slate-400 pb-1.5 mb-2">
           <div>
             <span className="font-bold">PERÍODO:</span> {startDate.split('-').reverse().join('/')} a {endDate.split('-').reverse().join('/')}
           </div>
@@ -1249,38 +1335,6 @@ export const PassadorReportView: React.FC = () => {
             <span>{new Date().toLocaleDateString('pt-BR', { weekday: 'long' })}, {new Date().toLocaleDateString('pt-BR')} {new Date().toLocaleTimeString('pt-BR')}</span>
           </div>
         </div>
-
-        {/* Divisor com Título Central de 100% de Largura */}
-        <div className="flex items-center gap-2 w-full my-1">
-          <div className="flex-1 border-b border-dashed border-slate-400"></div>
-          <span className="font-bold text-[10px] uppercase text-slate-700 px-1 whitespace-nowrap">PARÂMETROS DO RELATÓRIO</span>
-          <div className="flex-1 border-b border-dashed border-slate-400"></div>
-        </div>
-
-        {/* Parâmetros do Relatório */}
-        <div className="text-[11px] space-y-0.5 bg-slate-50 p-2.5 rounded border border-slate-200">
-          <div><strong>PERÍODO DE APURAÇÃO:</strong> {startDate.split('-').reverse().join('/')} a {endDate.split('-').reverse().join('/')}</div>
-          {reportType === 'lavados' && (
-            <div><strong>FILTRO OPERACIONAL:</strong> {getStatusFilterLabel(lavadoStatusFilter)}</div>
-          )}
-          {reportType === 'diferenciados' && selectedDiferenciado && (
-            <div>
-              <strong>COLABORADOR (DIFERENCIADO):</strong> {selectedDiferenciado.name.toUpperCase()}{selectedDiferenciado.phone ? ` • Tel: ${selectedDiferenciado.phone}` : ''}
-            </div>
-          )}
-          {reportType === 'passadores' && selectedPassador && (
-            <div>
-              <strong>COLABORADOR (PASSADORIA):</strong> {selectedPassador.name.toUpperCase()}{selectedPassador.phone ? ` • Tel: ${selectedPassador.phone}` : ''}
-            </div>
-          )}
-          {reportType === 'fornecedores' && selectedSupplier && (
-            <div>
-              <strong>FORNECEDOR:</strong> {selectedSupplier.name.toUpperCase()}{selectedSupplier.cnpj ? ` • CNPJ: ${selectedSupplier.cnpj}` : ''}
-            </div>
-          )}
-        </div>
-
-        <div className="w-full border-b border-dashed border-slate-300 my-1"></div>
 
         {/* ───────────────────────────────────────────────────────────── */}
         {/* CORPO DO RELATÓRIO 1: TUDO QUE É LAVADO (COM PARÂMETROS E FILTROS) */}

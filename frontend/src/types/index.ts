@@ -338,7 +338,7 @@ export interface SharedReport {
   id: string;
   token: string;
   title: string;
-  reportType: 'lavados' | 'passadores' | 'fornecedores' | 'gerencial_completo';
+  reportType: 'lavados' | 'passadores' | 'diferenciados' | 'fornecedores' | 'gerencial_completo' | 'principal_completo' | 'na_lavanderia' | 'entregues_hoje' | 'financeiro_hoje';
   periodPreset: 'hoje' | 'semana' | 'mes' | 'custom';
   startDate?: string;
   endDate?: string;

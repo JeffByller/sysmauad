@@ -32,10 +32,19 @@ import { Pagination } from '../components/common/Pagination';
 import { useOrders } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
 
+export const REPORT_TYPES_LIST = [
+  { key: 'na_lavanderia', title: '1. Peças na Lavanderia', desc: 'Peças em processo na fábrica (não entregues).' },
+  { key: 'entregues_hoje', title: '2. Entregues Hoje', desc: 'Lotes e peças entregues/saídas do dia.' },
+  { key: 'financeiro_hoje', title: '3. Financeiro Hoje', desc: 'Demonstrativo de recebimentos e baixas do dia.' },
+  { key: 'lavados', title: '4. Tudo que é Lavado', desc: 'Relatório geral de lavados por período.' },
+  { key: 'passadores', title: '5. Produção de Passadoria', desc: 'Peças passadas por colaborador.' },
+  { key: 'fornecedores', title: '6. Fornecedores & Insumos', desc: 'Entradas de insumos e compras.' }
+];
+
 export const SettingsView: React.FC = () => {
   const { updateSystemSettings, refreshData } = useOrders();
   const { isSuperAdmin, user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'whatsapp' | 'reports' | 'backups' | 'license'>('whatsapp');
+  const [activeTab, setActiveTab] = useState<'whatsapp' | 'general' | 'reports' | 'backups' | 'license'>('whatsapp');
   
   // Settings State
   const [settings, setSettings] = useState<SystemSettings>({
@@ -47,7 +56,7 @@ export const SettingsView: React.FC = () => {
     reportSendTime: '18:00',
     reportDayOfWeek: 1,
     reportDayOfMonth: 1,
-    selectedReports: ['producao', 'passadoria', 'financeiro'],
+    selectedReports: ['na_lavanderia', 'entregues_hoje', 'financeiro_hoje'],
     reportHeaderText: '*SYSMAUAD - RELATÓRIO DO DIA*',
     reportFooterText: 'Sistema • Mauad - Controle Operacional',
     includeFinancialValues: true,
@@ -109,17 +118,18 @@ export const SettingsView: React.FC = () => {
 
   // Report Test State
   const [testingReport, setTestingReport] = useState(false);
-  const [reportPreview, setReportPreview] = useState<string | null>(null);
 
-  // Envio Manual de Relatório com Link
-  const [manualReportType, setManualReportType] = useState<'lavados' | 'passadores' | 'fornecedores' | 'gerencial_completo'>('gerencial_completo');
+  // Envio Manual de Relatório em PDF
+  const [manualReportType, setManualReportType] = useState<
+    'na_lavanderia' | 'entregues_hoje' | 'financeiro_hoje' | 'lavados' | 'passadores' | 'fornecedores'
+  >('na_lavanderia');
   const [manualPeriodPreset, setManualPeriodPreset] = useState<'hoje' | 'semana' | 'mes' | 'custom'>('hoje');
   const [manualStartDate, setManualStartDate] = useState('');
   const [manualEndDate, setManualEndDate] = useState('');
   const [manualTargetPhone, setManualTargetPhone] = useState('');
   const [manualNotes, setManualNotes] = useState('');
   const [sendingManualReport, setSendingManualReport] = useState(false);
-  const [manualReportResult, setManualReportResult] = useState<any>(null);
+  const [manualReportFeedback, setManualReportFeedback] = useState<string | null>(null);
 
   // License State & Management
   const [licenseState, setLicenseState] = useState<LicenseState | null>(null);
@@ -240,6 +250,8 @@ export const SettingsView: React.FC = () => {
       const res = await fetch('/api/settings');
       if (res.ok) {
         const data = await res.json();
+        const legacyMap: Record<string, string> = { producao: 'lavados', passadoria: 'passadores', financeiro: 'gerencial_completo' };
+        data.selectedReports = Array.from(new Set((data.selectedReports || []).map((r: string) => legacyMap[r] || r)));
         setSettings(data);
         if (data.whatsappTargetPhone && !testPhone) {
           setTestPhone(data.whatsappTargetPhone);
@@ -377,7 +389,6 @@ export const SettingsView: React.FC = () => {
       const data = await res.json();
       if (res.ok) {
         showToast('success', data.message || 'Relatório enviado com sucesso!');
-        if (data.preview) setReportPreview(data.preview);
       } else {
         showToast('error', data.error || 'Falha ao disparar relatório.');
       }
@@ -548,28 +559,11 @@ export const SettingsView: React.FC = () => {
     }
   };
 
-  const fetchReportPreview = async (customSettings?: SystemSettings) => {
-    try {
-      const res = await fetch('/api/whatsapp/preview-report', {
-        method: customSettings ? 'POST' : 'GET',
-        headers: { 'Content-Type': 'application/json' },
-        body: customSettings ? JSON.stringify(customSettings) : undefined
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.preview) setReportPreview(data.preview);
-      }
-    } catch (e) {
-      // fallback
-    }
-  };
-
   // Efeito para carregar dados iniciais
   useEffect(() => {
     fetchSettings();
     fetchWhatsAppStatus();
     fetchBackups();
-    fetchReportPreview();
     fetchLicenseStatus();
   }, []);
 
@@ -585,7 +579,6 @@ export const SettingsView: React.FC = () => {
   // Polling para status do WhatsApp se estiver desconectado e na aba whatsapp
   useEffect(() => {
     if (activeTab !== 'whatsapp') return;
-    fetchReportPreview(settings);
     const interval = setInterval(() => {
       fetchWhatsAppStatus();
     }, 5000);
@@ -603,19 +596,31 @@ export const SettingsView: React.FC = () => {
     });
   };
 
-  // Gerar e enviar relatório manual com link
+  // Enviar relatório manual em PDF via WhatsApp
   const handleSendManualReport = async (e: React.FormEvent) => {
     e.preventDefault();
+    setManualReportFeedback(null);
+    const destPhone = manualTargetPhone.trim() || settings.whatsappTargetPhone.trim();
+    if (!destPhone) {
+      showToast('error', 'Informe o WhatsApp de destino ou cadastre o número padrão em Relatórios Automáticos.');
+      return;
+    }
+    if (!whatsAppStatus.connected) {
+      showToast('error', 'WhatsApp desconectado. Leia o QR Code na aba WhatsApp antes de enviar.');
+      return;
+    }
     setSendingManualReport(true);
-    setManualReportResult(null);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120000);
     try {
       const body: any = {
         reportType: manualReportType,
         periodPreset: manualPeriodPreset,
-        createdBy: 'Operador (Manual)',
-        sendWhatsApp: true
+        createdBy: user?.name || 'Operador',
+        sendWhatsApp: true,
+        targetPhone: destPhone
       };
-      if (manualPeriodPreset === 'custom') {
+      if (manualPeriodPreset === 'custom' && (manualReportType === 'lavados' || manualReportType === 'passadores' || manualReportType === 'fornecedores')) {
         if (!manualStartDate || !manualEndDate) {
           showToast('error', 'Informe as datas de início e fim para o período personalizado.');
           setSendingManualReport(false);
@@ -624,9 +629,6 @@ export const SettingsView: React.FC = () => {
         body.startDate = manualStartDate;
         body.endDate = manualEndDate;
       }
-      if (manualTargetPhone.trim()) {
-        body.targetPhone = manualTargetPhone.trim();
-      }
       if (manualNotes.trim()) {
         body.notes = manualNotes.trim();
       }
@@ -634,25 +636,25 @@ export const SettingsView: React.FC = () => {
       const res = await fetch('/api/reports/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
+        signal: controller.signal
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setManualReportResult(data);
         if (data.whatsAppSent) {
-          showToast('success', 'Relatório gerado e enviado via WhatsApp com sucesso!');
+          const repTitle = REPORT_TYPES_LIST.find(r => r.key === manualReportType)?.title || 'Relatório';
+          setManualReportFeedback(`PDF "${repTitle}" enviado com sucesso pelo WhatsApp para ${destPhone}!`);
+          showToast('success', 'Relatório em PDF enviado com sucesso pelo WhatsApp!');
         } else {
-          showToast('info', data.whatsAppError
-            ? `Relatório gerado! Envio WhatsApp falhou: ${data.whatsAppError}`
-            : 'Relatório gerado com sucesso! Link disponível abaixo.'
-          );
+          showToast('error', `Relatório gerado, mas o envio pelo WhatsApp falhou: ${data.whatsAppError || 'erro desconhecido'}`);
         }
       } else {
         showToast('error', data.message || 'Erro ao gerar relatório.');
       }
     } catch (err: any) {
-      showToast('error', err.message || 'Erro de conexão com o servidor.');
+      showToast('error', err?.name === 'AbortError' ? 'Tempo esgotado ao gerar o PDF.' : (err.message || 'Erro de conexão com o servidor.'));
     } finally {
+      clearTimeout(timeoutId);
       setSendingManualReport(false);
     }
   };
@@ -670,7 +672,7 @@ export const SettingsView: React.FC = () => {
               Configurações do Sistema
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-              Parâmetros de automação, integração WhatsApp (Evolution API) e backups da base de dados
+              Parâmetros gerais, WhatsApp, relatórios automáticos e backups
             </p>
           </div>
         </div>
@@ -730,6 +732,18 @@ export const SettingsView: React.FC = () => {
         </button>
 
         <button
+          onClick={() => setActiveTab('general')}
+          className={`px-4 py-3 text-xs font-bold border-b-2 transition-colors flex items-center gap-2 ${
+            activeTab === 'general'
+              ? 'border-violet-500 text-violet-600 dark:text-violet-400'
+              : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          <Sliders className="w-4 h-4" />
+          <span>Parâmetros Gerais</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('reports')}
           className={`px-4 py-3 text-xs font-bold border-b-2 transition-colors flex items-center gap-2 ${
             activeTab === 'reports'
@@ -738,7 +752,7 @@ export const SettingsView: React.FC = () => {
           }`}
         >
           <Calendar className="w-4 h-4" />
-          <span>Automação de Relatórios</span>
+          <span>Relatórios Automáticos</span>
         </button>
 
         <button
@@ -952,19 +966,128 @@ export const SettingsView: React.FC = () => {
       )}
 
       {/* ───────────────────────────────────────────────────────────── */}
-      {/* ABA 2: AUTOMAÇÃO DE RELATÓRIOS VIA WHATSAPP */}
+      {/* ABA 2: PARÂMETROS GERAIS */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {activeTab === 'general' && (
+        <form onSubmit={handleSaveSettings} className="max-w-3xl space-y-6 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-5">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white pb-3 border-b border-slate-100 dark:border-slate-800">
+              Valor por Peça Passada
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md">
+              <div>
+                <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block mb-1">Produção Normal</span>
+                <div className="relative">
+                  <span className="absolute left-3 top-2 text-xs text-slate-400 font-bold">R$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={settings.defaultPassadorRate ?? 0.15}
+                    onChange={e => setSettings({ ...settings, defaultPassadorRate: parseFloat(e.target.value) || 0.15 })}
+                    className="w-full pl-8 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-sky-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block mb-1">Produção Adicional (Extra)</span>
+                <div className="relative">
+                  <span className="absolute left-3 top-2 text-xs text-slate-400 font-bold">R$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={settings.defaultPassadorRateAfter17 ?? 0.20}
+                    onChange={e => setSettings({ ...settings, defaultPassadorRateAfter17: parseFloat(e.target.value) || 0.20 })}
+                    className="w-full pl-8 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-sky-500"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-5">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white pb-3 border-b border-slate-100 dark:border-slate-800">
+              Valor por Peça no Diferenciado
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md">
+              <div>
+                <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block mb-1">Produção Normal</span>
+                <div className="relative">
+                  <span className="absolute left-3 top-2 text-xs text-slate-400 font-bold">R$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={settings.defaultDiferenciadoRate ?? 0.50}
+                    onChange={e => setSettings({ ...settings, defaultDiferenciadoRate: parseFloat(e.target.value) || 0.50 })}
+                    className="w-full pl-8 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block mb-1">Produção Adicional (Extra)</span>
+                <div className="relative">
+                  <span className="absolute left-3 top-2 text-xs text-slate-400 font-bold">R$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={settings.defaultDiferenciadoRateAfter17 ?? 0.60}
+                    onChange={e => setSettings({ ...settings, defaultDiferenciadoRateAfter17: parseFloat(e.target.value) || 0.60 })}
+                    className="w-full pl-8 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-4">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white pb-3 border-b border-slate-100 dark:border-slate-800">
+              Alerta de O.S. Parada
+            </h3>
+            <div className="relative max-w-xs">
+              <input
+                type="number"
+                min="1"
+                max="90"
+                value={settings.stalledOrderAlertDays ?? 3}
+                onChange={e => setSettings({ ...settings, stalledOrderAlertDays: parseInt(e.target.value) || 3 })}
+                className="w-full pl-3 pr-12 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-sky-500"
+              />
+              <span className="absolute right-3 top-2 text-xs text-slate-400 font-bold">DIAS</span>
+            </div>
+            <span className="text-[11px] text-slate-400 block">
+              Pedidos não entregues sem movimentação por esse número de dias ganham destaque no Painel e na lista de Pedidos.
+            </span>
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              disabled={savingSettings}
+              className="px-6 py-2.5 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white text-xs font-semibold rounded-xl shadow-sm transition-colors flex items-center gap-2"
+            >
+              <Check className="w-4 h-4" />
+              <span>{savingSettings ? 'Salvando...' : 'Salvar Parâmetros'}</span>
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* ABA 3: RELATÓRIOS AUTOMÁTICOS (PDF VIA WHATSAPP) */}
       {/* ───────────────────────────────────────────────────────────── */}
       {activeTab === 'reports' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-in fade-in duration-150">
-          {/* Coluna de Configuração dos Relatórios */}
           <div className="lg:col-span-7 space-y-6">
             <form onSubmit={handleSaveSettings} className="space-y-6">
-              {/* Card 1: Destinatário & Frequência */}
+              {/* Envio Programado */}
               <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-5">
                 <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-sky-500" />
-                    Parâmetros de Disparo dos Relatórios
+                    Envio Programado em PDF
                   </h3>
                   <label className="flex items-center gap-2 cursor-pointer select-none">
                     <input
@@ -973,52 +1096,37 @@ export const SettingsView: React.FC = () => {
                       onChange={e => setSettings({ ...settings, autoReportsEnabled: e.target.checked })}
                       className="w-4 h-4 text-sky-600 rounded focus:ring-sky-500"
                     />
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                      Automação Ativa
-                    </span>
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Ativo</span>
                   </label>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Telefone Destino */}
                   <div className="sm:col-span-2">
-                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                      Número do WhatsApp para Recebimento:
-                    </label>
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">WhatsApp de destino</label>
                     <input
                       type="text"
                       value={settings.whatsappTargetPhone}
                       onChange={e => setSettings({ ...settings, whatsappTargetPhone: e.target.value })}
-                      placeholder="Ex: 81999999999 ou (81) 98888-7777"
+                      placeholder="Ex: 81999999999"
                       className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                      required
                     />
-                    <span className="text-[11px] text-slate-400 mt-1 block">
-                      O sistema enviará o resumo executivo automatizado para este número.
-                    </span>
                   </div>
 
-                  {/* Frequência */}
                   <div>
-                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                      Periodicidade / Frequência:
-                    </label>
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">Frequência</label>
                     <select
                       value={settings.reportFrequency}
                       onChange={e => setSettings({ ...settings, reportFrequency: e.target.value as any })}
                       className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
                     >
-                      <option value="diario">Diário (Todos os dias)</option>
-                      <option value="semanal">Semanal (1 vez por semana)</option>
-                      <option value="mensal">Mensal (1 vez por mês)</option>
+                      <option value="diario">Diário</option>
+                      <option value="semanal">Semanal</option>
+                      <option value="mensal">Mensal</option>
                     </select>
                   </div>
 
-                  {/* Horário */}
                   <div>
-                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                      Horário do Disparo (Horário de Brasília):
-                    </label>
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">Horário</label>
                     <input
                       type="time"
                       value={settings.reportSendTime}
@@ -1028,12 +1136,9 @@ export const SettingsView: React.FC = () => {
                     />
                   </div>
 
-                  {/* Dia da Semana (se Semanal) */}
                   {settings.reportFrequency === 'semanal' && (
                     <div>
-                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                        Dia da Semana:
-                      </label>
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">Dia da semana</label>
                       <select
                         value={settings.reportDayOfWeek}
                         onChange={e => setSettings({ ...settings, reportDayOfWeek: Number(e.target.value) })}
@@ -1050,12 +1155,9 @@ export const SettingsView: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Dia do Mês (se Mensal) */}
                   {settings.reportFrequency === 'mensal' && (
                     <div>
-                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                        Dia do Mês:
-                      </label>
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">Dia do mês</label>
                       <input
                         type="number"
                         min={1}
@@ -1069,387 +1171,107 @@ export const SettingsView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Card 2: Seleção de quais Relatórios Compor */}
+              {/* Quais relatórios enviar */}
               <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-4">
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
                   <Layers className="w-4 h-4 text-sky-500" />
-                  Módulos e Relatórios a Incluir na Mensagem:
+                  Relatórios a enviar
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Marque os relatórios operacionais que a automação deve extrair e consolidar no envio do WhatsApp.
+                  Cada módulo marcado será gerado e enviado como um PDF separado pelo WhatsApp.
                 </p>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                  {/* Produção */}
-                  <label 
-                    className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-start gap-3 select-none ${
-                      settings.selectedReports?.includes('producao')
-                        ? 'bg-sky-500/10 border-sky-500/40 text-sky-950 dark:text-sky-200 shadow-xs'
-                        : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={settings.selectedReports?.includes('producao')}
-                      onChange={() => toggleReportItem('producao')}
-                      className="mt-0.5 w-4 h-4 text-sky-600 rounded focus:ring-sky-500 cursor-pointer"
-                    />
-                    <div className="flex-1">
-                      <span className="font-bold text-xs block">Produção & Lavados</span>
-                      <span className="text-[11px] opacity-75 block">Total de pedidos, status (Em Andamento, Prontos), Kg e peças do dia.</span>
-                    </div>
-                  </label>
-
-                  {/* Passadoria */}
-                  <label 
-                    className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-start gap-3 select-none ${
-                      settings.selectedReports?.includes('passadoria')
-                        ? 'bg-sky-500/10 border-sky-500/40 text-sky-950 dark:text-sky-200 shadow-xs'
-                        : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={settings.selectedReports?.includes('passadoria')}
-                      onChange={() => toggleReportItem('passadoria')}
-                      className="mt-0.5 w-4 h-4 text-sky-600 rounded focus:ring-sky-500 cursor-pointer"
-                    />
-                    <div className="flex-1">
-                      <span className="font-bold text-xs block">Passadoria & Acabamento</span>
-                      <span className="text-[11px] opacity-75 block">Peças passadas no dia e discriminação por cada operador passador.</span>
-                    </div>
-                  </label>
-
-                  {/* Financeiro */}
-                  <label 
-                    className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-start gap-3 select-none ${
-                      settings.selectedReports?.includes('financeiro')
-                        ? 'bg-sky-500/10 border-sky-500/40 text-sky-950 dark:text-sky-200 shadow-xs'
-                        : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={settings.selectedReports?.includes('financeiro')}
-                      onChange={() => toggleReportItem('financeiro')}
-                      className="mt-0.5 w-4 h-4 text-sky-600 rounded focus:ring-sky-500 cursor-pointer"
-                    />
-                    <div className="flex-1">
-                      <span className="font-bold text-xs block">Financeiro & Caixa</span>
-                      <span className="text-[11px] opacity-75 block">Faturamento do dia, total recebido, total em aberto e ticket médio.</span>
-                    </div>
-                  </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {REPORT_TYPES_LIST.map(r => (
+                    <label
+                      key={r.key}
+                      className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-start gap-3 select-none ${
+                        settings.selectedReports?.includes(r.key)
+                          ? 'bg-sky-500/10 border-sky-500/40 text-sky-950 dark:text-sky-200'
+                          : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={settings.selectedReports?.includes(r.key)}
+                        onChange={() => toggleReportItem(r.key)}
+                        className="mt-0.5 w-4 h-4 text-sky-600 rounded focus:ring-sky-500 cursor-pointer"
+                      />
+                      <div className="flex-1">
+                        <span className="font-bold text-xs block">{r.title}</span>
+                        <span className="text-[11px] opacity-75 block">{r.desc}</span>
+                      </div>
+                    </label>
+                  ))}
                 </div>
               </div>
 
-              {/* Card 3: Customizações de Texto & Cabeçalho/Rodapé */}
-              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-4">
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
-                  <Sliders className="w-4 h-4 text-sky-500" />
-                  Campos para Customização do Relatório:
-                </h3>
-
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                      Cabeçalho da Mensagem (Suporta formatação do WhatsApp *negrito*, _itálico_):
-                    </label>
-                    <input
-                      type="text"
-                      value={settings.reportHeaderText}
-                      onChange={e => setSettings({ ...settings, reportHeaderText: e.target.value })}
-                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-sans text-slate-900 dark:text-slate-100"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                      Rodapé da Mensagem:
-                    </label>
-                    <input
-                      type="text"
-                      value={settings.reportFooterText}
-                      onChange={e => setSettings({ ...settings, reportFooterText: e.target.value })}
-                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-sans text-slate-900 dark:text-slate-100"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                    <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={settings.includeFinancialValues}
-                        onChange={e => setSettings({ ...settings, includeFinancialValues: e.target.checked })}
-                        className="rounded text-sky-600 focus:ring-sky-500"
-                      />
-                      <span>Exibir valores em R$</span>
-                    </label>
-
-                    <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={settings.includeOperatorBreakdown}
-                        onChange={e => setSettings({ ...settings, includeOperatorBreakdown: e.target.checked })}
-                        className="rounded text-sky-600 focus:ring-sky-500"
-                      />
-                      <span>Detalhar por Passador</span>
-                    </label>
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
-                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-2">
-                      Valores por Peça Passada (Passadoria):
-                    </label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md">
-                      <div>
-                        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block mb-1">
-                          Produção Normal
-                        </span>
-                        <div className="relative">
-                          <span className="absolute left-3 top-2 text-xs text-slate-400 font-bold">R$</span>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0.01"
-                            value={settings.defaultPassadorRate ?? 0.15}
-                            onChange={e => setSettings({ ...settings, defaultPassadorRate: parseFloat(e.target.value) || 0.15 })}
-                            className="w-full pl-8 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-sky-500"
-                            placeholder="0.15"
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block mb-1">
-                          Produção Adicional (Extra)
-                        </span>
-                        <div className="relative">
-                          <span className="absolute left-3 top-2 text-xs text-slate-400 font-bold">R$</span>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0.01"
-                            value={settings.defaultPassadorRateAfter17 ?? 0.20}
-                            onChange={e => setSettings({ ...settings, defaultPassadorRateAfter17: parseFloat(e.target.value) || 0.20 })}
-                            className="w-full pl-8 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-sky-500"
-                            placeholder="0.20"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <span className="text-[11px] text-slate-400 block mt-1.5">
-                      Valores monetários unitários utilizados para apurar o total a pagar da produção de passadoria em relatórios.
-                    </span>
-                  </div>
-
-                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
-                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-2">
-                      Valor Padrão da Produção Diferenciada por Peça:
-                    </label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md">
-                      <div>
-                        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block mb-1">
-                          Produção Normal
-                        </span>
-                        <div className="relative">
-                          <span className="absolute left-3 top-2 text-xs text-slate-400 font-bold">R$</span>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0.01"
-                            value={settings.defaultDiferenciadoRate ?? 0.50}
-                            onChange={e => setSettings({ ...settings, defaultDiferenciadoRate: parseFloat(e.target.value) || 0.50 })}
-                            className="w-full pl-8 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-purple-500"
-                            placeholder="0.50"
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block mb-1">
-                          Produção Adicional (Extra)
-                        </span>
-                        <div className="relative">
-                          <span className="absolute left-3 top-2 text-xs text-slate-400 font-bold">R$</span>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0.01"
-                            value={settings.defaultDiferenciadoRateAfter17 ?? 0.60}
-                            onChange={e => setSettings({ ...settings, defaultDiferenciadoRateAfter17: parseFloat(e.target.value) || 0.60 })}
-                            className="w-full pl-8 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-purple-500"
-                            placeholder="0.60"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <span className="text-[11px] text-slate-400 block mt-1.5">
-                      Valores monetários unitários utilizados para apurar o total a pagar da produção diferenciada em relatórios.
-                    </span>
-                  </div>
-
-                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
-                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                      Alerta de O.S. Parada (Dias sem movimentação):
-                    </label>
-                    <div className="relative max-w-xs">
-                      <input
-                        type="number"
-                        min="1"
-                        max="90"
-                        value={settings.stalledOrderAlertDays ?? 3}
-                        onChange={e => setSettings({ ...settings, stalledOrderAlertDays: parseInt(e.target.value) || 3 })}
-                        className="w-full pl-3 pr-12 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-sky-500"
-                        placeholder="3"
-                      />
-                      <span className="absolute right-3 top-2 text-xs text-slate-400 font-bold">DIAS</span>
-                    </div>
-                    <span className="text-[11px] text-slate-400 block mt-1">
-                      Ordens de serviço não entregues que ficarem sem atualização por este número de dias receberão destaque e alerta visual de OS Parada no painel e na listagem.
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Botão de Salvar */}
-              <div className="flex items-center justify-end gap-3 pt-2">
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={handleSendTestReport}
+                  disabled={testingReport}
+                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold rounded-xl shadow-sm transition-colors flex items-center gap-2"
+                >
+                  <Send className="w-4 h-4" />
+                  <span>{testingReport ? 'Enviando...' : 'Testar envio agora'}</span>
+                </button>
                 <button
                   type="submit"
                   disabled={savingSettings}
                   className="px-6 py-2.5 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white text-xs font-semibold rounded-xl shadow-sm transition-colors flex items-center gap-2"
                 >
                   <Check className="w-4 h-4" />
-                  <span>{savingSettings ? 'Salvando...' : 'Salvar Parâmetros de Automação'}</span>
+                  <span>{savingSettings ? 'Salvando...' : 'Salvar'}</span>
                 </button>
               </div>
             </form>
           </div>
 
-          {/* Coluna Direita: Prévia do WhatsApp & Disparo de Teste */}
+          {/* Envio manual avulso */}
           <div className="lg:col-span-5 space-y-6">
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-                <div className="flex items-center gap-2">
-                  <MessageSquare className="w-4 h-4 text-emerald-500" />
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                    Prévia do Relatório no WhatsApp
-                  </h3>
-                </div>
-                <button
-                  onClick={handleSendTestReport}
-                  disabled={testingReport || !whatsAppStatus.connected}
-                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
-                  title="Disparar relatório agora para o número configurado"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>{testingReport ? 'Enviando...' : 'Testar Envio Agora'}</span>
-                </button>
-              </div>
-
-              <p className="text-[11px] text-slate-500">
-                Veja abaixo como a mensagem chegará formatada no WhatsApp corporativo:
-              </p>
-
-              {/* WhatsApp Balloon Mockup */}
-              <div className="bg-[#0b141a] p-4 rounded-2xl border border-slate-800 text-xs font-mono text-slate-200 space-y-2 max-h-[480px] overflow-y-auto shadow-inner leading-relaxed select-text">
-                <div className="bg-[#1f2c34] p-3.5 rounded-xl rounded-tl-none border border-[#2a3942] space-y-2 whitespace-pre-wrap">
-                  {reportPreview ? (
-                    <div>{reportPreview}</div>
-                  ) : (
-                    <div>
-                      {settings.reportHeaderText || '*SYSMAUAD - RELATÓRIO DO DIA*'}
-                      {'\n'}Período: {settings.reportFrequency === 'semanal' ? 'Semanal' : settings.reportFrequency === 'mensal' ? 'Mensal' : 'Diário'} • {new Date().toLocaleDateString('pt-BR')} às {settings.reportSendTime}
-                      {settings.selectedReports?.includes('producao') && (
-                        <>
-                          {'\n\n'}*PRODUÇÃO E LAVADOS*
-                          {'\n'}• Pedidos feitos hoje: *0*
-                          {'\n'}• Pedidos prontos (a entregar): *0*
-                          {'\n'}• Pedidos entregues hoje: *0*
-                        </>
-                      )}
-                      {settings.selectedReports?.includes('passadoria') && (
-                        <>
-                          {'\n\n'}*PASSADORIA E ACABAMENTO*
-                          {'\n'}• Peças passadas hoje: *0 peças* (R$ 0,00)
-                          {settings.includeOperatorBreakdown && (
-                            <>
-                              {'\n'}• Detalhado por passador:
-                              {'\n'}   - Passador: *0* peças (R$ 0,00)
-                            </>
-                          )}
-                        </>
-                      )}
-                      {settings.selectedReports?.includes('financeiro') && settings.includeFinancialValues && (
-                        <>
-                          {'\n\n'}*FINANCEIRO / CAIXA*
-                          {'\n'}• Pedidos feitos hoje: *0* (R$ 0,00)
-                          {'\n'}• Pedidos entregues hoje: *0* (R$ 0,00)
-                          {'\n'}• Total recebido hoje: *R$ 0,00*
-                        </>
-                      )}
-                      {'\n\n'}----------------------------------------
-                      {'\n'}{settings.reportFooterText || 'Sistema • Mauad - Controle Operacional'}
-                    </div>
-                  )}
-                </div>
-                <div className="text-[10px] text-slate-400 text-right pr-1">
-                  Enviado via Sysmauad Bot • {settings.reportSendTime}
-                </div>
-              </div>
-            </div>
-
-            {/* Card: Gerar Relatório com Link Compartilhável */}
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-4">
               <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
                 <FileText className="w-4 h-4 text-indigo-500" />
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                  Gerar Relatório com Link via WhatsApp
-                </h3>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">Envio Manual de Relatório</h3>
               </div>
               <p className="text-[11px] text-slate-500">
-                Gere um relatório detalhado em HTML e envie automaticamente por WhatsApp com um link seguro de acesso. O arquivo ficará disponível por {settings.reportRetentionDays || 30} dias.
+                Escolha o relatório desejado e envie o PDF diretamente para o WhatsApp.
               </p>
 
               <form onSubmit={handleSendManualReport} className="space-y-3">
-                {/* Tipo de Relatório */}
                 <div>
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                    Tipo de Relatório:
-                  </label>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">Relatório</label>
                   <select
                     value={manualReportType}
                     onChange={e => setManualReportType(e.target.value as any)}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   >
-                    <option value="gerencial_completo">📊 Gerencial Completo (Todos os módulos)</option>
-                    <option value="lavados">📦 Produção & Lavados</option>
-                    <option value="passadores">✨ Passadoria & Acabamento</option>
-                    <option value="fornecedores">🧪 Fornecedores & Insumos</option>
+                    {REPORT_TYPES_LIST.map(r => (
+                      <option key={r.key} value={r.key}>{r.title}</option>
+                    ))}
                   </select>
                 </div>
 
-                {/* Período */}
-                <div>
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                    Período:
-                  </label>
-                  <select
-                    value={manualPeriodPreset}
-                    onChange={e => setManualPeriodPreset(e.target.value as any)}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option value="hoje">📅 Hoje (Diário)</option>
-                    <option value="semana">📅 Últimos 7 Dias (Semanal)</option>
-                    <option value="mes">📅 Este Mês (Mensal)</option>
-                    <option value="custom">📅 Personalizado</option>
-                  </select>
-                </div>
+                {(manualReportType === 'lavados' || manualReportType === 'passadores' || manualReportType === 'fornecedores') && (
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">Período</label>
+                    <select
+                      value={manualPeriodPreset}
+                      onChange={e => setManualPeriodPreset(e.target.value as any)}
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="hoje">Hoje</option>
+                      <option value="semana">Últimos 7 dias</option>
+                      <option value="mes">Este mês</option>
+                      <option value="custom">Personalizado</option>
+                    </select>
+                  </div>
+                )}
 
-                {/* Datas Personalizadas */}
-                {manualPeriodPreset === 'custom' && (
+                {manualPeriodPreset === 'custom' && (manualReportType === 'lavados' || manualReportType === 'passadores' || manualReportType === 'fornecedores') && (
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">De:</label>
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">De</label>
                       <input
                         type="date"
                         value={manualStartDate}
@@ -1459,7 +1281,7 @@ export const SettingsView: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">Até:</label>
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">Até</label>
                       <input
                         type="date"
                         value={manualEndDate}
@@ -1471,10 +1293,9 @@ export const SettingsView: React.FC = () => {
                   </div>
                 )}
 
-                {/* Telefone destino (opcional) */}
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                    WhatsApp Destino <span className="font-normal text-slate-400">(vazio = número padrão)</span>
+                    WhatsApp de destino <span className="font-normal text-slate-400">(vazio = número padrão)</span>
                   </label>
                   <input
                     type="text"
@@ -1485,7 +1306,6 @@ export const SettingsView: React.FC = () => {
                   />
                 </div>
 
-                {/* Observação (opcional) */}
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
                     Observação <span className="font-normal text-slate-400">(opcional)</span>
@@ -1494,61 +1314,29 @@ export const SettingsView: React.FC = () => {
                     type="text"
                     value={manualNotes}
                     onChange={e => setManualNotes(e.target.value)}
-                    placeholder="Ex: Relatório solicitado pela diretoria"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
 
-                {/* Botão Gerar */}
                 <button
                   type="submit"
                   disabled={sendingManualReport}
                   className="w-full px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2"
                 >
                   <Send className="w-4 h-4" />
-                  <span>{sendingManualReport ? 'Gerando e enviando...' : 'Gerar Relatório e Enviar via WhatsApp'}</span>
+                  <span>{sendingManualReport ? 'Enviando PDF...' : 'Enviar PDF pelo WhatsApp'}</span>
                 </button>
               </form>
 
-              {/* Resultado do Envio */}
-              {manualReportResult && manualReportResult.report && (
-                <div className="mt-4 p-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl space-y-2">
-                  <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span className="text-xs font-bold">Relatório gerado com sucesso!</span>
+              {manualReportFeedback && (
+                <div className="p-3.5 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl flex items-center justify-between text-xs text-emerald-800 dark:text-emerald-300 font-semibold animate-in fade-in duration-200">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <span>{manualReportFeedback}</span>
                   </div>
-                  <div className="space-y-1.5 text-xs text-slate-700 dark:text-slate-300">
-                    <p><strong>Título:</strong> {manualReportResult.report.title}</p>
-                    <p><strong>Arquivo:</strong> {manualReportResult.report.fileName}</p>
-                    <p><strong>Expira em:</strong> {new Date(manualReportResult.report.expiresAt).toLocaleDateString('pt-BR')} ({manualReportResult.report.retentionDays} dias)</p>
-                    {manualReportResult.whatsAppSent && (
-                      <p className="text-emerald-600 dark:text-emerald-400 font-semibold">✅ Enviado via WhatsApp</p>
-                    )}
-                    {manualReportResult.whatsAppError && (
-                      <p className="text-amber-600 dark:text-amber-400 font-semibold">⚠️ WhatsApp: {manualReportResult.whatsAppError}</p>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-2 pt-2">
-                    <a
-                      href={manualReportResult.report.viewUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-colors"
-                    >
-                      <FileText className="w-3.5 h-3.5" />
-                      Visualizar Relatório
-                    </a>
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(manualReportResult.report.viewUrl);
-                        showToast('success', 'Link copiado para a área de transferência!');
-                      }}
-                      className="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-colors"
-                    >
-                      <Copy className="w-3.5 h-3.5" />
-                      Copiar Link
-                    </button>
-                  </div>
+                  <button onClick={() => setManualReportFeedback(null)} className="p-1 hover:opacity-80">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               )}
             </div>
@@ -1557,7 +1345,7 @@ export const SettingsView: React.FC = () => {
       )}
 
       {/* ───────────────────────────────────────────────────────────── */}
-      {/* ABA 3: GESTÃO E DOWNLOAD DE BACKUPS */}
+      {/* ABA 4: GESTÃO E DOWNLOAD DE BACKUPS */}
       {/* ───────────────────────────────────────────────────────────── */}
       {activeTab === 'backups' && (
         <div className="space-y-6 animate-in fade-in duration-150">

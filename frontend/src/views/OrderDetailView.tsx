@@ -44,10 +44,25 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
     updateDiferenciadoLog,
     createOrder, 
     calculateChemicals,
-    stalledOrderAlertDays
+    stalledOrderAlertDays,
+    garmentCatalog,
+    addGarmentCatalogItem
   } = useOrders();
   const { user } = useAuth();
   const order = getOrderById(orderId) || getOrderByOS(orderId);
+
+  const diferenciadoCatalog = (garmentCatalog || []).filter(
+    g => g.category?.toUpperCase() === 'DIFERENCIADO' || g.clothingType?.toUpperCase() === 'DIFERENCIADO'
+  );
+  const diferenciadoButtons = diferenciadoCatalog.length > 0
+    ? diferenciadoCatalog.map(g => ({ id: g.id, name: g.processName, price: Number(g.unitPrice || 0) }))
+    : [
+        { id: 'd-pistolado', name: 'Pistolado', price: 2.00 },
+        { id: 'd-bigode', name: 'Bigode Laser', price: 1.00 },
+        { id: 'd-puido', name: 'Puído Laser', price: 1.50 },
+        { id: 'd-destroyed', name: 'Destroyed', price: 2.50 },
+        { id: 'd-resinagem', name: 'Resinagem', price: 3.00 }
+      ];
 
   // Estados para Modal de Saída & Fechamento da Nota
   const [isSaidaModalOpen, setIsSaidaModalOpen] = useState(false);
@@ -171,19 +186,31 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
     setIsEditServicesModalOpen(true);
   };
 
-  const handleAddEditService = (name: string, price: number) => {
-    if (!name.trim()) return;
+  const handleAddEditService = (name: string, price: number, saveToCatalog = false) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const priceNum = Number(price) || 0;
     const newItem: OrderItem = {
       id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       clothingType: order?.items[0]?.clothingType || 'Peça Têxtil',
-      process: name.trim(),
+      process: trimmed,
       serviceType: 'diferenciado',
       quantity: order?.estimatedPieceCount || 0,
-      unitPrice: price,
-      totalPrice: Number(((order?.estimatedPieceCount || 0) * price).toFixed(2)),
+      unitPrice: priceNum,
+      totalPrice: Number(((order?.estimatedPieceCount || 0) * priceNum).toFixed(2)),
       corteOs: order?.corteOs || ''
     };
     setEditItems(prev => [...prev, newItem]);
+    if (saveToCatalog && !diferenciadoButtons.some(d => d.name.toLowerCase() === trimmed.toLowerCase())) {
+      addGarmentCatalogItem({
+        clothingType: 'DIFERENCIADO',
+        processName: trimmed,
+        unitPrice: priceNum,
+        defaultRefWeightGrams: 0,
+        category: 'DIFERENCIADO',
+        notes: 'Cadastrado na edição de pedido'
+      });
+    }
     setNewExtraServiceName('');
     setNewExtraServicePrice(0);
   };
@@ -1466,17 +1493,11 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
                   + Adicionar Serviço Diferenciado
                 </span>
 
-                {/* Atalhos Rápidos */}
+                {/* Atalhos Rápidos (Puxados do Catálogo de Diferenciados) */}
                 <div className="flex flex-wrap gap-1.5">
-                  {[
-                    { name: 'Pistolado', price: 2.00 },
-                    { name: 'Bigode Laser', price: 1.00 },
-                    { name: 'Puído Laser', price: 1.50 },
-                    { name: 'Destroyed', price: 2.50 },
-                    { name: 'Resinagem', price: 3.00 }
-                  ].map(s => (
+                  {diferenciadoButtons.map(s => (
                     <button
-                      key={s.name}
+                      key={s.id}
                       type="button"
                       onClick={() => handleAddEditService(s.name, s.price)}
                       className="px-2.5 py-1 bg-white dark:bg-slate-800 hover:bg-sky-100 dark:hover:bg-sky-900/40 border border-slate-200 dark:border-slate-700 text-sky-800 dark:text-sky-300 text-xs font-semibold rounded-lg transition-colors shadow-2xs"
@@ -1509,7 +1530,7 @@ export const OrderDetailView: React.FC<OrderDetailViewProps> = ({ orderId, onBac
                   </div>
                   <button
                     type="button"
-                    onClick={() => handleAddEditService(newExtraServiceName, newExtraServicePrice)}
+                    onClick={() => handleAddEditService(newExtraServiceName, newExtraServicePrice, true)}
                     disabled={!newExtraServiceName.trim()}
                     className="px-3 py-1.5 bg-sky-700 hover:bg-sky-800 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-colors"
                   >

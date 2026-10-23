@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useOrders } from '../context/OrderContext';
-import { PlusCircle, Tag, Scale, CheckCircle2, Search, Edit3, Trash2, X, AlertCircle } from 'lucide-react';
+import { PlusCircle, Tag, Scale, CheckCircle2, Search, Edit3, Trash2, X, AlertCircle, Sparkles } from 'lucide-react';
 import { GarmentProcessCatalogItem } from '../types';
 import { Pagination } from '../components/common/Pagination';
 
@@ -12,6 +12,7 @@ export const GarmentCatalogView: React.FC = () => {
     deleteGarmentCatalogItem 
   } = useOrders();
 
+  const [activeTab, setActiveTab] = useState<'pecas' | 'diferenciado'>('pecas');
   const [searchTerm, setSearchTerm] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<GarmentProcessCatalogItem | null>(null);
@@ -74,15 +75,32 @@ export const GarmentCatalogView: React.FC = () => {
     }
   };
 
+  const isItemDiferenciado = (item: GarmentProcessCatalogItem) => {
+    return (
+      item.category?.toUpperCase() === 'DIFERENCIADO' ||
+      item.clothingType?.toUpperCase() === 'DIFERENCIADO'
+    );
+  };
+
   const handleOpenAdd = () => {
     setEditingItem(null);
-    setClothingType('');
-    setProcessName('');
-    setUnitPriceInput('');
-    setRefWeightInput('');
-    setCorteOs('');
-    setCategory('');
-    setNotes('');
+    if (activeTab === 'diferenciado') {
+      setClothingType('DIFERENCIADO');
+      setProcessName('');
+      setUnitPriceInput('');
+      setRefWeightInput('0');
+      setCorteOs('');
+      setCategory('DIFERENCIADO');
+      setNotes('');
+    } else {
+      setClothingType('');
+      setProcessName('');
+      setUnitPriceInput('');
+      setRefWeightInput('');
+      setCorteOs('');
+      setCategory('');
+      setNotes('');
+    }
     setErrorMsg(null);
     setIsFormOpen(true);
   };
@@ -101,9 +119,11 @@ export const GarmentCatalogView: React.FC = () => {
   };
 
   const handleDelete = (item: GarmentProcessCatalogItem) => {
-    if (window.confirm(`Deseja realmente remover a peça "${item.clothingType}" (${item.processName}) do catálogo?`)) {
+    const isDiff = isItemDiferenciado(item);
+    const label = isDiff ? `o serviço diferenciado "${item.processName}"` : `a peça "${item.clothingType}" (${item.processName})`;
+    if (window.confirm(`Deseja realmente remover ${label} do catálogo?`)) {
       deleteGarmentCatalogItem(item.id);
-      setFeedback(`Peça "${item.clothingType}" removida do catálogo.`);
+      setFeedback(isDiff ? `Serviço "${item.processName}" removido.` : `Peça "${item.clothingType}" removida do catálogo.`);
       setTimeout(() => setFeedback(null), 4000);
     }
   };
@@ -111,6 +131,48 @@ export const GarmentCatalogView: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+
+    const isDiffForm = editingItem ? isItemDiferenciado(editingItem) : activeTab === 'diferenciado';
+
+    if (isDiffForm) {
+      if (!processName.trim()) {
+        setErrorMsg('Informe o nome do serviço / acabamento diferenciado.');
+        return;
+      }
+
+      const priceNum = parseCurrency(unitPriceInput);
+      if (priceNum <= 0) {
+        setErrorMsg('Informe um valor unitário válido (ex: 2,00).');
+        return;
+      }
+
+      if (editingItem) {
+        updateGarmentCatalogItem(editingItem.id, {
+          clothingType: 'DIFERENCIADO',
+          processName: processName.trim(),
+          unitPrice: priceNum,
+          defaultRefWeightGrams: 0,
+          category: 'DIFERENCIADO',
+          notes: notes.trim()
+        });
+        setFeedback(`Diferenciado "${processName.trim()}" atualizado com sucesso!`);
+      } else {
+        addGarmentCatalogItem({
+          clothingType: 'DIFERENCIADO',
+          processName: processName.trim(),
+          unitPrice: priceNum,
+          defaultRefWeightGrams: 0,
+          category: 'DIFERENCIADO',
+          notes: notes.trim()
+        });
+        setFeedback(`Diferenciado "${processName.trim()}" cadastrado com sucesso!`);
+      }
+
+      setIsFormOpen(false);
+      setEditingItem(null);
+      setTimeout(() => setFeedback(null), 4000);
+      return;
+    }
 
     if (!clothingType.trim()) {
       setErrorMsg('Informe o tipo de peça / roupa.');
@@ -167,15 +229,19 @@ export const GarmentCatalogView: React.FC = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm]);
+  }, [searchTerm, activeTab]);
 
-  const filteredCatalog = garmentCatalog.filter(item => {
+  const pecasCatalog = useMemo(() => garmentCatalog.filter(item => !isItemDiferenciado(item)), [garmentCatalog]);
+  const diferenciadoCatalog = useMemo(() => garmentCatalog.filter(item => isItemDiferenciado(item)), [garmentCatalog]);
+
+  const filteredCatalog = (activeTab === 'diferenciado' ? diferenciadoCatalog : pecasCatalog).filter(item => {
     const term = searchTerm.toLowerCase();
     return (
       item.clothingType.toLowerCase().includes(term) ||
       item.processName.toLowerCase().includes(term) ||
       (item.corteOs && item.corteOs.toLowerCase().includes(term)) ||
-      (item.category && item.category.toLowerCase().includes(term))
+      (item.category && item.category.toLowerCase().includes(term)) ||
+      (item.notes && item.notes.toLowerCase().includes(term))
     );
   });
 
@@ -184,26 +250,61 @@ export const GarmentCatalogView: React.FC = () => {
     return filteredCatalog.slice(start, start + 20);
   }, [filteredCatalog, currentPage]);
 
+  const isEditingDiferenciado = editingItem ? isItemDiferenciado(editingItem) : activeTab === 'diferenciado';
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
       {/* Header */}
       <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-colors">
         <div>
           <span className="text-xs font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 block mb-1">
-            Tabela de Peças & Lavagem
+            Tabela de Peças & Serviços
           </span>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Catálogo de Peças & Processos</h1>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Catálogo de Peças & Diferenciado</h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Cadastre os tipos de roupa, processos de lavagem e seus valores unitários para cálculo automático nos pedidos.
+            Cadastre e edite as peças, processos de lavagem e acabamentos diferenciados reutilizáveis nos pedidos.
           </p>
         </div>
 
         <button
           onClick={handleOpenAdd}
-          className="px-4 py-2.5 bg-sky-700 hover:bg-sky-800 text-white text-xs font-semibold rounded-xl transition-colors shadow-sm flex items-center gap-2 shrink-0"
+          className={`px-4 py-2.5 text-white text-xs font-semibold rounded-xl transition-colors shadow-sm flex items-center gap-2 shrink-0 ${
+            activeTab === 'diferenciado'
+              ? 'bg-purple-700 hover:bg-purple-800'
+              : 'bg-sky-700 hover:bg-sky-800'
+          }`}
         >
           <PlusCircle className="w-4 h-4" />
-          <span>Cadastrar Nova Peça</span>
+          <span>{activeTab === 'diferenciado' ? 'Cadastrar Diferenciado' : 'Cadastrar Nova Peça'}</span>
+        </button>
+      </div>
+
+      {/* Abas: Peças & Lavagem vs. Diferenciado */}
+      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
+        <button
+          type="button"
+          onClick={() => setActiveTab('pecas')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-colors ${
+            activeTab === 'pecas'
+              ? 'bg-sky-700 text-white shadow-sm'
+              : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
+          }`}
+        >
+          <Tag className="w-3.5 h-3.5" />
+          Peças & Lavagem ({pecasCatalog.length})
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('diferenciado')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-colors ${
+            activeTab === 'diferenciado'
+              ? 'bg-purple-700 text-white shadow-sm'
+              : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
+          }`}
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          Diferenciado ({diferenciadoCatalog.length})
         </button>
       </div>
 
@@ -215,14 +316,23 @@ export const GarmentCatalogView: React.FC = () => {
         </div>
       )}
 
-      {/* Modal de Cadastro / Edição de Peça */}
+      {/* Modal de Cadastro / Edição */}
       {isFormOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
           <div className="bg-white dark:bg-slate-900 w-full max-w-2xl p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl space-y-5 my-8 transition-colors">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
               <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider flex items-center gap-2">
-                <Tag className="w-4 h-4 text-sky-600 dark:text-sky-400" />
-                {editingItem ? `Editar: ${editingItem.clothingType}` : 'Cadastrar Nova Peça no Catálogo'}
+                {isEditingDiferenciado ? (
+                  <>
+                    <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                    {editingItem ? `Editar Diferenciado: ${editingItem.processName}` : 'Cadastrar Serviço Diferenciado'}
+                  </>
+                ) : (
+                  <>
+                    <Tag className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                    {editingItem ? `Editar: ${editingItem.clothingType}` : 'Cadastrar Nova Peça no Catálogo'}
+                  </>
+                )}
               </h2>
               <button 
                 type="button" 
@@ -242,136 +352,195 @@ export const GarmentCatalogView: React.FC = () => {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Tipo de Peça */}
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
-                    Tipo de Peça / Roupa <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ex: Calça Wide Leg, Bermuda Jeans..."
-                    value={clothingType}
-                    onChange={e => { setClothingType(e.target.value); if (errorMsg) setErrorMsg(null); }}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                    autoFocus
-                    required
-                  />
-                </div>
-
-                {/* Processo de Lavado */}
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
-                    Processo de Lavado <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ex: Amaciado, Hiper Destroi, Tingimento..."
-                    value={processName}
-                    onChange={e => { setProcessName(e.target.value); if (errorMsg) setErrorMsg(null); }}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                    required
-                  />
-                </div>
-
-                {/* Valor Unitário com Máscara Moeda Brasileira */}
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
-                    Valor Unitário por Peça <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3.5 top-2.5 text-xs font-bold text-slate-500 dark:text-slate-400 font-mono">
-                      R$
-                    </span>
+              {isEditingDiferenciado ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Nome do Serviço Diferenciado */}
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
+                      Nome do Serviço / Acabamento <span className="text-red-500">*</span>
+                    </label>
                     <input
                       type="text"
-                      inputMode="decimal"
-                      placeholder="0,00"
-                      value={unitPriceInput}
-                      onChange={handlePriceChange}
-                      onBlur={handlePriceBlur}
-                      className="w-full pl-11 pr-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-mono font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      placeholder="Ex: Pistolado, Bigode Laser, Bigode 3D, Puído Manual..."
+                      value={processName}
+                      onChange={e => { setProcessName(e.target.value); if (errorMsg) setErrorMsg(null); }}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      autoFocus
                       required
                     />
                   </div>
-                  <span className="text-[11px] text-slate-400 mt-1 block">
-                    Ex: Digite <strong>3,50</strong> ou <strong>3.50</strong>
-                  </span>
-                </div>
 
-                {/* Peso de Referência */}
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
-                    Peso de Referência (1 Peça) <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      step="1"
-                      min="1"
-                      placeholder="300"
-                      value={refWeightInput}
-                      onChange={e => { setRefWeightInput(e.target.value); if (errorMsg) setErrorMsg(null); }}
-                      className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-mono font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                      required
-                    />
-                    <span className="absolute right-3.5 top-2.5 text-xs font-mono font-bold text-slate-400">
-                      g
+                  {/* Valor Unitário */}
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
+                      Valor por Peça <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-2.5 text-xs font-bold text-slate-500 dark:text-slate-400 font-mono">
+                        R$
+                      </span>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="0,00"
+                        value={unitPriceInput}
+                        onChange={handlePriceChange}
+                        onBlur={handlePriceBlur}
+                        className="w-full pl-11 pr-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-mono font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        required
+                      />
+                    </div>
+                    <span className="text-[11px] text-slate-400 mt-1 block">
+                      Ex: Digite <strong>2,00</strong> ou <strong>1,50</strong>
                     </span>
                   </div>
-                  <span className="text-[11px] text-slate-400 mt-1 block">
-                    Peso médio em gramas para a balança
-                  </span>
-                </div>
 
-                {/* Corte / O.S. (Ref. Confecção) */}
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
-                    Corte / O.S. (Ref. Confecção)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ex: 014, CRT-2026, 4520..."
-                    value={corteOs}
-                    onChange={e => setCorteOs(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono"
-                  />
-                  <span className="text-[11px] text-slate-400 mt-1 block">
-                    Puxado automaticamente ao lançar pedidos com esta peça
-                  </span>
+                  {/* Observações */}
+                  <div className="sm:col-span-2">
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
+                      Observações
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Detalhes sobre este acabamento diferenciado..."
+                      value={notes}
+                      onChange={e => setNotes(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
                 </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Tipo de Peça */}
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
+                      Tipo de Peça / Roupa <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Calça Wide Leg, Bermuda Jeans..."
+                      value={clothingType}
+                      onChange={e => { setClothingType(e.target.value); if (errorMsg) setErrorMsg(null); }}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      autoFocus
+                      required
+                    />
+                  </div>
 
-                {/* Categoria */}
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
-                    Categoria
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ex: Calças, Bermudas, Jaquetas..."
-                    value={category}
-                    onChange={e => setCategory(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
-                  <span className="text-[11px] text-slate-400 mt-1 block">
-                    Classificação interna do item
-                  </span>
-                </div>
+                  {/* Processo de Lavado */}
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
+                      Processo de Lavado <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Amaciado, Hiper Destroi, Tingimento..."
+                      value={processName}
+                      onChange={e => { setProcessName(e.target.value); if (errorMsg) setErrorMsg(null); }}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      required
+                    />
+                  </div>
 
-                {/* Observações */}
-                <div className="sm:col-span-2">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
-                    Observações / Notas
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Detalhes adicionais de lavagem ou acabamento..."
-                    value={notes}
-                    onChange={e => setNotes(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
+                  {/* Valor Unitário com Máscara Moeda Brasileira */}
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
+                      Valor Unitário por Peça <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-2.5 text-xs font-bold text-slate-500 dark:text-slate-400 font-mono">
+                        R$
+                      </span>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="0,00"
+                        value={unitPriceInput}
+                        onChange={handlePriceChange}
+                        onBlur={handlePriceBlur}
+                        className="w-full pl-11 pr-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-mono font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        required
+                      />
+                    </div>
+                    <span className="text-[11px] text-slate-400 mt-1 block">
+                      Ex: Digite <strong>3,50</strong> ou <strong>3.50</strong>
+                    </span>
+                  </div>
+
+                  {/* Peso de Referência */}
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
+                      Peso de Referência (1 Peça) <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="1"
+                        min="1"
+                        placeholder="300"
+                        value={refWeightInput}
+                        onChange={e => { setRefWeightInput(e.target.value); if (errorMsg) setErrorMsg(null); }}
+                        className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-mono font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        required
+                      />
+                      <span className="absolute right-3.5 top-2.5 text-xs font-mono font-bold text-slate-400">
+                        g
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-slate-400 mt-1 block">
+                      Peso médio em gramas para a balança
+                    </span>
+                  </div>
+
+                  {/* Corte / O.S. (Ref. Confecção) */}
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
+                      Corte / O.S. (Ref. Confecção)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ex: 014, CRT-2026, 4520..."
+                      value={corteOs}
+                      onChange={e => setCorteOs(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono"
+                    />
+                    <span className="text-[11px] text-slate-400 mt-1 block">
+                      Puxado automaticamente ao lançar pedidos com esta peça
+                    </span>
+                  </div>
+
+                  {/* Categoria */}
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
+                      Categoria
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Calças, Bermudas, Jaquetas..."
+                      value={category}
+                      onChange={e => setCategory(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    />
+                    <span className="text-[11px] text-slate-400 mt-1 block">
+                      Classificação interna do item
+                    </span>
+                  </div>
+
+                  {/* Observações */}
+                  <div className="sm:col-span-2">
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
+                      Observações / Notas
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Detalhes adicionais de lavagem ou acabamento..."
+                      value={notes}
+                      onChange={e => setNotes(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
                 <button
@@ -383,7 +552,11 @@ export const GarmentCatalogView: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-sky-700 hover:bg-sky-800 text-white text-xs font-semibold rounded-xl transition-colors shadow-sm"
+                  className={`px-5 py-2 text-white text-xs font-semibold rounded-xl transition-colors shadow-sm ${
+                    isEditingDiferenciado
+                      ? 'bg-purple-700 hover:bg-purple-800'
+                      : 'bg-sky-700 hover:bg-sky-800'
+                  }`}
                 >
                   {editingItem ? 'Salvar Alterações' : 'Salvar no Catálogo'}
                 </button>
@@ -397,15 +570,19 @@ export const GarmentCatalogView: React.FC = () => {
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden space-y-4 transition-colors">
         <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Peças Cadastradas no Catálogo</h2>
-            <span className="text-[11px] text-slate-400">Total: {filteredCatalog.length} peça(s)</span>
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+              {activeTab === 'diferenciado' ? 'Serviços & Acabamentos Diferenciados' : 'Peças Cadastradas no Catálogo'}
+            </h2>
+            <span className="text-[11px] text-slate-400">
+              Total: {filteredCatalog.length} {activeTab === 'diferenciado' ? 'serviço(s)' : 'peça(s)'}
+            </span>
           </div>
 
           <div className="relative w-full sm:w-72">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
             <input
               type="text"
-              placeholder="Buscar por peça, processo ou categoria..."
+              placeholder={activeTab === 'diferenciado' ? 'Buscar diferenciado...' : 'Buscar por peça, processo ou categoria...'}
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               className="w-full pl-9 pr-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium"
@@ -414,79 +591,141 @@ export const GarmentCatalogView: React.FC = () => {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800">
-              <tr>
-                <th className="p-4">Tipo de Peça / Roupa</th>
-                <th className="p-4">Processo de Lavado</th>
-                <th className="p-4">Categoria</th>
-                <th className="p-4 text-right">Peso Ref.</th>
-                <th className="p-4 text-right">Valor Unitário</th>
-                <th className="p-4 text-center">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {filteredCatalog.length === 0 ? (
+          {activeTab === 'diferenciado' ? (
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800">
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-slate-400">
-                    Nenhum item cadastrado no catálogo.
-                  </td>
+                  <th className="p-4">Serviço / Acabamento Diferenciado</th>
+                  <th className="p-4">Observações</th>
+                  <th className="p-4 text-right">Valor por Peça</th>
+                  <th className="p-4 text-center">Ações</th>
                 </tr>
-              ) : (
-                paginatedCatalog.map(item => (
-                  <tr 
-                    key={item.id} 
-                    onDoubleClick={() => handleOpenEdit(item)}
-                    className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer select-none"
-                    title="Duplo clique para editar este item"
-                  >
-                    <td className="p-4 font-bold text-slate-900 dark:text-slate-100">
-                      <div>{item.clothingType}</div>
-                      {item.corteOs && (
-                        <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 font-mono text-[10px] font-medium border border-amber-200 dark:border-amber-800/50">
-                          Corte / Ref: {item.corteOs}
-                        </span>
-                      )}
-                    </td>
-                    <td className="p-4 font-medium text-slate-700 dark:text-slate-300">
-                      {item.processName}
-                    </td>
-                    <td className="p-4 text-slate-500 dark:text-slate-400">
-                      <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 text-[11px]">
-                        {item.category || 'Geral'}
-                      </span>
-                    </td>
-                    <td className="p-4 text-right font-mono font-medium text-slate-800 dark:text-slate-200">
-                      {item.defaultRefWeightGrams} g
-                    </td>
-                    <td className="p-4 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400 text-sm">
-                      {item.unitPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                    </td>
-                    <td className="p-4 text-center">
-                      <div className="flex items-center justify-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); handleOpenEdit(item); }}
-                          className="p-1.5 text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-                          title="Editar Peça"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); handleDelete(item); }}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors"
-                          title="Excluir Peça"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {filteredCatalog.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="p-8 text-center text-slate-400">
+                      Nenhum serviço diferenciado cadastrado.
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  paginatedCatalog.map(item => (
+                    <tr
+                      key={item.id}
+                      onDoubleClick={() => handleOpenEdit(item)}
+                      className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer select-none"
+                      title="Duplo clique para editar este serviço"
+                    >
+                      <td className="p-4 font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-purple-500 shrink-0"></span>
+                        <span>{item.processName}</span>
+                      </td>
+                      <td className="p-4 text-slate-500 dark:text-slate-400">
+                        {item.notes || '—'}
+                      </td>
+                      <td className="p-4 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400 text-sm">
+                        {item.unitPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </td>
+                      <td className="p-4 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleOpenEdit(item); }}
+                            className="p-1.5 text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                            title="Editar Diferenciado"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleDelete(item); }}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors"
+                            title="Excluir Diferenciado"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          ) : (
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800">
+                <tr>
+                  <th className="p-4">Tipo de Peça / Roupa</th>
+                  <th className="p-4">Processo de Lavado</th>
+                  <th className="p-4">Categoria</th>
+                  <th className="p-4 text-right">Peso Ref.</th>
+                  <th className="p-4 text-right">Valor Unitário</th>
+                  <th className="p-4 text-center">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {filteredCatalog.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="p-8 text-center text-slate-400">
+                      Nenhum item cadastrado no catálogo.
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedCatalog.map(item => (
+                    <tr 
+                      key={item.id} 
+                      onDoubleClick={() => handleOpenEdit(item)}
+                      className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer select-none"
+                      title="Duplo clique para editar este item"
+                    >
+                      <td className="p-4 font-bold text-slate-900 dark:text-slate-100">
+                        <div>{item.clothingType}</div>
+                        {item.corteOs && (
+                          <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 font-mono text-[10px] font-medium border border-amber-200 dark:border-amber-800/50">
+                            Corte / Ref: {item.corteOs}
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-4 font-medium text-slate-700 dark:text-slate-300">
+                        {item.processName}
+                      </td>
+                      <td className="p-4 text-slate-500 dark:text-slate-400">
+                        <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 text-[11px]">
+                          {item.category || 'Geral'}
+                        </span>
+                      </td>
+                      <td className="p-4 text-right font-mono font-medium text-slate-800 dark:text-slate-200">
+                        {item.defaultRefWeightGrams} g
+                      </td>
+                      <td className="p-4 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400 text-sm">
+                        {item.unitPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </td>
+                      <td className="p-4 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleOpenEdit(item); }}
+                            className="p-1.5 text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                            title="Editar Peça"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleDelete(item); }}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors"
+                            title="Excluir Peça"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
 
         <Pagination
@@ -494,7 +733,7 @@ export const GarmentCatalogView: React.FC = () => {
           totalItems={filteredCatalog.length}
           pageSize={20}
           onPageChange={setCurrentPage}
-          label="peças"
+          label={activeTab === 'diferenciado' ? 'serviços' : 'peças'}
         />
       </div>
     </div>

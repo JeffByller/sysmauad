@@ -58,7 +58,12 @@ export const INITIAL_GARMENT_CATALOG: GarmentProcessCatalogItem[] = [
   { id: 'gcat-cargo-ij', clothingType: 'CARGO INF/JUV', processName: 'HIPER DESTROYED', unitPrice: 4.50, defaultRefWeightGrams: 280, category: 'Infantil/Juvenil' },
   { id: 'gcat-colete-ad', clothingType: 'COLETE AD', processName: 'HIPER DESTROYED', unitPrice: 4.70, defaultRefWeightGrams: 250, category: 'Adulto' },
   { id: 'gcat-colete-ij', clothingType: 'COLETE INF/JUV', processName: 'HIPER DESTROYED', unitPrice: 3.50, defaultRefWeightGrams: 180, category: 'Infantil/Juvenil' },
-  { id: 'gcat-cropped-ad', clothingType: 'CROPPED AD', processName: 'HIPER DESTROYED', unitPrice: 4.70, defaultRefWeightGrams: 150, category: 'Adulto' }
+  { id: 'gcat-cropped-ad', clothingType: 'CROPPED AD', processName: 'HIPER DESTROYED', unitPrice: 4.70, defaultRefWeightGrams: 150, category: 'Adulto' },
+  { id: 'gcat-diff-pistolado', clothingType: 'DIFERENCIADO', processName: 'Pistolado', unitPrice: 2.00, defaultRefWeightGrams: 0, category: 'DIFERENCIADO', notes: 'Acabamento diferenciado' },
+  { id: 'gcat-diff-bigode-laser', clothingType: 'DIFERENCIADO', processName: 'Bigode Laser', unitPrice: 1.00, defaultRefWeightGrams: 0, category: 'DIFERENCIADO', notes: 'Acabamento diferenciado' },
+  { id: 'gcat-diff-puido-laser', clothingType: 'DIFERENCIADO', processName: 'Puído Laser', unitPrice: 1.50, defaultRefWeightGrams: 0, category: 'DIFERENCIADO', notes: 'Acabamento diferenciado' },
+  { id: 'gcat-diff-destroyed', clothingType: 'DIFERENCIADO', processName: 'Destroyed', unitPrice: 2.50, defaultRefWeightGrams: 0, category: 'DIFERENCIADO', notes: 'Acabamento diferenciado' },
+  { id: 'gcat-diff-resinagem', clothingType: 'DIFERENCIADO', processName: 'Resinagem', unitPrice: 3.00, defaultRefWeightGrams: 0, category: 'DIFERENCIADO', notes: 'Acabamento diferenciado' }
 ];
 
 export const INITIAL_CLIENTS: Client[] = [

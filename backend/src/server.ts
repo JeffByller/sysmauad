@@ -46,11 +46,13 @@ import {
 } from './security';
 import {
   generateAndSaveReport,
+  generatePrincipalReportsGroup,
   purgeExpiredReports,
   mapSharedReportRow,
   renderExpiredReportPage,
   REPORTS_BACKLOG_DIR
 } from './reportService';
+import { htmlFileToPdfBuffer } from './pdfService';
 import { licenseService } from './license/license.service';
 import { licenseGuard } from './license/license.middleware';
 import {
@@ -330,6 +332,101 @@ function cleanPhone(phone: string): string {
     return `55${digits}`;
   }
   return digits;
+}
+
+// fetch com tempo limite para nunca deixar a tela travada aguardando a Evolution API
+async function fetchWithTimeout(url: string, options: any = {}, timeoutMs = 20000): Promise<globalThis.Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      throw new Error('Tempo esgotado ao comunicar com o WhatsApp. Verifique a conexão do aparelho.');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Verifica se o WhatsApp está pareado antes de tentar qualquer envio
+async function assertWhatsAppConnected(): Promise<void> {
+  let state = 'close';
+  try {
+    const resp = await fetchWithTimeout(`${EVOLUTION_API_URL}/instance/connectionState/${WHATSAPP_INSTANCE}`, {
+      headers: { 'apikey': EVOLUTION_API_KEY }
+    }, 10000);
+    if (resp.ok) {
+      const data = await resp.json() as any;
+      state = data?.instance?.state || data?.state || 'close';
+    }
+  } catch (err: any) {
+    throw new Error(err.message || 'Não foi possível consultar o WhatsApp.');
+  }
+  if (state !== 'open') {
+    throw new Error('WhatsApp desconectado. Leia o QR Code em Configurações > WhatsApp antes de enviar.');
+  }
+}
+
+// Valida o número e retorna o telefone limpo, ou lança erro claro
+function requireValidPhone(phone: string | undefined | null): string {
+  const clean = cleanPhone(phone || '');
+  if (!clean) {
+    throw new Error('Informe o número de WhatsApp de destino (ou cadastre o número padrão em Relatórios Automáticos).');
+  }
+  if (clean.length < 12 || clean.length > 13) {
+    throw new Error('Número de WhatsApp inválido. Use DDD + número (ex: 81999999999).');
+  }
+  return clean;
+}
+
+// Converte o relatório HTML salvo em PDF e envia como documento pelo WhatsApp
+async function sendReportPdfViaWhatsApp(params: { phone: string; filePath: string; fileName: string; caption: string }): Promise<void> {
+  const pdfBuffer = await htmlFileToPdfBuffer(params.filePath);
+  const pdfName = params.fileName.replace(/\.html$/i, '.pdf');
+  const resp = await fetchWithTimeout(`${EVOLUTION_API_URL}/message/sendMedia/${WHATSAPP_INSTANCE}`, {
+    method: 'POST',
+    headers: { 'apikey': EVOLUTION_API_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      number: params.phone,
+      mediatype: 'document',
+      mimetype: 'application/pdf',
+      caption: params.caption,
+      fileName: pdfName,
+      media: pdfBuffer.toString('base64')
+    })
+  }, 60000);
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({})) as any;
+    const detail = body?.response?.message || body?.message;
+    throw new Error((Array.isArray(detail) ? JSON.stringify(detail) : detail) || 'Falha ao enviar o PDF pelo WhatsApp.');
+  }
+}
+
+// Helper: Legenda limpa e direta para envio de relatórios no WhatsApp
+function getCleanReportCaption(reportType?: string, customTitle?: string): string {
+  switch (reportType) {
+    case 'financeiro_hoje':
+      return '💰 RECEBIMENTOS FINANCEIROS DE HOJE';
+    case 'na_lavanderia':
+      return '📋 PEÇAS NA LAVANDERIA';
+    case 'entregues_hoje':
+      return '🚚 PEDIDOS ENTREGUES HOJE';
+    case 'passadores':
+      return '👔 RELATÓRIO DE PASSADORIA';
+    case 'lavados':
+      return '👕 RELATÓRIO DE PRODUÇÃO E LAVADOS';
+    case 'fornecedores':
+      return '📦 RELATÓRIO DE FORNECEDORES E INSUMOS';
+    case 'diferenciados':
+      return '✨ PRODUÇÃO DIFERENCIADA';
+    case 'principal_completo':
+    case 'gerencial_completo':
+      return '👔 RELATÓRIO PRINCIPAL';
+    default:
+      return customTitle ? customTitle.toUpperCase() : '📄 RELATÓRIO';
+  }
 }
 
 const VALID_BR_DDDS = new Set([
@@ -4082,38 +4179,44 @@ app.post('/whatsapp/preview-report', async (req: Request, res: Response) => {
 app.post('/whatsapp/send-test-report', async (req: Request, res: Response) => {
   try {
     const settingsRow = await query('SELECT * FROM sysmauad.system_settings WHERE id = $1', ['default']);
-    if (settingsRow.rows.length === 0) {
-      return res.status(404).json({ error: 'Configurações do sistema não encontradas.' });
+    const settings = settingsRow.rows.length > 0 ? mapSettings(settingsRow.rows[0]) : null;
+
+    let phone = '';
+    try {
+      phone = requireValidPhone(req.body?.phone || settings?.whatsappTargetPhone);
+      await assertWhatsAppConnected();
+    } catch (preErr: any) {
+      return res.status(400).json({ error: preErr.message });
     }
-    const settings = mapSettings(settingsRow.rows[0]);
-    const targetPhone = req.body.phone || settings.whatsappTargetPhone;
-    if (!targetPhone) {
-      return res.status(400).json({ error: 'Nenhum número cadastrado para envio. Informe o número nas configurações.' });
-    }
 
-    const reportText = await generateSystemReportText(settings);
-    const cleanNum = cleanPhone(targetPhone);
+    const baseUrl = getBaseUrl(req);
+    // Envia os relatórios selecionados nas configurações (ou os 3 principais por padrão)
+    const legacyMap: Record<string, string> = { producao: 'lavados', passadoria: 'passadores', financeiro: 'financeiro_hoje', gerencial_completo: 'na_lavanderia' };
+    const rawSelected = (settings?.selectedReports && settings.selectedReports.length > 0)
+      ? settings.selectedReports
+      : ['na_lavanderia', 'entregues_hoje', 'financeiro_hoje'];
+    const mappedTypes = Array.from(new Set(rawSelected.map((s: string) => legacyMap[s] || s)));
 
-    const resp = await fetch(`${EVOLUTION_API_URL}/message/sendText/${WHATSAPP_INSTANCE}`, {
-      method: 'POST',
-      headers: {
-        'apikey': EVOLUTION_API_KEY,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        number: cleanNum,
-        text: reportText
-      })
-    });
-
-    const result = await resp.json() as any;
-    if (!resp.ok) {
-      return res.status(resp.status).json({
-        error: result?.message || 'Falha ao enviar relatório. Verifique se o WhatsApp está conectado via QR Code.'
+    for (const repType of mappedTypes) {
+      const rep = await generateAndSaveReport({
+        reportType: repType as any,
+        periodPreset: 'hoje',
+        createdBy: 'Teste de Envio',
+        baseUrl,
+        targetPhone: phone
+      });
+      await sendReportPdfViaWhatsApp({
+        phone,
+        filePath: rep.filePath,
+        fileName: rep.fileName,
+        caption: getCleanReportCaption(rep.reportType, rep.title)
       });
     }
 
-    res.json({ success: true, message: `Relatório enviado com sucesso para ${targetPhone}!`, preview: reportText });
+    res.json({
+      success: true,
+      message: `Relatório(s) em PDF disparado(s) com sucesso para ${phone}!`
+    });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -4457,7 +4560,16 @@ app.post('/reports/generate', async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, message: 'Tipo de relatório e período são obrigatórios.' });
     }
 
-    const validTypes = ['lavados', 'passadores', 'fornecedores', 'gerencial_completo'];
+    const validTypes = [
+      'lavados',
+      'passadores',
+      'fornecedores',
+      'gerencial_completo',
+      'principal_completo',
+      'na_lavanderia',
+      'entregues_hoje',
+      'financeiro_hoje'
+    ];
     if (!validTypes.includes(reportType)) {
       return res.status(400).json({ success: false, message: `Tipo de relatório inválido. Use: ${validTypes.join(', ')}` });
     }
@@ -4467,7 +4579,82 @@ app.post('/reports/generate', async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, message: `Período inválido. Use: ${validPresets.join(', ')}` });
     }
 
+    const wantsWhatsApp = sendWhatsApp !== false;
+    let destPhone = '';
+
+    // Valida ANTES de gerar: número informado/cadastrado e WhatsApp conectado
+    if (wantsWhatsApp) {
+      const settingsRes = await query('SELECT * FROM sysmauad.system_settings WHERE id = $1', ['default']);
+      const settings = settingsRes.rows.length > 0 ? mapSettings(settingsRes.rows[0]) : null;
+      try {
+        destPhone = requireValidPhone(targetPhone || (settings ? settings.whatsappTargetPhone : ''));
+        await assertWhatsAppConnected();
+      } catch (preErr: any) {
+        return res.status(400).json({ success: false, message: preErr.message });
+      }
+    }
+
     const baseUrl = getBaseUrl(req);
+
+    // Se for o relatório principal completo, gera os 3 relatórios em PDFs separados
+    if (reportType === 'principal_completo' || reportType === 'gerencial_completo') {
+      const reports = await generatePrincipalReportsGroup({
+        createdBy: createdBy || 'Operador (Manual)',
+        baseUrl,
+        targetPhone: destPhone,
+        notes
+      });
+
+      let whatsAppSent = false;
+      let whatsAppError: string | undefined;
+
+      if (wantsWhatsApp) {
+        try {
+          for (const rep of reports) {
+            await sendReportPdfViaWhatsApp({
+              phone: destPhone,
+              filePath: rep.filePath,
+              fileName: rep.fileName,
+              caption: getCleanReportCaption(rep.reportType, rep.title)
+            });
+          }
+          whatsAppSent = true;
+          console.log(`[Reports] 3 PDFs do Relatório Principal enviados via WhatsApp para ${destPhone}`);
+        } catch (err: any) {
+          whatsAppError = err.message;
+          console.error('[Reports] Erro ao enviar PDFs do Relatório Principal via WhatsApp:', err.message);
+        }
+      }
+
+      const mainReport = reports[0];
+      return res.status(201).json({
+        success: true,
+        report: {
+          id: mainReport.reportId,
+          token: mainReport.token,
+          title: 'Relatório Principal Completo (3 PDFs)',
+          fileName: mainReport.fileName,
+          fileSizeBytes: mainReport.fileSizeBytes,
+          viewUrl: mainReport.viewUrl,
+          downloadUrl: mainReport.downloadUrl,
+          summaryText: reports.map(r => r.summaryText).join('\n\n'),
+          retentionDays: mainReport.retentionDays,
+          expiresAt: mainReport.expiresAt,
+          totalPieces: reports.reduce((s, r) => s + r.totalPieces, 0),
+          totalKg: reports.reduce((s, r) => s + r.totalKg, 0),
+          totalOrders: reports.reduce((s, r) => s + r.totalOrders, 0),
+          totalValue: reports.reduce((s, r) => s + r.totalValue, 0)
+        },
+        reports: reports.map(r => ({
+          title: r.title,
+          fileName: r.fileName,
+          viewUrl: r.viewUrl,
+          downloadUrl: r.downloadUrl
+        })),
+        whatsAppSent,
+        whatsAppError
+      });
+    }
 
     const result = await generateAndSaveReport({
       reportType,
@@ -4483,42 +4670,23 @@ app.post('/reports/generate', async (req: Request, res: Response) => {
       baseUrl
     });
 
-    // Envio opcional via WhatsApp
+    // Envio do PDF via WhatsApp
     let whatsAppSent = false;
     let whatsAppError: string | undefined;
 
-    if (sendWhatsApp !== false) {
-      const settingsRes = await query('SELECT * FROM sysmauad.system_settings WHERE id = $1', ['default']);
-      const settings = settingsRes.rows.length > 0 ? mapSettings(settingsRes.rows[0]) : null;
-      const phone = targetPhone || (settings ? settings.whatsappTargetPhone : '');
-
-      if (phone) {
-        const cleanNum = cleanPhone(phone);
-        try {
-          const resp = await fetch(`${EVOLUTION_API_URL}/message/sendText/${WHATSAPP_INSTANCE}`, {
-            method: 'POST',
-            headers: {
-              'apikey': EVOLUTION_API_KEY,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              number: cleanNum,
-              text: result.whatsAppMessage
-            })
-          });
-
-          const respBody = await resp.json() as any;
-          if (resp.ok) {
-            whatsAppSent = true;
-            console.log(`[Reports] Relatório "${result.title}" enviado via WhatsApp para ${cleanNum}`);
-          } else {
-            whatsAppError = respBody?.message || 'Falha no envio via WhatsApp';
-            console.warn('[Reports] Falha ao enviar relatório via WhatsApp:', whatsAppError);
-          }
-        } catch (err: any) {
-          whatsAppError = err.message;
-          console.error('[Reports] Erro ao enviar relatório via WhatsApp:', err.message);
-        }
+    if (wantsWhatsApp) {
+      try {
+        await sendReportPdfViaWhatsApp({
+          phone: destPhone,
+          filePath: result.filePath,
+          fileName: result.fileName,
+          caption: getCleanReportCaption(result.reportType, result.title)
+        });
+        whatsAppSent = true;
+        console.log(`[Reports] PDF "${result.title}" enviado via WhatsApp para ${destPhone}`);
+      } catch (err: any) {
+        whatsAppError = err.message;
+        console.error('[Reports] Erro ao enviar PDF via WhatsApp:', err.message);
       }
     }
 
@@ -4719,8 +4887,8 @@ function startAutomationScheduler() {
   setInterval(async () => {
     try {
       const now = new Date();
-      const timeStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Recife' });
-      const dateStr = now.toLocaleDateString('pt-BR', { timeZone: 'America/Recife' });
+      const timeStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Sao_Paulo' });
+      const dateStr = now.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
       const dayOfWeek = now.getDay();
       const dayOfMonth = now.getDate();
 
@@ -4751,25 +4919,36 @@ function startAutomationScheduler() {
 
         if (shouldSend) {
           lastReportDate = dateStr;
-          console.log(`[Automation] Disparando relatório automático ${settings.reportFrequency} para ${settings.whatsappTargetPhone}...`);
-          const reportText = await generateSystemReportText(settings);
-          const cleanNum = cleanPhone(settings.whatsappTargetPhone);
+          console.log(`[Automation] Disparando relatórios automáticos (${settings.reportFrequency}) em PDF para ${settings.whatsappTargetPhone}...`);
+          try {
+            const phone = requireValidPhone(settings.whatsappTargetPhone);
+            await assertWhatsAppConnected();
+            const baseUrl = (process.env.PUBLIC_URL || 'https://sysmauad.jeffgsan.com.br').replace(/\/+$/, '');
+            const legacyMap: Record<string, string> = { producao: 'lavados', passadoria: 'passadores', financeiro: 'financeiro_hoje', gerencial_completo: 'na_lavanderia' };
+            const rawSelected = (settings.selectedReports && settings.selectedReports.length > 0)
+              ? settings.selectedReports
+              : ['na_lavanderia', 'entregues_hoje', 'financeiro_hoje'];
+            const mappedTypes = Array.from(new Set(rawSelected.map((s: string) => legacyMap[s] || s)));
 
-          await fetch(`${EVOLUTION_API_URL}/message/sendText/${WHATSAPP_INSTANCE}`, {
-            method: 'POST',
-            headers: {
-              'apikey': EVOLUTION_API_KEY,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              number: cleanNum,
-              text: reportText
-            })
-          }).then(r => r.json()).then(res => {
-            console.log('[Automation] Relatório disparado com sucesso via WhatsApp:', res);
-          }).catch(err => {
-            console.error('[Automation] Erro ao disparar relatório automático:', err.message);
-          });
+            for (const repType of mappedTypes) {
+              const rep = await generateAndSaveReport({
+                reportType: repType as any,
+                periodPreset: 'hoje',
+                createdBy: 'Automação Diária',
+                baseUrl,
+                targetPhone: phone
+              });
+              await sendReportPdfViaWhatsApp({
+                phone,
+                filePath: rep.filePath,
+                fileName: rep.fileName,
+                caption: getCleanReportCaption(rep.reportType, rep.title)
+              });
+              console.log(`[Automation] PDF "${rep.title}" enviado com sucesso para ${phone}.`);
+            }
+          } catch (err: any) {
+            console.error('[Automation] Erro ao disparar relatórios automáticos em PDF:', err.message);
+          }
         }
       }
     } catch (err: any) {

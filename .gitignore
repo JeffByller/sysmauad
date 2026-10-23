@@ -33,3 +33,6 @@ Thumbs.db
 data/backups/*
 !data/backups/.gitkeep
 data/machine_id.txt
+
+data/reports_backlog/*
+!data/reports_backlog/.gitkeep
